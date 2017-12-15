@@ -20,8 +20,7 @@ import com.kivensoft.util.LruCache;
  *
  */
 public class NamedStatement implements Closeable {
-	private static final LruCache<String, MethodAccess> methodAccessCache
-				= new LruCache<String, MethodAccess>(32);
+	private static final LruCache<String, MethodAccess> methodAccessCache = new LruCache<>(32);
 	
 	private final PreparedStatement statement;
 	private final Map<String, List<Integer>> indexMap;

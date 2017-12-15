@@ -7,15 +7,18 @@ import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Formatter;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.kivensoft.function.Function;
-import com.kivensoft.function.IntFunction;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.stream.Stream;
 
 /**格式化到动态字符串缓冲区的类，采取缓存方式实现，增强对日期、数组、列表的格式化
  * @author Kiven Lee
@@ -33,7 +36,7 @@ public final class Fmt implements Appendable, CharSequence {
 	static final int MAX_CACHE_COUNT = 10;
 	
 	// 全局无锁非阻塞堆栈头部指针
-	static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<WeakReference<Fmt>>();
+	static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
 	WeakReference<Fmt> self, next;
 	
 	// 无锁非阻塞弹出栈顶元素
@@ -80,7 +83,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 */
 	public Fmt(int capacity) {
 		buffer = new StringBuilder(capacity);
-		self = new WeakReference<Fmt>(this);
+		self = new WeakReference<>(this);
 	}
 
 
@@ -472,12 +475,12 @@ public final class Fmt implements Appendable, CharSequence {
 			appendDateTime((Date)obj);
 		else if (cls == Long.class)
 			buffer.append(((Long)obj).longValue());
-//		else if (cls == LocalDateTime.class)
-//			append((LocalDateTime)obj);
-//		else if (cls == LocalDate.class)
-//			append((LocalDate)obj);
-//		else if (cls == LocalTime.class)
-//			append((LocalTime)obj);
+		else if (cls == LocalDateTime.class)
+			append((LocalDateTime)obj);
+		else if (cls == LocalDate.class)
+			append((LocalDate)obj);
+		else if (cls == LocalTime.class)
+			append((LocalTime)obj);
 		else if (cls == Float.class)
 			buffer.append(((Float)obj).floatValue());
 		else if (cls == Double.class)
@@ -501,8 +504,8 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		else if (CharSequence.class.isAssignableFrom(cls))
 			buffer.append((CharSequence)obj);
-//		else if (Stream.class.isAssignableFrom(cls))
-//			append((Stream<?>)obj, ",");
+		else if (Stream.class.isAssignableFrom(cls))
+			append((Stream<?>)obj, ",");
 		else if (cls.isEnum())
 			buffer.append(((Enum<?>)obj).name());
 		else if (Calendar.class.isAssignableFrom(cls))
@@ -657,20 +660,20 @@ public final class Fmt implements Appendable, CharSequence {
 				calendar.get(Calendar.SECOND));
 	}
 	
-//	/** 格式化LocalDate对象 */
-//	public Fmt append(LocalDate date) {
-//		return appendDate(date.getYear(), date.getMonthValue(), date.getDayOfMonth());
-//	}
-//	
-//	/** 格式化LocalTime对象 */
-//	public Fmt append(LocalTime time) {
-//		return appendTime(time.getHour(), time.getMinute(), time.getSecond());
-//	}
-//	
-//	/** 格式化LocalDatetime对象 */
-//	public Fmt append(LocalDateTime datetime) {
-//		return append(datetime.toLocalDate()).append(' ').append(datetime.toLocalTime());
-//	}
+	/** 格式化LocalDate对象 */
+	public Fmt append(LocalDate date) {
+		return appendDate(date.getYear(), date.getMonthValue(), date.getDayOfMonth());
+	}
+	
+	/** 格式化LocalTime对象 */
+	public Fmt append(LocalTime time) {
+		return appendTime(time.getHour(), time.getMinute(), time.getSecond());
+	}
+	
+	/** 格式化LocalDatetime对象 */
+	public Fmt append(LocalDateTime datetime) {
+		return append(datetime.toLocalDate()).append(' ').append(datetime.toLocalTime());
+	}
 	
 	/** 格式化数组
 	 * @param value 数组
@@ -792,56 +795,56 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
-//	/** 格式化流
-//	 * @param stream java8的流
-//	 * @param delimiter 分隔符
-//	 * @return
-//	 */
-//	public <T> Fmt append(Stream<T> stream, String delimiter) {
-//		return append(stream, delimiter, null, null, null);
-//	}
+	/** 格式化流
+	 * @param stream java8的流
+	 * @param delimiter 分隔符
+	 * @return
+	 */
+	public <T> Fmt append(Stream<T> stream, String delimiter) {
+		return append(stream, delimiter, null, null, null);
+	}
 	
-//	/** 格式化流
-//	 * @param stream java8的流
-//	 * @param delimiter 分隔符
-//	 * @param prefix 前缀字符串
-//	 * @param suffix 后缀字符串
-//	 * @return
-//	 */
-//	public <T> Fmt append(Stream<T> stream, String delimiter, String prefix, String suffix) {
-//		return append(stream, delimiter, prefix, suffix, null);
-//	}
-//	
-//	/** 格式化流
-//	 * @param stream java8的流
-//	 * @param delimiter 分隔符
-//	 * @param func 每个流元素的回调处理函数
-//	 * @return
-//	 */
-//	public <T> Fmt append(Stream<T> stream, String delimiter, Function<T, Object> func) {
-//		return append(stream, delimiter, null, null, func);
-//	}
+	/** 格式化流
+	 * @param stream java8的流
+	 * @param delimiter 分隔符
+	 * @param prefix 前缀字符串
+	 * @param suffix 后缀字符串
+	 * @return
+	 */
+	public <T> Fmt append(Stream<T> stream, String delimiter, String prefix, String suffix) {
+		return append(stream, delimiter, prefix, suffix, null);
+	}
 	
-//	/** 格式化流元素
-//	 * @param stream 流
-//	 * @param delimiter 分隔符
-//	 * @param prefix 前缀
-//	 * @param suffix 后缀
-//	 * @param func 格式化lambda表达式
-//	 * @return
-//	 */
-//	public <T> Fmt append(Stream<T> stream, String delimiter, String prefix,
-//			String suffix, Function<T, Object> func) {
-//		if (prefix != null) buffer.append(prefix);
-//		boolean[] first = {true};
-//		stream.forEach(v -> {
-//			if (first[0]) first[0] = false;
-//			else buffer.append(delimiter);
-//			append(func == null ? v : func.apply(v));
-//		});
-//		if (suffix != null) buffer.append(suffix);
-//		return this;
-//	}
+	/** 格式化流
+	 * @param stream java8的流
+	 * @param delimiter 分隔符
+	 * @param func 每个流元素的回调处理函数
+	 * @return
+	 */
+	public <T> Fmt append(Stream<T> stream, String delimiter, Function<T, Object> func) {
+		return append(stream, delimiter, null, null, func);
+	}
+	
+	/** 格式化流元素
+	 * @param stream 流
+	 * @param delimiter 分隔符
+	 * @param prefix 前缀
+	 * @param suffix 后缀
+	 * @param func 格式化lambda表达式
+	 * @return
+	 */
+	public <T> Fmt append(Stream<T> stream, String delimiter, String prefix,
+			String suffix, Function<T, Object> func) {
+		if (prefix != null) buffer.append(prefix);
+		boolean[] first = {true};
+		stream.forEach(v -> {
+			if (first[0]) first[0] = false;
+			else buffer.append(delimiter);
+			append(func == null ? v : func.apply(v));
+		});
+		if (suffix != null) buffer.append(suffix);
+		return this;
+	}
 	
 	void appendNull() {
 		buffer.append('n').append('u').append('l').append('l');
@@ -958,12 +961,12 @@ public final class Fmt implements Appendable, CharSequence {
 			append('"').appendDateTime((Date)value).append('"');
 		else if (value instanceof Calendar)
 			append('"').append((Calendar)value).append('"');
-//		else if (value instanceof LocalDateTime)
-//			append('"').append((LocalDateTime)value).append('"');
-//		else if (value instanceof LocalDate)
-//			append('"').append((LocalDate)value).append('"');
-//		else if (value instanceof LocalTime)
-//			append('"').append((LocalTime)value).append('"');
+		else if (value instanceof LocalDateTime)
+			append('"').append((LocalDateTime)value).append('"');
+		else if (value instanceof LocalDate)
+			append('"').append((LocalDate)value).append('"');
+		else if (value instanceof LocalTime)
+			append('"').append((LocalTime)value).append('"');
 		else if (value instanceof Iterable<?>)
 			iterableToJson((Iterable<?>)value);
 		else if (value.getClass().isArray())
@@ -994,7 +997,7 @@ public final class Fmt implements Appendable, CharSequence {
 					|| !msn.startsWith("get")
 					|| msn.charAt(3) == '_'
 					|| msn.equals("getClass")
-					|| m.getParameterTypes().length > 0) {
+					|| m.getParameterCount() > 0) {
 				continue;
 			}
 			try {

@@ -38,7 +38,7 @@ public class LruCache<K, V> implements Serializable {
 		this._cacheSize = cacheSize;
 		this.timeout = timeout;
 		this.cacheLock = (isSynchronlzed) ? new ReentrantLock() : null;
-		this.data = new HashMap<K, CacheObject>(initSize);
+		this.data = new HashMap<>(initSize);
 	}
 
 	protected boolean removeEldestEntry(int currentSize) {

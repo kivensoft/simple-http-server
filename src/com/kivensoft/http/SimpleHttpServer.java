@@ -20,7 +20,6 @@ import java.util.concurrent.ExecutorService;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
-import com.kivensoft.function.Supplier;
 import com.kivensoft.util.Fmt;
 import com.kivensoft.util.MyLogger;
 import com.kivensoft.util.ObjectPool;
@@ -42,7 +41,7 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 
 	private HttpServer httpServer;
-	private Map<String, MethodInfo> handles = new HashMap<String, MethodInfo>();
+	private Map<String, MethodInfo> handles = new HashMap<>();
 	private String serverName;
 
 	public void start(int port, ExecutorService executorService) throws Exception {
@@ -89,7 +88,8 @@ public class SimpleHttpServer implements HttpHandler {
 		pathAppend(sb, prefix);
 		int prefix_len = sb.length();
 
-		List<Class<?>> clss = ScanPackage.getClasses(packageName, true, null);
+		List<Class<?>> clss = ScanPackage.getClasses(packageName, true,
+				clsName -> clsName.endsWith(CTRL_NAME));
 		for (int i = 0, n = clss.size(); i < n; ++i) {
 			mapClass(clss.get(i), sb, true);
 			sb.setLength(prefix_len);
@@ -126,7 +126,7 @@ public class SimpleHttpServer implements HttpHandler {
 	
 	/** 获取已经生效的映射url */
 	final public Map<String, String> getAllMappingPath() {
-		Map<String, String> ret = new LinkedHashMap<String, String>();
+		Map<String, String> ret = new LinkedHashMap<>();
 		for (Map.Entry<String, MethodInfo> item : handles.entrySet())
 			ret.put(item.getKey(), item.getValue().desc);
 		return ret;
@@ -228,7 +228,7 @@ public class SimpleHttpServer implements HttpHandler {
 	/** 解析url地址带的参数成hashmap类型返回值 */
 	@SuppressWarnings("unchecked")
 	final private HashMap<String, Object> parseQuery(String query) throws UnsupportedEncodingException {
-		HashMap<String, Object> ret = new HashMap<String, Object>();
+		HashMap<String, Object> ret = new HashMap<>();
 		if (query == null || query.isEmpty()) return ret;
 		int start, idx = -1;
 		do {
@@ -245,18 +245,15 @@ public class SimpleHttpServer implements HttpHandler {
 					pos + 1, idx > 0 ? idx : query.length()), UTF_8);
 			
 			// 写入键值到字典表中
-			Object old_value = ret.get(key);
-			if (old_value == null)
-				ret.put(key, value);
-			else {
-				ArrayList<String> values;
-				Class<?> old_cls = old_value.getClass();
-				if (old_cls == String.class) {
-					values = new ArrayList<String>();
+			Object old_value = ret.putIfAbsent(key, value);
+			if (old_value != null) {
+				List<String> values;
+				if (old_value instanceof String) {
+					values = new ArrayList<>();
 					values.add((String)old_value);
 				}
-				else if (old_cls == ArrayList.class) {
-					values = (ArrayList<String>)old_value;
+				else if (old_value instanceof List<?>) {
+					values = (List<String>)old_value;
 				}
 				else continue;
 				values.add(value);
@@ -371,25 +368,13 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** char数组对象池 */
-	private ObjectPool<CharsItem> charsPool = new ObjectPool<CharsItem>(
-			new Supplier<CharsItem>() {
-				@Override public CharsItem get() {
-					return new CharsItem();
-				} 
-	});
-
+	private ObjectPool<CharsItem> charsPool = new ObjectPool<>(() -> new CharsItem()); 
 	private class CharsItem extends ObjectPool.Item {
 		char[] buf = new char[512];
 	}
 	
 	/** StringBuilder对象池 */
-	private ObjectPool<BufferItem> bufferPool = new ObjectPool<BufferItem>(
-			new Supplier<BufferItem>() {
-				@Override public BufferItem get() {
-					return new BufferItem();
-				}
-	});
-
+	private ObjectPool<BufferItem> bufferPool = new ObjectPool<>(() -> new BufferItem()); 
 	private class BufferItem extends ObjectPool.Item {
 		StringBuilder sb = new StringBuilder(1024);
 		@Override

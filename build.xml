@@ -4,7 +4,7 @@
 	<!-- 版本号，生成的jar文件名中带版本号 -->
 	<property name="version" value="1.0" />
 	<!-- 程序发布路径 -->
-	<property name="output" value="z:/deploy" />
+	<property name="output" value="c:/xxx" />
 	<!-- 主函数main的入口类，生成jar必备 -->
 	<property name="MainClass" value="com.kivensoft.http.Example"/>
 	<!-- 非src目录下的其它源文件，打包进jar文件 -->

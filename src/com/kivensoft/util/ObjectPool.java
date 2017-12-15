@@ -2,8 +2,7 @@ package com.kivensoft.util;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicReference;
-
-import com.kivensoft.function.Supplier;
+import java.util.function.Supplier;
 
 /** 对象池，采用弱引用方式保存使用过的对象，减少创建对象的次数，降低内存占用率
  * 使用方法: 
@@ -28,7 +27,7 @@ public class ObjectPool<T extends ObjectPool.Item> {
 	}
 	
 	// 全局无锁非阻塞堆栈头部指针
-	AtomicReference<WeakReference<Item>> head = new AtomicReference<WeakReference<Item>>();
+	AtomicReference<WeakReference<Item>> head = new AtomicReference<>();
 	Supplier<T> supplier;
 	
 	public ObjectPool(Supplier<T> supplier) {
@@ -72,7 +71,7 @@ public class ObjectPool<T extends ObjectPool.Item> {
 			try {
 				value = supplier.get();
 				value._pool = (ObjectPool<Item>) this;
-				value._self = new WeakReference<Item>(value);
+				value._self = new WeakReference<>(value);
 			} catch (Exception e) { }
 		return value;
 	}

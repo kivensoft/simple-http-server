@@ -8,6 +8,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 import javax.crypto.Mac;
@@ -324,14 +325,26 @@ public abstract class Strings {
 		return ret;
 	}
 	
+	/** 判断是否是纯数字,允许开头有加减号
+	 * @param text 要判断的文本
+	 * @return true:纯数字,false:不是纯数字
+	 */
 	public static boolean isInt(String text) {
 		return Pattern.matches("[\\+\\-]?[0-9]+", text);
 	}
 
+	/** 判断字符串是否浮点数格式
+	 * @param text 要判断的文本
+	 * @return true:浮点数,false:不是浮点数
+	 */
 	public static boolean isFloat(String text) {
 		return Pattern.matches("[\\+\\-]?[0-9]+(\\.[0-9]+)?", text);
 	}
 	
+	/** 判断是否金额格式
+	 * @param text 要判断的文本
+	 * @return true:金额格式,false:不是金额格式
+	 */
 	public static boolean isMoney(String text) {
 		return Pattern.matches("[\\+\\-]?[0-9]+(\\.[0-9][0-9]?)?", text);
 	}
@@ -341,26 +354,43 @@ public abstract class Strings {
 	private static DateFormat dfTime = new SimpleDateFormat("HH:mm:ss");
 	private static DateFormat dfGmtDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
+	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式
+	 * @param date 要格式化的日期对象
+	 * @return 格式化后的文本
+	 */
 	public static String formatDateTime(java.util.Date date) {
 		synchronized (dfDateTime) {
 			return dfDateTime.format(date);
 		}
 	}
 	
+	/** 格式化日期时间为"yyyy-MM-dd"格式
+	 * @param date 要格式化的日期对象
+	 * @return 格式化后的文本
+	 */
 	public static String formatDate(java.util.Date date) {
 		synchronized (dfDate) {
 			return dfDate.format(date);
 		}
 	}
 	
+	/** 格式化日期时间为"HH:mm:ss"格式
+	 * @param date 要格式化的日期对象
+	 * @return 格式化后的文本
+	 */
 	public static String formatTime(java.util.Date date) {
 		synchronized (dfTime) {
 			return dfTime.format(date);
 		}
 	}
 	
+	/** 格式化日期时间为"yyyy-MM-dd'T' HH:mm:ss'Z'"格式
+	 * @param date 要格式化的日期对象
+	 * @return 格式化后的文本
+	 */
 	public static String formatGmtDate(java.util.Date date) {
 		synchronized (dfGmtDateTime) {
+			dfGmtDateTime.setTimeZone(TimeZone.getTimeZone("GMT"));
 			return dfGmtDateTime.format(date);
 		}
 	}
@@ -397,10 +427,25 @@ public abstract class Strings {
 	
 	public static void main(String[] args) throws Exception {
 		if(args.length == 0)
-			System.out.println("Usage: Crypt <string>");
-		else if(args.length == 1){
-			System.out.println("hex    " + toHex(args[0].getBytes("UTF-8")));
-			System.out.println("base64 " + toBase64(args[0].getBytes("UTF-8")));
+			System.out.println("Usage: Crypt <string> <string>");
+		else {
+			System.out.printf("hex            : %s -> %s\n",
+					args[0], toHex(args[0].getBytes("UTF-8")));
+			System.out.printf("base64         : %s -> %s\n",
+					args[0], toBase64(args[0].getBytes("UTF-8")));
+			if(args.length == 1){
+				System.out.printf("md5_hex        : %s -> %s\n",
+						args[0], md5(args[0]));
+				System.out.printf("md5_base64     : %s -> %s\n",
+						args[0], toBase64(md5(args[0].getBytes("UTF-8"))));
+			}
+			else if (args.length == 2) {
+				System.out.printf("hmacsha1_hex   : %s, %s -> %s\n",
+						args[0], args[1], hmacsha1(args[0], args[1]));
+				System.out.printf("hmacsha1_base64: %s, %s -> %s\n",
+						args[0], args[1], toBase64(hmacsha1(args[0].getBytes("UTF-8"),
+								args[1].getBytes("UTF-8"))));
+			}
 		}
 	}
 

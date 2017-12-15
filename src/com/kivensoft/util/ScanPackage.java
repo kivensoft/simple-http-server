@@ -1,7 +1,6 @@
 package com.kivensoft.util;
 
 import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.JarURLConnection;
@@ -10,10 +9,9 @@ import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
-
-import com.kivensoft.function.Predicate;
 
 /** 获取指定包下的所有类，自动循环扫描下级目录
  * @author Kiven Lee
@@ -49,7 +47,7 @@ final public class ScanPackage {
 			Predicate<String> predicate) {
 		
 		// 第一个class类的集合
-		List<Class<?>> classes = new ArrayList<Class<?>>();
+		List<Class<?>> classes = new ArrayList<>();
 		// 获取包的名字 并进行替换
 		String packageDirName = packageName.replace('.', '/');
 		// 定义一个枚举的集合 并进行循环来处理这个目录下的things
@@ -95,11 +93,8 @@ final public class ScanPackage {
 
 		// 如果存在 就获取包下的所有文件 包括目录
 		// 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
-		File[] dirfiles = dir.listFiles(new FileFilter() {
-			@Override public boolean accept(File file) {
-				return recursive && file.isDirectory() || file.getName().endsWith(CLASS_NAME);
-			}
-		});
+		File[] dirfiles = dir.listFiles(file ->
+			recursive && file.isDirectory() || file.getName().endsWith(CLASS_NAME));
 
 		// 循环所有文件
 		for (int i = 0, n = dirfiles.length; i < n; ++i) {

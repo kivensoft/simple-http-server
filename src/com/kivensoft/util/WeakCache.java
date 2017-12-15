@@ -8,7 +8,7 @@ import java.util.WeakHashMap;
  * @version 1.0.0
  */
 public class WeakCache<K, V> {
-	private WeakHashMap<K, WeakReference<V>> map = new WeakHashMap<K, WeakReference<V>>();
+	private WeakHashMap<K, WeakReference<V>> map = new WeakHashMap<>();
 	
 	public boolean containsKey(K key) {
 		return map.containsKey(key);

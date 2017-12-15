@@ -6,11 +6,14 @@ import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
-
-import com.kivensoft.function.Predicate;
+import java.util.function.Predicate;
 
 /** 基于jdk8的实用函数集合
  * @author Kiven Lee
@@ -64,7 +67,7 @@ public final class Langs {
 					String name = m.getName();
 					if (name.length() < 4 || name.equals("getClass")
 							|| !name.startsWith("get")
-							|| m.getParameterTypes().length > 0)
+							|| m.getParameterCount() > 0)
 						continue;
 					sb.setLength(1); // 第一个字符固定为's'
 					Method m2 = cls.getMethod(
@@ -113,7 +116,7 @@ public final class Langs {
 					Object obj = args[i];
 					if (obj == null) continue;
 					Method m = obj.getClass().getMethod("close");
-					if (m != null && m.getParameterTypes().length == 0)
+					if (m != null && m.getParameterCount() == 0)
 						m.invoke(obj);
 				}
 			}
@@ -155,20 +158,20 @@ public final class Langs {
     	return null;
     }
 
-//	/** 转换为Date类型 */
-//	public static Date toDate(LocalDate date) {
-//		return Date.from(date.atStartOfDay().atZone(ZoneId.systemDefault()) .toInstant());
-//	}
-//	
-//	/** 转换为Date类型 */
-//	public static Date toDate(LocalDateTime daettime) {
-//		return Date.from(daettime.atZone(ZoneId.systemDefault()) .toInstant());
-//	}
-//	
-//	/** 转换为Date类型 */
-//	public static Date toDate(LocalDate date, LocalTime time) {
-//		return toDate(LocalDateTime.of(date, time));
-//	}
+	/** 转换为Date类型 */
+	public static Date toDate(LocalDate date) {
+		return Date.from(date.atStartOfDay().atZone(ZoneId.systemDefault()) .toInstant());
+	}
+	
+	/** 转换为Date类型 */
+	public static Date toDate(LocalDateTime daettime) {
+		return Date.from(daettime.atZone(ZoneId.systemDefault()) .toInstant());
+	}
+	
+	/** 转换为Date类型 */
+	public static Date toDate(LocalDate date, LocalTime time) {
+		return toDate(LocalDateTime.of(date, time));
+	}
 	
 	/** 转换为Date类型 */
 	public static Date toDate(int year, int month, int day) {
@@ -186,20 +189,20 @@ public final class Langs {
 		}
 	}
 	
-//	/** 转换为LocalDate类型 */
-//	public static LocalDate toLocalDate(Date value) {
-//		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-//	}
-//
-//	/** 转换为LocalTime类型 */
-//	public static LocalTime toLocalTime(Date value) {
-//		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalTime();
-//	}
-//	
-//	/** 转换为LocalDateTime类型 */
-//	public static LocalDateTime toLocalDateTime(Date value) {
-//		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
-//	}
+	/** 转换为LocalDate类型 */
+	public static LocalDate toLocalDate(Date value) {
+		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+	}
+
+	/** 转换为LocalTime类型 */
+	public static LocalTime toLocalTime(Date value) {
+		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalTime();
+	}
+	
+	/** 转换为LocalDateTime类型 */
+	public static LocalDateTime toLocalDateTime(Date value) {
+		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+	}
 	
 	/** 获取系统的今天，只包含日期部分 */
 	public static Date today() {
@@ -267,12 +270,12 @@ public final class Langs {
 				return (T)new BigDecimal(value);
 			if (cls == BigInteger.class)
 				return (T)new BigInteger(value);
-//			if (cls == LocalDate.class)
-//				return (T)parseLocalDate(value);
-//			if (cls == LocalDateTime.class)
-//				return (T)parseLocalDateTime(value);
-//			if (cls == LocalTime.class)
-//				return (T)parseLocalTime(value);
+			if (cls == LocalDate.class)
+				return (T)parseLocalDate(value);
+			if (cls == LocalDateTime.class)
+				return (T)parseLocalDateTime(value);
+			if (cls == LocalTime.class)
+				return (T)parseLocalTime(value);
 			if (cls == Double.class || cls == Double.TYPE)
 				return (T)Double.valueOf(value);
 			if (cls == Byte.class || cls == Byte.TYPE)
@@ -324,12 +327,8 @@ public final class Langs {
 	
 	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
 	public static int[] splitDate (String value) {
-		final int[] vs = new int[7];
-		splitInt(value, new SplitFunc(){
-			@Override public void accept(int index, int value) {
-				if (index < 7) vs[index] = value;
-			}
-		});
+		int[] vs = new int[7];
+		splitInt(value, (i, v) -> { if (i < 7) vs[i] = v; });
 		return vs;
 	}
 	
@@ -350,74 +349,74 @@ public final class Langs {
 		return ret;
 	}
 	
-//	public static LocalDate parseLocalDate(String text) {
-//		if (text == null || text.isEmpty()) return null;
-//		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-//		int[] vs = splitDate(text);
-//		return LocalDate.of(vs[0], vs[1], vs[2]);
-//	}
-//
-//	public static LocalDateTime parseLocalDateTime(String text) {
-//		if (text == null || text.isEmpty()) return null;
-//		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-//		int[] vs = splitDate(text);
-//		return LocalDateTime.of(vs[0], vs[1], vs[2], vs[3], vs[4], vs[5], vs[6]);
-//	}
-//
-//	public static LocalTime parseLocalTime(String text) {
-//		if (text == null || text.isEmpty()) return null;
-//		if (text.indexOf(':') < 1 || text.length() < 5) return null;
-//		int[] vs = splitDate(text);
-//		return LocalTime.of(vs[0], vs[1], vs[2], vs[3]);
-//	}
+	public static LocalDate parseLocalDate(String text) {
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		int[] vs = splitDate(text);
+		return LocalDate.of(vs[0], vs[1], vs[2]);
+	}
+
+	public static LocalDateTime parseLocalDateTime(String text) {
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		int[] vs = splitDate(text);
+		return LocalDateTime.of(vs[0], vs[1], vs[2], vs[3], vs[4], vs[5], vs[6]);
+	}
+
+	public static LocalTime parseLocalTime(String text) {
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf(':') < 1 || text.length() < 5) return null;
+		int[] vs = splitDate(text);
+		return LocalTime.of(vs[0], vs[1], vs[2], vs[3]);
+	}
 
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Act {
 		void accept();
 	}
 	
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Act1<T1> {
 		void accept(T1 arg);
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Act2<T1, T2> {
 		void accept(T1 arg1, T2 arg2);
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Act3<T1, T2, T3> {
 		void accept(T1 arg1, T2 arg2, T3 arg3);
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Act4<T1, T2, T3, T4> {
 		void accept(T1 arg1, T2 arg2, T3 arg3, T4 arg4);
 	}
 	
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Func<R> {
 		R apply();
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Func1<T1, R> {
 		R apply(T1 arg);
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Func2<T1, T2, R> {
 		R apply(T1 arg1, T2 arg2);
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Func3<T1, T2, T3, R> {
 		R apply(T1 arg1, T2 arg2, T3 arg3);
 	}
 
-//	@FunctionalInterface
+	@FunctionalInterface
 	public interface Func4<T1, T2, T3, T4, R> {
 		R apply(T1 arg1, T2 arg2, T3 arg3, T4 arg4);
 	}

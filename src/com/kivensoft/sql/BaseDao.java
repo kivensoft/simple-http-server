@@ -8,14 +8,14 @@ import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
-import com.kivensoft.function.Predicate;
-import com.kivensoft.function.Supplier;
 import com.kivensoft.util.Fmt;
 import com.kivensoft.util.MyLogger;
 import com.kivensoft.util.WeakCache;
@@ -27,23 +27,22 @@ import com.kivensoft.util.WeakCache;
 public abstract class BaseDao {
 	private static final int MAX_COLUMN_LENGTH = 128;
 	
-//	@FunctionalInterface
+	@FunctionalInterface
 	public static interface OnQuery<T> {
 		T apply(ResultSet rs) throws SQLException;
 	}
 	
-//	@FunctionalInterface
+	@FunctionalInterface
 	public static interface OnTransaction<T> {
 		T apply() throws SQLException;
 	}
 	
-//	@FunctionalInterface
+	@FunctionalInterface
 	public static interface OnConnection {
 		void apply() throws Exception;
 	}
 	
-	protected static final WeakCache<String, MethodAccess> methodAccessCache
-			= new WeakCache<String, MethodAccess>();
+	protected static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
 	protected Connection conn;
 	protected List<Savepoint> savepoints;
 
@@ -99,8 +98,9 @@ public abstract class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
+	@SuppressWarnings("unchecked")
 	final public <T> int[] executeBatch(String sql, T... args) throws SQLException {
-		return executeBatch(sql, Arrays.asList(args).iterator());
+		return executeBatch(sql, Stream.of(args).iterator());
 	}
 	
 	/** 批量执行SQL，参数批量
@@ -121,9 +121,7 @@ public abstract class BaseDao {
 	 */
 	final public <T> int[] executeBatch(String sql, Iterator<T> iterator) throws SQLException {
 		checkConnection();
-		NamedStatement stmt = null;
-		try {
-			stmt = new NamedStatement(conn, sql);
+		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			while (iterator.hasNext()) {
 				T arg = iterator.next();
 				if (arg != null) {
@@ -140,9 +138,6 @@ public abstract class BaseDao {
 			logException(e);
 			throw e;
 		}
-		finally {
-			if (stmt != null) stmt.close();
-		}
 	}
 	
 	/** 无参数执行sql语句
@@ -152,9 +147,7 @@ public abstract class BaseDao {
 	 */
 	final public int execute(String sql) throws SQLException {
 		checkConnection();
-		Statement stmt = null;
-		try {
-			stmt = conn.createStatement();
+		try (Statement stmt = conn.createStatement()) {
 			logSQL(sql, null);
 			int ret = stmt.executeUpdate(sql);
 			logExecuteCount(ret);
@@ -163,9 +156,6 @@ public abstract class BaseDao {
 		catch (SQLException e) {
 			logException(e);
 			throw e;
-		}
-		finally {
-			if (stmt != null) stmt.close();
 		}
 	}
 
@@ -177,9 +167,7 @@ public abstract class BaseDao {
 	 */
 	final public int execute(String sql, Object arg) throws SQLException {
 		checkConnection();
-		NamedStatement stmt = null;
-		try {
-			stmt = new NamedStatement(conn, sql);
+		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			if (arg != null) stmt.setParams(arg);
 			logSQL(sql, arg);
 			int ret = stmt.executeUpdate();
@@ -189,9 +177,6 @@ public abstract class BaseDao {
 		catch (SQLException e) {
 			logException(e);
 			throw e;
-		}
-		finally {
-			if (stmt != null) stmt.close();
 		}
 	}
 
@@ -233,9 +218,7 @@ public abstract class BaseDao {
 	 */
 	final public int execute(String sql, Object... args) throws SQLException {
 		checkConnection();
-		PreparedStatement stmt = null;
-		try {
-			stmt = conn.prepareStatement(sql);
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 			for(int i = 0, n = args.length; i < n; ++i)
 				stmt.setObject(i + 1, args[i]);
 			logSQL(sql, args);
@@ -246,9 +229,6 @@ public abstract class BaseDao {
 		catch (SQLException e) {
 			logException(e);
 			throw e;
-		}
-		finally {
-			if (stmt != null) stmt.close();
 		}
 	}
 	
@@ -335,11 +315,7 @@ public abstract class BaseDao {
         }
 	}
 	
-	private OnQuery<Object> _qo = new OnQuery<Object>() {
-		@Override public Object apply(ResultSet rs) throws SQLException {
-			return rs.next() ? rs.getObject(1) : 0;
-		}
-	};
+	private OnQuery<Object> _qo = rs -> { return rs.next() ? rs.getObject(1) : 0; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -422,7 +398,7 @@ public abstract class BaseDao {
 		public Qlist(Class<T> cls) { this.cls = cls; }
 		@Override
 		public List<T> apply(ResultSet rs) throws SQLException {
-			List<T> ret = new ArrayList<T>();
+			List<T> ret = new ArrayList<>();
 			return mapperList(rs, ret, cls);
 		}
 	};
@@ -500,11 +476,7 @@ public abstract class BaseDao {
 		else if (dbType == 2) sql = LAST_INSERT_QUERY_HSQL;
 		else throw new SQLException("unsupport database driver.");
 
-		return query(sql, new OnQuery<Integer>() {
-			@Override public Integer apply(ResultSet rs) throws SQLException {
-				return rs.next() ? rs.getInt(1) : 0;
-			}
-		});
+		return query(sql, rs -> { return rs.next() ? rs.getInt(1) : 0; });
 	}
 	
 	/** 判断是否处于事务状态 */

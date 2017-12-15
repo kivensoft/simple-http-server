@@ -67,18 +67,16 @@ public final class ConfigureFactory {
 	public static Properties load(String configFile, String rootPath, Class<?> mainClass) {
 		//加载配置文件,优先从部署目录中读取，找不到时才从jar包中读取
 		File f = new File(rootPath, configFile);
-		Reader r = null;
-		Properties props = null;
-		try {
-			r = f.exists() ? new InputStreamReader(new FileInputStream(f), UTF8)
-					: new InputStreamReader(mainClass.getResourceAsStream("/" + configFile), UTF8);
-			props = new Properties();
+		try (Reader r = f.exists()
+				? new InputStreamReader(new FileInputStream(f), UTF8)
+				: new InputStreamReader(mainClass.getResourceAsStream("/" + configFile), UTF8)) {
+			Properties props = new Properties();
 			props.load(r);
+			return props;
 		} catch (IOException e) {
 			MyLogger.warn(e, "load properties error.");
+			return null;
 		}
-		if (r != null) try {r.close(); } catch (IOException e) {}
-		return props;
 	}
 
 	/** 获取程序路径，主要是要区分部署与开发之间的路径区别 
@@ -137,14 +135,14 @@ public final class ConfigureFactory {
 	}
 	  
 	private static Map<String, Class<?>> getSetMethods(Class<?> cls) {
-		Map<String, Class<?>> ret = new HashMap<String, Class<?>>();
+		Map<String, Class<?>> ret = new HashMap<>();
 		StringBuilder sb = new StringBuilder();
 		for (Method m : cls.getMethods()) {
 			String name = m.getName();
 			//只查找getXXX函数，换成setXXX函数
 			if ((name.length() >= 4) && (name.startsWith("get"))
 					&& (!name.equals("getClass"))
-					&& (m.getParameterTypes().length <= 0)) {
+					&& (m.getParameterCount() <= 0)) {
 				ret.put(sb.append('s').append(name, 1, name.length())
 						.toString(), m.getReturnType());
 				sb.setLength(0);
