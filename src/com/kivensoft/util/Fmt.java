@@ -1271,6 +1271,10 @@ public final class Fmt implements Appendable, CharSequence {
 		return buffer.subSequence(start, end);
 	}
 	
+	public String substring(int start, int end) {
+		return buffer.substring(start, end);
+	}
+
 	void appendJavascriptString(CharSequence value) {
 		if(value == null) appendNull();
 		else if(value.length() == 0) buffer.append('"').append('"');
