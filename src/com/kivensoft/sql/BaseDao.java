@@ -315,7 +315,7 @@ public abstract class BaseDao {
         }
 	}
 	
-	private OnQuery<Object> _qo = rs -> { return rs.next() ? rs.getObject(1) : 0; };
+	private OnQuery<Object> _qo = rs -> { return rs.next() ? rs.getObject(1) : null; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -344,6 +344,132 @@ public abstract class BaseDao {
 	 */
 	final public Object queryForSingle(String sql, Object... args) throws SQLException {
 		return query(sql, _qo, args);
+	}
+	
+	private OnQuery<Integer> _qoint = rs -> { return rs.next() ? rs.getInt(1) : null; };
+
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Integer queryForInt(String sql) throws SQLException {
+		return query(sql, _qoint);
+	}
+
+
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param arg  基于命名方式的参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Integer queryForInt(String sql, Object arg) throws SQLException {
+		return query(sql, arg, _qoint);
+	}
+
+
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param args  多个参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Integer queryForInt(String sql, Object... args) throws SQLException {
+		return query(sql, _qoint, args);
+	}
+
+	private OnQuery<Long> _qolong = rs -> { return rs.next() ? rs.getLong(1) : null; };
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Long queryForLong(String sql) throws SQLException {
+		return query(sql, _qolong);
+	}
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param arg  基于命名方式的参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Long queryForLong(String sql, Object arg) throws SQLException {
+		return query(sql, arg, _qolong);
+	}
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param args  多个参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Long queryForLong(String sql, Object... args) throws SQLException {
+		return query(sql, _qolong, args);
+	}
+	
+	private OnQuery<String> _qostr = rs -> { return rs.next() ? rs.getString(1) : null; };
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public String queryForString(String sql) throws SQLException {
+		return query(sql, _qostr);
+	}
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param arg  基于命名方式的参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public String queryForString(String sql, Object arg) throws SQLException {
+		return query(sql, arg, _qostr);
+	}
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param args  多个参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public String queryForString(String sql, Object... args) throws SQLException {
+		return query(sql, _qostr, args);
+	}
+	
+	private OnQuery<Date> _qodate = rs -> { return rs.next() ? rs.getDate(1) : null; };
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Date queryForDate(String sql) throws SQLException {
+		return query(sql, _qodate);
+	}
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param arg  基于命名方式的参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Date queryForDate(String sql, Object arg) throws SQLException {
+		return query(sql, arg, _qodate);
+	}
+	
+	/** 通用查询语句,返回一个基本对象
+	 * @param sql  SQL语句
+	 * @param args  多个参数
+	 * @return 返回的基本对象
+	 * @throws SQLException
+	 */
+	final public Date queryForDate(String sql, Object... args) throws SQLException {
+		return query(sql, _qodate, args);
 	}
 	
 	private class Qobj<T> implements OnQuery<T> {
@@ -673,20 +799,20 @@ public abstract class BaseDao {
 	}
 	
 	final protected static String columnNameToFieldName(String columnName, char[] tmpBuf) {
-		return columnNameTo(columnName, tmpBuf, 0, false);
+		return columnNameMap(columnName, tmpBuf, 0, false);
 	}
 	
 	final protected static String columnNameToSetMethodName(String columnName, char[] tmpBuf) {
 		tmpBuf[0] = 's'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
-		return columnNameTo(columnName, tmpBuf, 3, true);
+		return columnNameMap(columnName, tmpBuf, 3, true);
 	}
 	
 	final protected static String columnNameToGetMethodName(String columnName, char[] tmpBuf) {
 		tmpBuf[0] = 'g'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
-		return columnNameTo(columnName, tmpBuf, 3, true);
+		return columnNameMap(columnName, tmpBuf, 3, true);
 	}
 	
-	final protected static String columnNameTo(String columnName, char[] tmpBuf, int start, boolean firstUpper) {
+	protected static String columnNameMap(String columnName, char[] tmpBuf, int start, boolean firstUpper) {
 		char[] chars = tmpBuf;
 		for (int i = 0, n = columnName.length(); i < n; ++i) {
 			char c = columnName.charAt(i);
