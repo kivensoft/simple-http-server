@@ -1,4 +1,4 @@
-package com.kivensoft.sql;
+package cn.kivensoft.sql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -16,9 +16,10 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
-import com.kivensoft.util.Fmt;
-import com.kivensoft.util.MyLogger;
-import com.kivensoft.util.WeakCache;
+
+import cn.kivensoft.util.Fmt;
+import cn.kivensoft.util.MyLogger;
+import cn.kivensoft.util.WeakCache;
 
 /** 简单的DAO基类
  * @author kiven

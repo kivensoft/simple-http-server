@@ -1,4 +1,4 @@
-package com.kivensoft.sql;
+package cn.kivensoft.sql;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -13,7 +13,7 @@ import javax.sql.ConnectionEventListener;
 import javax.sql.ConnectionPoolDataSource;
 import javax.sql.PooledConnection;
 
-import com.kivensoft.util.MyLogger;
+import cn.kivensoft.util.MyLogger;
 
 /** 轻量级连接池类
  * @author kiven lee

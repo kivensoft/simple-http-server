@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -264,7 +264,7 @@ public final class Langs {
 				return (T)Float.valueOf(value);
 			if (cls == Date.class)
 				return (T)parseDate(value);
-			if (cls == Boolean.class)
+			if (cls == Boolean.class || cls == Boolean.TYPE)
 				return (T)Boolean.valueOf(value);
 			if (cls == BigDecimal.class)
 				return (T)new BigDecimal(value);

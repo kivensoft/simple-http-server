@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
