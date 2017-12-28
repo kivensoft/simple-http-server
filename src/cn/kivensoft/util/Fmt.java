@@ -145,7 +145,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param args 格式化参数
 	 */
 	public static void pl(String format, Object... args) {
-		System.out.println(fmt(format, args));
+		get().format(format, args).toStream(System.out);;
 	}
 
 	/** 输出到控制台
@@ -153,9 +153,25 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param func 返回格式化参数的lambda表达式
 	 */
 	public static void pl(String format, IntFunction<Object> func) {
-		Fmt f = get().format(format, func);
-		System.out.append(f.buffer);
-		f.recycle();
+		get().format(format, func).toStream(System.out);;
+	}
+	
+	/** 输出到流
+	 * @param stream 指定输出的流
+	 * @param format 格式化字符串
+	 * @param args 格式化参数列表
+	 */
+	public static void out(PrintStream stream, String format, Object... args) {
+		get().format(format, args).toStream(stream);
+	}
+
+	/** 输出到流
+	 * @param stream 指定输出的流
+	 * @param format 格式化字符串
+	 * @param args 格式化参数列表
+	 */
+	public static void out(OutputStream stream, String format, Object... args) {
+		get().format(format, args).toStream(stream);
 	}
 
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
@@ -218,6 +234,45 @@ public final class Fmt implements Appendable, CharSequence {
 		for (int i = 0, n = args.length; i < n; ++i)
 			f.buffer.append(args[i]);
 		return f.release();
+	}
+	
+	/** 生成指定重复数量的字符串
+	 * @param c 指定重复的字符
+	 * @param count 重复数量
+	 * @return 字符串结果
+	 */
+	public static String rep(char c, int count) {
+		return Fmt.get().repeat(c, count).release();
+	}
+	
+	/** 生成指定重复次数的字符串
+	 * @param text 指定要重复的字符串
+	 * @param count 重复数量
+	 * @return 生成的字符串
+	 */
+	public static String rep(String text, int count) {
+		return get().repeat(text, count, '\0', '\0').release();
+	}
+	
+	/** 生成指定重复次数的字符串
+	 * @param text 指定要重复的字符串
+	 * @param count 重复数量
+	 * @param delimiter 重复分隔符
+	 * @return 生成的字符串
+	 */
+	public static String rep(String text, int count, char delimiter) {
+		return get().repeat(text, count, delimiter, '\0').release();
+	}
+	
+	/** 生成指定重复次数的字符串
+	 * @param text 指定要重复的字符串
+	 * @param count 重复数量
+	 * @param delimiter1 重复前缀分隔符
+	 * @param delimiter2 重复后缀分隔符
+	 * @return 生成的字符串
+	 */
+	public static String rep(String text, int count, char delimiter1, char delimiter2) {
+		return get().repeat(text, count, delimiter1, delimiter2).release();
 	}
 	
 	/** 返回格式化后的字符串，用缓冲区对象进行
@@ -332,7 +387,7 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	
 	public void toStream(PrintStream stream) {
-		stream.print(buffer.toString());
+		stream.append(buffer);
 		recycle();
 	}
 	
@@ -342,9 +397,8 @@ public final class Fmt implements Appendable, CharSequence {
 
 	public void toStream(OutputStream stream, String charsetName) {
 		try {
-			stream.write(buffer.toString().getBytes(charsetName));
+			stream.write(release().getBytes(charsetName));
 		} catch (IOException e) { }
-		recycle();
 	}
 
 	/** 回收对象，返回对象生成的字符串 */
@@ -455,10 +509,17 @@ public final class Fmt implements Appendable, CharSequence {
 		return -1;
 	}
 	
+	/** 获取平台相关的回车换行符
+	 * @return 回车换行符
+	 */
+	public String NL() {
+		if (newline == null) newline = System.getProperty("line.separator");
+		return newline;
+	}
+	
 	/** 添加回车换行,与系统平台相关 */
 	public Fmt nl() {
-		if (newline == null) newline = System.getProperty("line.separator");
-		return append(newline);
+		return append(NL());
 	}
 
 	public Fmt append(Object obj) {
@@ -938,6 +999,16 @@ public final class Fmt implements Appendable, CharSequence {
 	public Fmt repeat(String text, int count, String delimiter) {
 		if (count-- > 0) buffer.append(text);
 		while (count-- > 0) buffer.append(delimiter).append(text);
+		return this;
+	}
+	
+	/** 生成指定重复次数的字符串
+	 * @param c 需要重复的字符
+	 * @param count
+	 * @return
+	 */
+	public Fmt repeat(char c, int count) {
+		while(--count >= 0) buffer.append(c);
 		return this;
 	}
 	
