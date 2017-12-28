@@ -4,11 +4,11 @@
 	<!-- 版本号，生成的jar文件名中带版本号 -->
 	<property name="version" value="1.0" />
 	<!-- 程序发布路径 -->
-	<property name="output" value="c:/xxx" />
+	<property name="output" value="build" />
 	<!-- 主函数main的入口类，生成jar必备 -->
 	<property name="MainClass" value="com.kivensoft.http.Example"/>
 	<!-- 非src目录下的其它源文件，打包进jar文件 -->
-	<property name="jar.inc" value="build.xml,readme.md"/>
+	<property name="jar.inc" value="README.md, LICENSE"/>
 	<!-- 复制到发布目录下的非lib下的文件 -->
 	<!--
 	<property name="dist.readme" value="readme.txt,run.bat"/>
@@ -21,7 +21,6 @@
 	<property name="src" value="src" />
 	<property name="lib" value="lib" />
 	<property name="bin" value="bin" />
-	<property name="author" value="Kiven Lee"/>
 
 	<!-- 引用的jar包设置 -->
 	<path id="${project.name}.classpath">
@@ -30,7 +29,8 @@
 
 	<!-- 获取当前时间 -->
 	<tstamp>
-		<format property="build.time" pattern="yyyy-MM-dd HH:mm:ss"/>
+		<format property="build.time" pattern="yyyy-MM-dd'T'HH:mm:ssZ"/>
+		<format property="now" pattern="yyyy-MM-dd HH:mm:ss"/>
 	</tstamp>
 
 	<!-- 创建编译文件输出路径及部署文件路径 -->
@@ -65,18 +65,19 @@
 		<jar destfile="${jarfile}" filesetmanifest="mergewithoutmain">
 			<!-- 修改缺省主类 -->
 			<manifest>
+				<attribute name="Created-By" value="${ant.version}" />
+				<attribute name="Built-By" value="Kiven Lee" />
 				<attribute name="Build-Jdk" value="${java.version}" />
 				<attribute name="Main-Class" value="${MainClass}" />
 				<attribute name="Class-Path" value="${mf.classpath}" />
 				<attribute name="Implementation-Title" value="${ant.project.name}" />
 				<attribute name="Implementation-Version" value="${version}" />
-				<attribute name="Implementation-Maker" value="${author}" />
 				<attribute name="Implementation-Time" value="${build.time}" />
 			</manifest>
 			<!-- 编译后的目录下的所有文件 -->
 			<fileset dir="${basedir}/${bin}"/>
 			<!-- 其它需要包含的文件 -->
-			<!--fileset dir="${basedir}" includes="${jar.inc}"/-->
+			<fileset dir="${basedir}" includes="${jar.inc}"/>
 			<!-- 源文件 -->
 			<!--fileset dir="${basedir}" includes="${src}/**" /-->
 		</jar>
@@ -84,9 +85,11 @@
 
 	<target name="dist" depends="jar">
 		<!-- 复制lib和其它需要发布的文件到发布目录 -->
+		<!--
 		<copy todir="${output}/${lib}" preservelastmodified="true">
 			<fileset dir="${lib}" />
 		</copy>
+		-->
 		<!--
 		<copy todir="${output}" preservelastmodified="true">
 			<fileset dir="${basedir}" includes="${dist.readme}"/>
@@ -96,7 +99,7 @@
 	</target>
 
 	<target name="build" depends="jar">
-		<echo>application distribution [${output}] successful at ${build.time}</echo>
+		<echo>${ant.project.name} build successful at ${now}</echo>
 	</target>
 </project>
 
