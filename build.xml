@@ -6,7 +6,7 @@
 	<!-- 程序发布路径 -->
 	<property name="output" value="build" />
 	<!-- 主函数main的入口类，生成jar必备 -->
-	<property name="MainClass" value="com.kivensoft.http.Example"/>
+	<property name="MainClass" value="cn.kivensoft.http.Example"/>
 	<!-- 非src目录下的其它源文件，打包进jar文件 -->
 	<property name="jar.inc" value="README.md, LICENSE"/>
 	<!-- 复制到发布目录下的非lib下的文件 -->
@@ -99,6 +99,7 @@
 	</target>
 
 	<target name="build" depends="jar">
+		<echo>java compile use ${java.version}</echo>
 		<echo>${ant.project.name} build successful at ${now}</echo>
 	</target>
 </project>

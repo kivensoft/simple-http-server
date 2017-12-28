@@ -29,18 +29,18 @@ import java.util.stream.Stream;
  *
  */
 public final class Fmt implements Appendable, CharSequence {
-	static final String UTF8 = "UTF-8";
+	private static final String UTF8 = "UTF-8";
 	//允许回收的StringBuilder的最大长度，超过该长度的不进行回收
-	static final int DEF_BUF_SIZE = 256;
+	private static final int DEF_BUF_SIZE = 256;
 	//缓冲对象的数量，超过的丢弃
-	static final int MAX_CACHE_COUNT = 10;
+	//private static final int MAX_CACHE_COUNT = 10;
 	
 	// 全局无锁非阻塞堆栈头部指针
-	static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
-	WeakReference<Fmt> self, next;
+	private static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
+	private WeakReference<Fmt> self, next;
 	
 	// 无锁非阻塞弹出栈顶元素
-	static Fmt pop() {
+	public static Fmt pop() {
 		WeakReference<Fmt> _old_head, _new_head;
 		Fmt _item;
 		do {
@@ -58,7 +58,7 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	
 	// 无锁非阻塞元素压入栈顶
-	static void push(Fmt value) {
+	public static void push(Fmt value) {
 		if (value.next != null) return;
 		WeakReference<Fmt> _old_head;
 		do {
@@ -68,10 +68,10 @@ public final class Fmt implements Appendable, CharSequence {
 		} while (!head.compareAndSet(_old_head, value.self));
 	}
 	
-	StringBuilder buffer;
-	Calendar calendar;
-	Formatter formatter;
-	String newline;
+	private StringBuilder buffer;
+	private Calendar calendar;
+	private Formatter formatter;
+	private String newline;
 	
 	/** 缺省构造函数 */
 	public Fmt() {
@@ -110,14 +110,32 @@ public final class Fmt implements Appendable, CharSequence {
 		return get().format(format, args).release();
 	}
 	
+	/** 以{}为格式化标识符进行快速格式化，类似日志输出
+	 * @param format 格式化字符串
+	 * @param arg1 格式化参数1
+	 * @return
+	 */
 	public static String fmt(String format, Object arg1) {
 		return get().format(format, arg1, null, null).release();
 	}
 	
+	/** 以{}为格式化标识符进行快速格式化，类似日志输出
+	 * @param format 格式化字符串
+	 * @param arg1 格式化参数1
+	 * @param arg2 格式化参数2
+	 * @return
+	 */
 	public static String fmt(String format, Object arg1, Object arg2) {
 		return get().format(format, arg1, arg2, null).release();
 	}
 	
+	/** 以{}为格式化标识符进行快速格式化，类似日志输出
+	 * @param format 格式化字符串
+	 * @param arg1 格式化参数1
+	 * @param arg2 格式化参数2
+	 * @param arg3 格式化参数3
+	 * @return
+	 */
 	public static String fmt(String format, Object arg1, Object arg2, Object arg3) {
 		return get().format(format, arg1, arg2, arg3).release();
 	}
@@ -381,20 +399,53 @@ public final class Fmt implements Appendable, CharSequence {
 	public String toString() {
 		return buffer.toString();
 	}
+
+	/** 将字符串内容转成UTF-8字节数组返回
+	 * @return 返回的字节数组
+	 */
+	public byte[] toBytes() {
+		return toBytes(0, buffer.length());
+	}
 	
+	/** 将字符串内容转成UTF-8字节数组返回
+	 * @param start 起始位置
+	 * @param end 结束位置
+	 * @return 返回的字节数组
+	 */
+	public byte[] toBytes(int start, int end) {
+		try {
+			byte[] bytes = buffer.substring(start, end).getBytes(UTF8);
+			recycle();
+			return bytes;
+		} catch (UnsupportedEncodingException e) {
+			return null;
+		}
+	}
+	
+	/** 输出到标准输出流 */
 	public void toStream() {
 		toStream(System.out);
 	}
 	
+	/** 输出到流
+	 * @param stream 输出的目标流
+	 */
 	public void toStream(PrintStream stream) {
 		stream.append(buffer);
 		recycle();
 	}
 	
+	/** 以UTF-8编码格式输出到流
+	 * @param stream 输出的目标流
+	 */
 	public void toStream(OutputStream stream) {
 		toStream(stream, UTF8);
 	}
 
+	/** 输出到流
+	 * @param stream 输出的目标流
+	 * @param charsetName 字符串编码
+	 */
 	public void toStream(OutputStream stream, String charsetName) {
 		try {
 			stream.write(release().getBytes(charsetName));
@@ -442,14 +493,32 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
+	/** 使用{}作为格式化参数进行格式化 
+	 * @param format 字符串格式模板
+	 * @param arg1 格式化参数1
+	 * @return
+	 */
 	public Fmt format(String format, Object arg1) {
 		return format(format, arg1, null, null);
 	}
 
+	/** 使用{}作为格式化参数进行格式化 
+	 * @param format 字符串格式模板
+	 * @param arg1 格式化参数1
+	 * @param arg2 格式化参数2
+	 * @return
+	 */
 	public Fmt format(String format, Object arg1, Object arg2) {
 		return format(format, arg1, arg2, null);
 	}
 	
+	/** 使用{}作为格式化参数进行格式化 
+	 * @param format 字符串格式模板
+	 * @param arg1 格式化参数1
+	 * @param arg2 格式化参数2
+	 * @param arg3 格式化参数3
+	 * @return
+	 */
 	public Fmt format(String format, Object arg1, Object arg2, Object arg3) {
 		for (int i = -1, pos = nextPlaceHolder(format, 0);
 				pos >= 0; pos = nextPlaceHolder(format, pos)) 
@@ -522,6 +591,10 @@ public final class Fmt implements Appendable, CharSequence {
 		return append(NL());
 	}
 
+	/** 对象内容追加进缓冲区, 函数自动判断大部分系统自带类型进行追加
+	 * @param obj 要追加内容的对象实例
+	 * @return
+	 */
 	public Fmt append(Object obj) {
 		if (obj == null) {
 			appendNull();
@@ -576,22 +649,27 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
+	/** 追加一个整数值 */
 	public Fmt append(int value) {
 		buffer.append(value); return this;
 	}
 
+	/** 追加一个长整数值 */
 	public Fmt append(long value) {
 		buffer.append(value); return this;
 	}
 
+	/** 追加一个值 */
 	public Fmt append(boolean value) {
 		buffer.append(value); return this;
 	}
 
+	/** 追加一个值 */
 	public Fmt append(float value) {
 		buffer.append(value); return this;
 	}
 
+	/** 追加一个值 */
 	public Fmt append(double value) {
 		buffer.append(value); return this;
 	}
@@ -601,10 +679,12 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append(c); return this;
 	}
 
+	/** 追加一个值 */
 	public Fmt append(char[] str) {
 		buffer.append(str); return this;
 	}
 
+	/** 追加一个值 */
 	public Fmt append(char str[], int offset, int len) {
 		buffer.append(str, offset, len); return this;
 	}
@@ -647,7 +727,7 @@ public final class Fmt implements Appendable, CharSequence {
 		return appendDateTime(date);
 	}
 
-	Calendar getCalendar(Date date) {
+	private Calendar getCalendar(Date date) {
 		if(calendar == null) calendar = Calendar.getInstance();
 		calendar.setTime(date);
 		return calendar;
@@ -907,11 +987,11 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
-	void appendNull() {
+	private void appendNull() {
 		buffer.append('n').append('u').append('l').append('l');
 	}
 	
-	final static int [] sizeTable = { 9, 99, 999, 9999, 99999, 999999, 9999999,
+	private final static int [] sizeTable = { 9, 99, 999, 9999, 99999, 999999, 9999999,
 			99999999, 999999999, Integer.MAX_VALUE };
 	
 	/** 追加整数，不足前面补0
@@ -1056,7 +1136,7 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	void objectToJson(Object value) {
+	private void objectToJson(Object value) {
 		buffer.append('{');
 		Class<?> cls = value.getClass();
 		Method[] ms = cls.getMethods();
@@ -1087,7 +1167,7 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append('}');
 	}
 
-	void iterableToJson(Iterable<?> value) {
+	private void iterableToJson(Iterable<?> value) {
 		Iterator<?> iter = value.iterator();
 		buffer.append('[');
 		if (iter.hasNext()) appendJson(iter.next());
@@ -1098,7 +1178,7 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append(']');
 	}
 
-	void charToJson(Character value) {
+	private void charToJson(Character value) {
 		buffer.append('"');
 		switch (value) {
 			case '\b': buffer.append('\\').append('b'); break;
@@ -1114,7 +1194,7 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append('"');
 	}
 
-	void mapToJson(Map<?, ?> value) {
+	private void mapToJson(Map<?, ?> value) {
 		buffer.append('{');
 		boolean first = true;
 		for (Map.Entry<?, ?> v : value.entrySet()) {
@@ -1127,7 +1207,7 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append('}');
 	}
 
-	void arrayToJson(Object value) {
+	private void arrayToJson(Object value) {
 		buffer.append('[');
 		int n = Array.getLength(value);
 		if (n > 0) appendJson(Array.get(value, 0));
@@ -1148,7 +1228,7 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	*/
 
-	final static char[] HEX_DIGEST = "0123456789abcdef".toCharArray();
+	private final static char[] HEX_DIGEST = "0123456789abcdef".toCharArray();
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes) {
@@ -1229,9 +1309,9 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
-	final static char[] BASE64_DIGEST = 
+	private final static char[] BASE64_DIGEST = 
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
-	final static char PAD = '=';
+	private final static char PAD = '=';
 
 	/** base64编码
 	 * @param bytes 要编码的字节数组
@@ -1298,32 +1378,46 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
+	/** 变更指定位置的字符 */
 	public Fmt setCharAt(int index, char ch) {
 		buffer.setCharAt(index, ch);
 		return this;
 	}
 
+	/** 删除指定位置的字符 */
 	public Fmt delete(int start, int end) {
 		buffer.delete(start, end);
 		return this;
 	}
 
+	/** 删除指定位置的字符 */
 	public Fmt deleteCharAt(int index) {
 		buffer.deleteCharAt(index);
 		return this;
 	}
 
+	/** 删除最后一个字符 */
 	public Fmt deleteLastChar() {
-		if(buffer.length() > 0)
-			buffer.setLength(buffer.length() - 1);
+		return deleteLastChar(1);
+	}
+	
+	/** 删除最后count个字符
+	 * @param count 要删除的字符数量
+	 * @return
+	 */
+	public Fmt deleteLastChar(int count) {
+		if(buffer.length() >= count)
+			buffer.setLength(buffer.length() - count);
 		return this;
 	}
 	
+	/** 设置字符串缓冲区长度 */
 	public Fmt setLength(int newLength) {
 		buffer.setLength(newLength);
 		return this;
 	}
 	
+	/** 重新调整字符串缓冲区长度 */
 	public Fmt reduce(int size) {
 		int len = buffer.length();
 		if (size >= len) buffer.setLength(len - size);
@@ -1340,16 +1434,25 @@ public final class Fmt implements Appendable, CharSequence {
 		return buffer.length();
 	}
 	
+	public CharSequence subSequence(int start) {
+		return subSequence(start, buffer.length());
+	}
+	
 	@Override
 	public CharSequence subSequence(int start, int end) {
 		return buffer.subSequence(start, end);
+	}
+	
+	public String substring(int start) {
+		return substring(start, buffer.length());
 	}
 	
 	public String substring(int start, int end) {
 		return buffer.substring(start, end);
 	}
 	
-	void appendJavascriptString(CharSequence value) {
+	/** 以json字符串方式追加字符串, 自动对字符串进行json方式转义 */
+	public void appendJavascriptString(CharSequence value) {
 		if(value == null) appendNull();
 		else if(value.length() == 0) buffer.append('"').append('"');
 		else {
