@@ -1,4 +1,4 @@
-package com.kivensoft.sql;
+package cn.kivensoft.sql;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -14,11 +14,12 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
-import com.kivensoft.function.Predicate;
-import com.kivensoft.function.Supplier;
-import com.kivensoft.util.Fmt;
-import com.kivensoft.util.MyLogger;
-import com.kivensoft.util.WeakCache;
+
+import cn.kivensoft.function.Predicate;
+import cn.kivensoft.function.Supplier;
+import cn.kivensoft.util.Fmt;
+import cn.kivensoft.util.MyLogger;
+import cn.kivensoft.util.WeakCache;
 
 /** 简单的DAO基类
  * @author kiven

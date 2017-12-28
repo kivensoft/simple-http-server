@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.io.File;
 import java.io.FileFilter;
@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-import com.kivensoft.function.Predicate;
+import cn.kivensoft.function.Predicate;
 
 /** 获取指定包下的所有类，自动循环扫描下级目录
  * @author Kiven Lee

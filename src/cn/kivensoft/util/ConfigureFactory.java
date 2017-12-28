@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -67,6 +67,8 @@ public final class ConfigureFactory {
 	public static Properties load(String configFile, String rootPath, Class<?> mainClass) {
 		//加载配置文件,优先从部署目录中读取，找不到时才从jar包中读取
 		File f = new File(rootPath, configFile);
+		if (!f.exists())
+			f = new File(Fmt.concat(rootPath, "conf/"), configFile);
 		Reader r = null;
 		Properties props = null;
 		try {
@@ -97,6 +99,8 @@ public final class ConfigureFactory {
 		
 		if(path.endsWith(".jar")) { //在部署环境
 			path = path.substring(0, path.lastIndexOf('/') + 1);
+			if (path.endsWith("/lib/"))
+				path = path.substring(0, path.length() - 4);
 		}
 		return path;
 	}

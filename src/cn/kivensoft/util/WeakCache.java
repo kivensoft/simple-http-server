@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.lang.ref.WeakReference;
 import java.util.WeakHashMap;

@@ -1,4 +1,4 @@
-package com.kivensoft.http;
+package cn.kivensoft.http;
 
 /** web api 通用返回对象
  * @author kiven

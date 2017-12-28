@@ -1,4 +1,4 @@
-package com.kivensoft.http;
+package cn.kivensoft.http;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import com.kivensoft.util.MyLogger;
+import cn.kivensoft.util.MyLogger;
 
 public class Example {
 

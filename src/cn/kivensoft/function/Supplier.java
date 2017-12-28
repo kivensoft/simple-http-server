@@ -1,4 +1,4 @@
-package com.kivensoft.function;
+package cn.kivensoft.function;
 
 public interface Supplier<T> {
 	T get();

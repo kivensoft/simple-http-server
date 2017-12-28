@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.TimeZone;
 
-import com.kivensoft.function.Predicate;
+import cn.kivensoft.function.Predicate;
 
 /** 基于jdk8的实用函数集合
  * @author Kiven Lee
@@ -206,11 +206,70 @@ public final class Langs {
 		return new Date((System.currentTimeMillis() + tzOffset) / msOfDay * msOfDay);
 	}
 	
+	/** 增加年份 */
+	public static Date addYears(Date date, int years) {
+		synchronized (calendar) {
+			calendar.setTime(date);
+			if (years != 0) calendar.add(Calendar.YEAR, years);
+			return calendar.getTime();
+		}
+	}
+
+	/** 增加月份 */
+	public static Date addMonths(Date date, int months) {
+		synchronized (calendar) {
+			calendar.setTime(date);
+			if (months != 0) calendar.add(Calendar.MONTH, months);
+			return calendar.getTime();
+		}
+	}
+
 	/** 增加天数 */
 	public static Date addDays(Date date, int days) {
-		return new Date(date.getTime() + msOfDay * days);
+		synchronized (calendar) {
+			calendar.setTime(date);
+			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+			return calendar.getTime();
+		}
 	}
 	
+	/** 增加年月日 */
+	public static Date addDate(Date date, int years, int months, int days) {
+		synchronized (calendar) {
+			calendar.setTime(date);
+			if (years != 0) calendar.add(Calendar.YEAR, years);
+			if (months != 0) calendar.add(Calendar.MONTH, months);
+			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+			return calendar.getTime();
+		}
+	}
+
+	/** 增加年月日时分秒 */
+	public static Date addDate(Date date, int years, int months, int days,
+			int hours, int minutes, int seconds) {
+		synchronized (calendar) {
+			calendar.setTime(date);
+			if (years != 0) calendar.add(Calendar.YEAR, years);
+			if (months != 0) calendar.add(Calendar.MONTH, months);
+			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+			if (hours != 0) calendar.add(Calendar.HOUR, hours);
+			if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
+			if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
+			return calendar.getTime();
+		}
+	}
+
+	/** 增加时分秒 */
+	public static Date addTime(Date date, int hours, int minutes, int seconds) {
+		synchronized (calendar) {
+			calendar.setTime(date);
+			if (hours != 0) calendar.add(Calendar.HOUR, hours);
+			if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
+			if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
+			return calendar.getTime();
+		}
+	}
+
 	/** 返回一个新的日期变量，值为日期参数的日期部分 */
 	public static Date onlyDate(Date date) {
 		return new Date((date.getTime() + tzOffset) / msOfDay * msOfDay);
@@ -261,7 +320,7 @@ public final class Langs {
 				return (T)Float.valueOf(value);
 			if (cls == Date.class)
 				return (T)parseDate(value);
-			if (cls == Boolean.class)
+			if (cls == Boolean.class || cls == Boolean.TYPE)
 				return (T)Boolean.valueOf(value);
 			if (cls == BigDecimal.class)
 				return (T)new BigDecimal(value);

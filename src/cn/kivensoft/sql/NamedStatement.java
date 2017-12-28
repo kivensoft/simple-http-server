@@ -1,4 +1,4 @@
-package com.kivensoft.sql;
+package cn.kivensoft.sql;
 
 import java.io.Closeable;
 import java.sql.Connection;
@@ -12,7 +12,8 @@ import java.util.List;
 import java.util.Map;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
-import com.kivensoft.util.LruCache;
+
+import cn.kivensoft.util.LruCache;
 
 /**支持命名参数的SQL解析类
  * @author Kiven Lee

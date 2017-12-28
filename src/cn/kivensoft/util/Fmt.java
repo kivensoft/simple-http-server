@@ -1,4 +1,4 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -14,8 +14,8 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.kivensoft.function.Function;
-import com.kivensoft.function.IntFunction;
+import cn.kivensoft.function.Function;
+import cn.kivensoft.function.IntFunction;
 
 /**格式化到动态字符串缓冲区的类，采取缓存方式实现，增强对日期、数组、列表的格式化
  * @author Kiven Lee
@@ -150,11 +150,17 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param func 返回格式化参数的lambda表达式
 	 */
 	public static void pl(String format, IntFunction<Object> func) {
-		Fmt f = get().format(format, func);
-		System.out.append(f.buffer);
-		f.recycle();
+		System.out.println(fmt(format, func));
 	}
 
+	public static void out(PrintStream stream, String format, Object... args) {
+		get().format(format, args).toStream(stream);
+	}
+	
+	public static void out(OutputStream stream, String format, Object...args) {
+		get().format(format, args).toStream(stream);
+	}
+	
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
 	 * @param format 格式化字符串
 	 * @param args 格式化参数
@@ -216,7 +222,47 @@ public final class Fmt implements Appendable, CharSequence {
 			f.buffer.append(args[i]);
 		return f.release();
 	}
+
+	/** 生成指定重复数量的字符串
+	 * @param c 指定重复的字符
+	 * @param count 重复数量
+	 * @return 字符串结果
+	 */
+	public static String rep(char c, int count) {
+		return Fmt.get().repeat(c, count).release();
+	}
 	
+	/** 生成指定重复次数的字符串
+	 * @param text 指定要重复的字符串
+	 * @param count 重复数量
+	 * @return 生成的字符串
+	 */
+	public static String rep(String text, int count) {
+		return get().repeat(text, count, '\0', '\0').release();
+	}
+	
+	/** 生成指定重复次数的字符串
+	 * @param text 指定要重复的字符串
+	 * @param count 重复数量
+	 * @param delimiter 重复分隔符
+	 * @return 生成的字符串
+	 */
+	public static String rep(String text, int count, char delimiter) {
+		return get().repeat(text, count, delimiter, '\0').release();
+	}
+	
+	/** 生成指定重复次数的字符串
+	 * @param text 指定要重复的字符串
+	 * @param count 重复数量
+	 * @param delimiter1 重复前缀分隔符
+	 * @param delimiter2 重复后缀分隔符
+	 * @return 生成的字符串
+	 */
+	public static String rep(String text, int count, char delimiter1, char delimiter2) {
+		return get().repeat(text, count, delimiter1, delimiter2).release();
+	}
+	
+
 	/** 返回格式化后的字符串，用缓冲区对象进行
 	 * @param array 要格式化的数组
 	 * @param delimiter 分隔符
@@ -324,12 +370,26 @@ public final class Fmt implements Appendable, CharSequence {
 		return buffer.toString();
 	}
 	
+	public byte[] toBytes() {
+		return toBytes(0, buffer.length());
+	}
+	
+	public byte[] toBytes(int start, int end) {
+		try {
+			byte[] bytes = buffer.substring(start, end).getBytes(UTF8);
+			recycle();
+			return bytes;
+		} catch (UnsupportedEncodingException e) {
+			return null;
+		}
+	}
+	
 	public void toStream() {
 		toStream(System.out);
 	}
 	
 	public void toStream(PrintStream stream) {
-		stream.print(buffer.toString());
+		stream.append(buffer);
 		recycle();
 	}
 	
@@ -339,9 +399,8 @@ public final class Fmt implements Appendable, CharSequence {
 
 	public void toStream(OutputStream stream, String charsetName) {
 		try {
-			stream.write(buffer.toString().getBytes(charsetName));
+			stream.write(release().getBytes(charsetName));
 		} catch (IOException e) { }
-		recycle();
 	}
 
 	/** 回收对象，返回对象生成的字符串 */
@@ -452,10 +511,14 @@ public final class Fmt implements Appendable, CharSequence {
 		return -1;
 	}
 	
+	public String NL() {
+		if (newline == null) newline = System.getProperty("line.separator");
+		return newline;
+	}
+	
 	/** 添加回车换行,与系统平台相关 */
 	public Fmt nl() {
-		if (newline == null) newline = System.getProperty("line.separator");
-		return append(newline);
+		return append(NL());
 	}
 
 	public Fmt append(Object obj) {
@@ -938,6 +1001,11 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
+	public Fmt repeat(char ch, int count) {
+		while(--count >= 0) buffer.append(ch);
+		return this;
+	}
+	
 	/** 将对象以json格式增加
 	 * @param value 要格式化的对象
 	 * @return
@@ -1240,8 +1308,12 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 
 	public Fmt deleteLastChar() {
-		if(buffer.length() > 0)
-			buffer.setLength(buffer.length() - 1);
+		return deleteLastChar(1);
+	}
+	
+	public Fmt deleteLastChar(int count) {
+		if(buffer.length() >= count)
+			buffer.setLength(buffer.length() - count);
 		return this;
 	}
 	
@@ -1265,10 +1337,22 @@ public final class Fmt implements Appendable, CharSequence {
 	public int length() {
 		return buffer.length();
 	}
+
+	public CharSequence subSequence(int start) {
+		return subSequence(start, buffer.length());
+	}
 	
 	@Override
 	public CharSequence subSequence(int start, int end) {
 		return buffer.subSequence(start, end);
+	}
+	
+	public String substring(int start) {
+		return substring(start, buffer.length());
+	}
+	
+	public String substring(int start, int end) {
+		return buffer.substring(start, end);
 	}
 	
 	void appendJavascriptString(CharSequence value) {

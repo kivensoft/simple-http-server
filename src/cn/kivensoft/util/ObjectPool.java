@@ -1,9 +1,9 @@
-package com.kivensoft.util;
+package cn.kivensoft.util;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicReference;
 
-import com.kivensoft.function.Supplier;
+import cn.kivensoft.function.Supplier;
 
 /** 对象池，采用弱引用方式保存使用过的对象，减少创建对象的次数，降低内存占用率
  * 使用方法: 
