@@ -13,7 +13,6 @@ import java.util.Properties;
 
 public final class ConfigureFactory {
 	private static final String UTF8 = "UTF-8";
-	private static final String LOG_CONF = "log4j.properties";
 
 	private ConfigureFactory() { }
 
@@ -67,6 +66,8 @@ public final class ConfigureFactory {
 	public static Properties load(String configFile, String rootPath, Class<?> mainClass) {
 		//加载配置文件,优先从部署目录中读取，找不到时才从jar包中读取
 		File f = new File(rootPath, configFile);
+		if (!f.exists())
+			f = new File(Fmt.concat(rootPath, "conf/"), configFile);
 		try (Reader r = f.exists()
 				? new InputStreamReader(new FileInputStream(f), UTF8)
 				: new InputStreamReader(mainClass.getResourceAsStream("/" + configFile), UTF8)) {
@@ -95,24 +96,27 @@ public final class ConfigureFactory {
 		
 		if(path.endsWith(".jar")) { //在部署环境
 			path = path.substring(0, path.lastIndexOf('/') + 1);
+			if (path.endsWith("/lib/"))
+				path = path.substring(0, path.length() - 4);
 		}
 		return path;
 	}
 
 	/** 初始化自定义的日志文件配置，在应用的根目录查找  */
 	private static void initLog4j(String rootPath, Class<?> mainClass) {
+		String logConf = "log4j.properties";
 		//加载日志配置文件
-		Properties props = load(LOG_CONF, rootPath, mainClass);
+		Properties props = load(logConf, rootPath, mainClass);
 		if (props == null) return;
 		try {
 			Class.forName("org.apache.log4j.PropertyConfigurator")
 				.getMethod("configure", Properties.class)
 				.invoke(null, props);
 			MyLogger.info("加载日志配置文件: {}",
-					new File(rootPath, LOG_CONF).getAbsoluteFile().toString());
+					new File(rootPath, logConf).getAbsolutePath());
 		} catch (Exception e) {
 			MyLogger.warn(e, "read {} error.",
-					new File(rootPath, LOG_CONF).getAbsoluteFile().toString());
+					new File(rootPath, logConf).getAbsolutePath());
 		}
 		//PropertyConfigurator.configure(path);
 	}
