@@ -358,7 +358,7 @@ public abstract class Strings {
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
-	public static String formatDateTime(java.util.Date date) {
+	public static String formatDateTime(Date date) {
 		synchronized (dfDateTime) {
 			return dfDateTime.format(date);
 		}
@@ -368,7 +368,7 @@ public abstract class Strings {
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
-	public static String formatDate(java.util.Date date) {
+	public static String formatDate(Date date) {
 		synchronized (dfDate) {
 			return dfDate.format(date);
 		}
@@ -378,7 +378,7 @@ public abstract class Strings {
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
-	public static String formatTime(java.util.Date date) {
+	public static String formatTime(Date date) {
 		synchronized (dfTime) {
 			return dfTime.format(date);
 		}
@@ -388,7 +388,7 @@ public abstract class Strings {
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
-	public static String formatGmtDate(java.util.Date date) {
+	public static String formatGmtDate(Date date) {
 		synchronized (dfGmtDateTime) {
 			dfGmtDateTime.setTimeZone(TimeZone.getTimeZone("GMT"));
 			return dfGmtDateTime.format(date);
@@ -396,9 +396,16 @@ public abstract class Strings {
 	}
 	
 	public static Date parseDateTime(String text) {
+		Date d = parseDate(text);
+		if (d != null) return d;
 		try {
 			synchronized (dfDateTime) {
 				return dfDateTime.parse(text);
+			}
+		} catch (ParseException e) { }
+		try {
+			synchronized (dfGmtDateTime) {
+				return dfGmtDateTime.parse(text);
 			}
 		} catch (ParseException e) {
 			return null;
