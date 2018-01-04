@@ -81,7 +81,7 @@ public abstract class Strings {
 		String arg;
 		while (count-- > 0) {
 			arg = args[count];
-			if(arg != null || !arg.isEmpty()) return false;
+			if(arg != null && !arg.isEmpty()) return false;
 		}
 		return true;
 	}
@@ -93,8 +93,11 @@ public abstract class Strings {
 		Object arg;
 		while (count-- > 0) {
 			arg = args[count];
-			if(arg != null || arg.getClass() == cls && !((String)arg).isEmpty())
-				return false;
+			if(arg != null)
+				if (arg.getClass() == cls) {
+					if (!((String)arg).isEmpty()) return false;
+				}
+				else return false;
 		}
 		return true;
 	}
