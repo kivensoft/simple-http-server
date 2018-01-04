@@ -48,8 +48,25 @@ public abstract class Strings {
 
 	/** 字符串空判断，支持同时判断多个，全部有效返回true */
 	public static boolean isNotNullOrEmpty(String ...args) {
-		for(String arg : args)
+		int count = args.length;
+		String arg;
+		while (count-- > 0) {
+			arg = args[count];
 			if(arg == null || arg.isEmpty()) return false;
+		}
+		return true;
+	}
+
+	/** 对象空判断，支持同时判断多个，全部有效返回true */
+	public static boolean isNotNullOrEmpty(Object ...args) {
+		Class<?> cls = String.class;
+		int count = args.length;
+		Object arg;
+		while (count-- > 0) {
+			arg = args[count];
+			if(arg == null || arg.getClass() == cls && ((String)arg).isEmpty())
+				return false;
+		}
 		return true;
 	}
 
@@ -58,10 +75,27 @@ public abstract class Strings {
 		return string == null || string.isEmpty();
 	}
 	
-	/** 字符串空判断，支持同时判断多个，只要有一个不为为null或空则返回true */
+	/** 字符串空判断，支持同时判断多个，全部为null或空则返回true */
 	public static boolean isNullOrEmpty(String ...args) {
-		for(String arg : args)
-			if(arg != null && !arg.isEmpty()) return false;
+		int count = args.length;
+		String arg;
+		while (count-- > 0) {
+			arg = args[count];
+			if(arg != null || !arg.isEmpty()) return false;
+		}
+		return true;
+	}
+
+	/** 对象空判断，支持同时判断多个，全部有效返回true */
+	public static boolean isNullOrEmpty(Object ...args) {
+		Class<?> cls = String.class;
+		int count = args.length;
+		Object arg;
+		while (count-- > 0) {
+			arg = args[count];
+			if(arg != null || arg.getClass() == cls && !((String)arg).isEmpty())
+				return false;
+		}
 		return true;
 	}
 
@@ -330,15 +364,15 @@ public abstract class Strings {
 	 * @return true:纯数字,false:不是纯数字
 	 */
 	public static boolean isInt(String text) {
-		return Pattern.matches("[\\+\\-]?[0-9]+", text);
+		return Pattern.matches("-?[0-9]+", text);
 	}
 
 	/** 判断字符串是否浮点数格式
 	 * @param text 要判断的文本
 	 * @return true:浮点数,false:不是浮点数
 	 */
-	public static boolean isFloat(String text) {
-		return Pattern.matches("[\\+\\-]?[0-9]+(\\.[0-9]+)?", text);
+	public static boolean isNumber(String text) {
+		return Pattern.matches("-?[0-9]+(\\.[0-9]+)?", text);
 	}
 	
 	/** 判断是否金额格式
@@ -346,7 +380,7 @@ public abstract class Strings {
 	 * @return true:金额格式,false:不是金额格式
 	 */
 	public static boolean isMoney(String text) {
-		return Pattern.matches("[\\+\\-]?[0-9]+(\\.[0-9][0-9]?)?", text);
+		return Pattern.matches("-?[0-9]+(\\.[0-9][0-9]?)?", text);
 	}
 	
 	private static DateFormat dfDate = new SimpleDateFormat("yyyy-MM-dd");

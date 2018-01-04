@@ -7,6 +7,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -38,6 +39,8 @@ public final class Fmt implements Appendable, CharSequence {
 	// 全局无锁非阻塞堆栈头部指针
 	private static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
 	private WeakReference<Fmt> self, next;
+	
+	public static Charset utf8Charset = Charset.forName(UTF8);
 	
 	// 无锁非阻塞弹出栈顶元素
 	public static Fmt pop() {
@@ -413,13 +416,9 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return 返回的字节数组
 	 */
 	public byte[] toBytes(int start, int end) {
-		try {
-			byte[] bytes = buffer.substring(start, end).getBytes(UTF8);
-			recycle();
-			return bytes;
-		} catch (UnsupportedEncodingException e) {
-			return null;
-		}
+		byte[] bytes = buffer.substring(start, end).getBytes(utf8Charset);
+		recycle();
+		return bytes;
 	}
 	
 	/** 输出到标准输出流 */
@@ -439,7 +438,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param stream 输出的目标流
 	 */
 	public void toStream(OutputStream stream) {
-		toStream(stream, UTF8);
+		toStream(stream, utf8Charset);
 	}
 
 	/** 输出到流
@@ -449,6 +448,16 @@ public final class Fmt implements Appendable, CharSequence {
 	public void toStream(OutputStream stream, String charsetName) {
 		try {
 			stream.write(release().getBytes(charsetName));
+		} catch (IOException e) { }
+	}
+
+	/** 输出到流
+	 * @param stream 输出的目标流
+	 * @param charsetName 字符串编码
+	 */
+	public void toStream(OutputStream stream, Charset charset) {
+		try {
+			stream.write(release().getBytes(charset));
 		} catch (IOException e) { }
 	}
 
@@ -704,7 +713,19 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public Fmt appendBytes(byte[] bytes, int offset, int len) {
-		return appendBytes(bytes, offset, len, UTF8);
+		return appendBytes(bytes, offset, len, utf8Charset);
+	}
+
+	/** 格式化字节流, 以字符串方式写入
+	 * @param bytes 字节流
+	 * @param offset 起始偏移
+	 * @param len 长度
+	 * @param charset 编码类型
+	 * @return
+	 */
+	public Fmt appendBytes(byte[] bytes, int offset, int len, Charset charset) {
+		buffer.append(new String(bytes, offset, len, charset));
+		return this;
 	}
 
 	/** 格式化字节流, 以字符串方式写入
