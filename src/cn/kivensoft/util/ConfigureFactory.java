@@ -2,32 +2,50 @@ package cn.kivensoft.util;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.Reader;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
+import org.apache.log4j.PropertyConfigurator;
+
 public final class ConfigureFactory {
 	private static final String UTF8 = "UTF-8";
 
-	private ConfigureFactory() { }
-
+	private Class<?> mainClass;
+	private String rootPath;
+	private String[] dirs;
+	
+	public ConfigureFactory(Class<?> mainClass) {
+		this(mainClass, "lib", new String[]{"/conf", "/"});
+	}
+	
+	public ConfigureFactory(Class<?> mainClass, String subPath, String[] dirs) {
+		this.mainClass = mainClass;
+		rootPath = getRootPath(mainClass, subPath);
+		this.dirs = dirs;
+	}
+	
+	public ConfigureFactory initLog4j(String log4jFileName) {
+		if (log4jFileName == null) log4jFileName = "log4j.properties";
+		initLog4j(log4jFileName, mainClass, rootPath, dirs);
+		return this;
+	}
+	
 	/**
 	 * @param configFile 配置文件名，系统默认从根目录读取，最好只是不带路径的文件名
-	 * @param cls 配置文件所在类
+	 * @param mainClass 配置文件所在jar包的类
+	 * @param subDir jar包所在的相对子路径, 为null时忽略
+	 * @param dirs 加载配置文件的相对路径数组, 按数组循序优先查找
 	 * @return 配置内容
 	 */
-	public static Properties get(String configFile, Class<?> mainClass) {
-		String _rootPath = getRootPath(mainClass);
-		
-		//初始化日志配置
-		initLog4j(_rootPath, mainClass);
-		
-		Properties props = load(configFile, _rootPath, mainClass);
+	public Properties get(String configFile) {
+		Properties props = load(configFile, mainClass, rootPath, dirs);
 		return props == null ? new Properties() : props;
 	}
 
@@ -37,8 +55,8 @@ public final class ConfigureFactory {
 	 * @param config 配置实例
 	 * @return
 	 */
-	public static <T> T get(String configFile, Class<?> mainClass, T config) {
-		Properties props = get(configFile, mainClass);
+	public <T> T get(String configFile, T config) {
+		Properties props = load(configFile, mainClass, rootPath, dirs);
 		if (props == null) return config;
 		Class<?> cls = config.getClass();
 		Map<String, Class<?>> ms = getSetMethods(cls);
@@ -62,30 +80,37 @@ public final class ConfigureFactory {
 		return config;
 	}
 	
-	/** 加载配置文件内容到Properties实例中 */
-	public static Properties load(String configFile, String rootPath, Class<?> mainClass) {
-		//加载配置文件,优先从部署目录中读取，找不到时才从jar包中读取
-		File f = new File(rootPath, configFile);
-		if (!f.exists())
-			f = new File(Fmt.concat(rootPath, "conf/"), configFile);
-		try (Reader r = f.exists()
-				? new InputStreamReader(new FileInputStream(f), UTF8)
-				: new InputStreamReader(mainClass.getResourceAsStream("/" + configFile), UTF8)) {
+	/** 加载配置文件, 优先以普通文件方式加载, 找不到则尝试以资源文件方式加载
+	 * @param fileName 文件名
+	 * @param mainClass 应用程序main函数入库所在的类
+	 * @param rootPath 根目录
+	 * @param dirs 尝试加载的子目录数组, 按顺序优先
+	 * @return 配置文件内容, 为null表示加载失败
+	 */
+	public static Properties load(String fileName, Class<?> mainClass,
+			String rootPath, String[] dirs) {
+		InputStream is = getResourceAsStream(fileName, mainClass, rootPath, dirs);
+		if (is == null) return null;
+		InputStreamReader reader = null;
+		try {
+			reader = new InputStreamReader(is, UTF8);
 			Properties props = new Properties();
-			props.load(r);
+			props.load(reader);
 			return props;
 		} catch (IOException e) {
-			MyLogger.warn(e, "load properties error.");
-			return null;
+			MyLogger.error(e);
+			Langs.close(reader);
 		}
+		return null;
 	}
-
+	
 	/** 获取程序路径，主要是要区分部署与开发之间的路径区别 
-	 * @param mainClass 类
+	 * @param mainClass 应用程序main函数入库所在的类
+	 * @param subPath 如果是jar包, 指定jar包所在的相对子路径
 	 * @return 根目录
-	 * @throws Exception
 	 */
-	public static String getRootPath(Class<?> mainClass) {
+	public static String getRootPath(Class<?> mainClass, String subPath) {
+		// 获取类所在的路径, 返回的可能是直接的路径或者jar包的全路径名
 		java.net.URL url = mainClass.getProtectionDomain().getCodeSource().getLocation();
 		String path;
 		try {
@@ -96,29 +121,87 @@ public final class ConfigureFactory {
 		
 		if(path.endsWith(".jar")) { //在部署环境
 			path = path.substring(0, path.lastIndexOf('/') + 1);
-			if (path.endsWith("/lib/"))
-				path = path.substring(0, path.length() - 4);
+			subPath = addPath(null, subPath);
+			if (subPath.length() > 0 && path.endsWith(subPath))
+				path = path.substring(0, path.length() - subPath.length() + 1);
 		}
 		return path;
 	}
 
 	/** 初始化自定义的日志文件配置，在应用的根目录查找  */
-	private static void initLog4j(String rootPath, Class<?> mainClass) {
-		String logConf = "log4j.properties";
+	public static void initLog4j(String fileName, Class<?> mainClass,
+			String rootPath, String[] dirs) {
 		//加载日志配置文件
-		Properties props = load(logConf, rootPath, mainClass);
+		Properties props = load(fileName, mainClass, rootPath, dirs);
 		if (props == null) return;
-		try {
-			Class.forName("org.apache.log4j.PropertyConfigurator")
-				.getMethod("configure", Properties.class)
-				.invoke(null, props);
-			MyLogger.info("加载日志配置文件: {}",
-					new File(rootPath, logConf).getAbsolutePath());
-		} catch (Exception e) {
-			MyLogger.warn(e, "read {} error.",
-					new File(rootPath, logConf).getAbsolutePath());
+		/*
+		Class.forName("org.apache.log4j.PropertyConfigurator")
+			.getMethod("configure", Properties.class)
+			.invoke(null, props);
+		*/
+		PropertyConfigurator.configure(props);
+		MyLogger.info("加载日志配置文件: {}",
+				findResource(fileName, mainClass, rootPath, dirs));
+	}
+	
+	/** 加载资源文件, 优先以普通文件方式加载, 找不到则尝试以资源文件方式加载
+	 * @param fileName 文件名
+	 * @param mainClass 应用程序main函数入库所在的类
+	 * @param rootPath 根目录
+	 * @param dirs 尝试加载的子目录数组, 按顺序优先
+	 * @return 文件的输入流, 为null则加载失败
+	 */
+	public static InputStream getResourceAsStream(String fileName,
+			Class<?> mainClass, String rootPath, String[] dirs) {
+		File f = null;
+		int len = dirs.length;
+		// 优先加载磁盘路径下的文件
+		for (int i = 0; i < len; ++i) {
+			f = new File(rootPath, dirs[i]);
+			if (f.exists()) {
+				try {
+					return new FileInputStream(f);
+				} catch (FileNotFoundException e) {
+					MyLogger.error(e, "can't open resource {}: {}",
+							f.getAbsolutePath(), e.getMessage());
+				}
+			}
 		}
-		//PropertyConfigurator.configure(path);
+		// 尝试以加载资源的方式加载文件
+		for (int i = 0; i < len; ++i) {
+			InputStream is = mainClass.getResourceAsStream(
+					addPath(null, dirs[i]));
+			if (is != null) return is;
+		}
+		return null;
+	}
+	
+	/** 查找资源文件, 优先查找普通文件方式, 找不到则尝试查找资源文件
+	 * @param fileName 文件名
+	 * @param mainClass 应用程序main函数入库所在的类
+	 * @param rootPath 根目录
+	 * @param dirs 尝试查找的子目录数组, 按顺序优先
+	 * @return 找到的文件全路径名, '/'开头表示是资源文件, 为null则查找失败
+	 */
+	public static String findResource(String fileName,
+			Class<?> mainClass, String rootPath, String[] dirs) {
+		File f = null;
+		int len = dirs.length;
+		// 查找磁盘路径下的文件
+		for (int i = 0; i < len; ++i) {
+			f = new File(rootPath, dirs[i]);
+			if (f.exists()) return f.getAbsolutePath();
+		}
+		// 查找资源文件
+		for (int i = 0; i < len; ++i) {
+			String path = addPath(null, dirs[i]);
+			InputStream is = mainClass.getResourceAsStream(path);
+			if (is != null) {
+				Langs.close(is);
+				return path;
+			}
+		}
+		return null;
 	}
 	
 	private static String key2Method(String key) {
@@ -155,4 +238,20 @@ public final class ConfigureFactory {
 		return ret;
 	}
 
+	private static String addPath(String path, String subPath) {
+		Fmt f = Fmt.get();
+		if (path != null) {
+			f.append(path);
+			char c = f.charAt(f.length() - 1);
+			if (c != '/' && c != '\\') f.append('/');
+		}
+		else f.append('/');
+		if (subPath != null && subPath.length() > 0) {
+			if (subPath.charAt(0) == '/') f.append(subPath.substring(1));
+			else f.append(subPath);
+			char c = f.charAt(f.length() - 1);
+			if (c != '/' && c != '\\') f.append('/');
+		}
+		return f.release();
+	}
 }

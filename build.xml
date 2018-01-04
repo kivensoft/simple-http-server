@@ -48,6 +48,7 @@
 		<copy todir="${bin}" preservelastmodified="true">
 			<fileset dir="${src}" excludes="**/*.java" />
 		</copy>
+		<echo>java compile use ${java.version}</echo>
 	</target>
 
 	<!-- 打包编译好的class文件进jar包，源文件打包到src目录下 -->
@@ -99,7 +100,6 @@
 	</target>
 
 	<target name="build" depends="jar">
-		<echo>java compile use ${java.version}</echo>
 		<echo>${ant.project.name} build successful at ${now}</echo>
 	</target>
 </project>
