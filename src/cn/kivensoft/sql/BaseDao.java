@@ -14,7 +14,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
 
@@ -100,19 +99,9 @@ public abstract class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(String[] sqls)
+	final public <T> int[] executeBatch(String...sqls)
 			throws SQLException {
 		return executeBatch(Arrays.asList(sqls));
-	}
-
-	/** 批量执行SQL，参数批量
-	 * @param sqls 要执行的多个SQL语句
-	 * @return 执行结果影响记录数数组
-	 * @throws SQLException
-	 */
-	final public <T> int[] executeBatch(Stream<String> sqls)
-			throws SQLException {
-		return executeBatch(sqls.iterator());
 	}
 
 	/** 批量执行SQL，参数批量
@@ -159,7 +148,7 @@ public abstract class BaseDao {
 	 */
 	final public <T> int[] executeBatch(String sql,
 			@SuppressWarnings("unchecked") T... args) throws SQLException {
-		return executeBatch(sql, Stream.of(args).iterator());
+		return executeBatch(sql, Arrays.asList(args));
 	}
 	
 	/** 批量执行SQL，参数批量
@@ -670,7 +659,7 @@ public abstract class BaseDao {
 	 * @return
 	 * @throws SQLException
 	 */
-	final private int insertAfter() throws SQLException {
+	final public int insertAfter() throws SQLException {
 		if (dbType == 0) {
 			try {
 				dbType = Class.forName("com.mysql.jdbc.Connection")

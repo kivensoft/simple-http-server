@@ -6,8 +6,10 @@ import java.security.NoSuchAlgorithmException;
 import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.regex.Pattern;
 
@@ -421,7 +423,7 @@ public abstract class Strings {
 		}
 	}
 	
-	/** 格式化日期时间为"yyyy-MM-dd'T' HH:mm:ss'Z'"格式
+	/** 格式化日期时间为"yyyy-MM-dd'T'HH:mm:ss'Z'"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
@@ -432,6 +434,13 @@ public abstract class Strings {
 		}
 	}
 	
+	/** 解析时间日期, 按下列优先级进行解析:
+	 *      yyyy-MM-dd
+	 *      yyyy-MM-dd HH:mm:ss
+	 *      yyyy-MM-dd'T'HH:mm:ss'Z'
+	 * @param text 需要格式化的文本
+	 * @return
+	 */
 	public static Date parseDateTime(String text) {
 		Date d = parseDate(text);
 		if (d != null) return d;
@@ -449,6 +458,10 @@ public abstract class Strings {
 		}
 	}
 	
+	/** 解析时间日期, 按下列优先级进行解析: yyyy-MM-dd
+	 * @param text 需要格式化的文本
+	 * @return
+	 */
 	public static Date parseDate(String text) {
 		try {
 			synchronized (dfDate) {
@@ -459,6 +472,10 @@ public abstract class Strings {
 		}
 	}
 	
+	/** 解析时间日期, 按下列优先级进行解析: HH:mm:ss
+	 * @param text 需要格式化的文本
+	 * @return
+	 */
 	public static Date parseTime(String text) {
 		try {
 			synchronized (dfTime) {
@@ -468,7 +485,179 @@ public abstract class Strings {
 			return null;
 		}
 	}
+
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符
+	 * @return 解析后的字符串列表
+	 */
+	public static List<String> split(String text, char separator) {
+		List<String> result = new ArrayList<>();
+		split(text, separator, (b, e) -> text.substring(b, e));
+		return result;
+	}
 	
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符, 多个
+	 * @return 解析后的字符串列表
+	 */
+	public static List<String> split(String text, char... separators) {
+		List<String> result = new ArrayList<>();
+		split(text, separators, (b, e) -> text.substring(b, e));
+		return result;
+	}
+	
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符字符串, 多个
+	 * @return 解析后的字符串列表
+	 */
+	public static List<String> split(String text, String separator) {
+		List<String> result = new ArrayList<>();
+		split(text, separator, (b, e) -> text.substring(b, e));
+		return result;
+	}
+	
+    public static interface SplitConsumer { void accept(int start, int stop); }
+    
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符
+	 */
+	public static void split(String text, char separator, SplitConsumer consumer) {
+		if (text == null || text.isEmpty()) return;
+		int index = 0;
+		boolean finded = false;
+		for (int i = 0, len = text.length(); i < len; ++i) {
+			char c = text.charAt(i);
+			if (c == separator) {
+				if (finded) {
+					consumer.accept(index, i);
+					finded = false;
+				}
+			}
+			else {
+				if (!finded) {
+					index = i;
+					finded = true;
+				}
+			}
+		}
+		if (finded) consumer.accept(index, text.length());
+	}
+
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符字符串, 多个
+	 */
+	public static void split(String text, String separator, SplitConsumer consumer) {
+		if (text == null || text.isEmpty()) return;
+		int len = separator.length();
+		char[] chars = new char[len];
+		separator.getChars(0, len, chars, 0);
+		split(text, chars, consumer);
+	}
+	
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符字符串, 多个
+	 */
+	public static void split(String text, char[] separators, SplitConsumer consumer) {
+		if (text == null || text.isEmpty()) return;
+		int len = separators.length;
+		int index = 0;
+		boolean finded = false;
+		for (int i = 0, n = text.length(); i < n; ++i) {
+			char c = text.charAt(i);
+			int j = 0;
+			while (j < len) if (c == separators[j]) break; else ++j;
+			if (j < len) {
+				if (finded) {
+					consumer.accept(index, i);
+					finded = false;
+				}
+			}
+			else {
+				if (!finded) {
+					index = i;
+					finded = true;
+				}
+			}
+		}
+		if (finded) consumer.accept(index, text.length());
+	}
+	
+	/** 解析命令行参数，双引号""表示一个完整的参数，反斜杠\表示转义字符
+	 * @param line 命令行
+	 * @return 解析后的参数
+	 */
+	public static List<String> parseCmdLine(String line) {
+		List<String> args = new ArrayList<String>();
+		if (line == null || line.isEmpty()) return args;
+		
+		StringBuilder sb = new StringBuilder();
+		boolean inWord = false, isQuota = false, isEscape = false;
+		// 处理用户输入的命令, 分割成标准的命令行参数
+		for (int pos = 0, len = line.length(); pos < len; pos++) {
+			char c = line.charAt(pos);
+			// 上一个是转义字符, 直接写入本字符
+			if (isEscape) {
+				sb.append(c);
+				isEscape = false;
+				continue;
+			}
+			switch (c) {
+				// 双引号内的空格不做处理, 否则生成一个命令或参数
+				case ' ':
+					if (inWord) {
+						if (isQuota) sb.append(c);
+						else {
+							args.add(sb.toString());
+							sb.delete(0, sb.length());
+							inWord = false;
+						}
+					}
+					break;
+				// 起始双引号做标记, 结束双引号生成命令或参数
+				case '"':
+					if (inWord) {
+						if (isQuota) {
+							args.add(sb.toString());
+							sb.delete(0, sb.length());
+							isQuota = false;
+							inWord = false;
+						}
+						else sb.append(c);
+					}
+					else {
+						inWord = true;
+						isQuota = true;
+					}
+					break;
+				// 转义字符, 标记
+				case '\\':
+					if (inWord) {
+						if (isQuota) isEscape = true;
+						else sb.append(c);
+					}
+					else {
+						sb.append(c);
+						inWord = true;
+					}
+					break;
+				
+				default:
+					sb.append(c);
+					inWord = true;
+					break;
+			}
+		}
+		if (sb.length() > 0) args.add(sb.toString());
+		
+		return args;
+	}
+
 	public static void main(String[] args) throws Exception {
 		if(args.length == 0)
 			System.out.println("Usage: Crypt <string> <string>");

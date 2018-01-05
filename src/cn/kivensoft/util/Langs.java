@@ -360,15 +360,16 @@ public final class Langs {
 	}
 	
     public static interface SplitFunc { void accept(int index, int value); }
-	public static void splitInt(String value, SplitFunc consumer) {
+
+    public static void splitInt(String value, SplitFunc consumer) {
 		if (value == null || value.isEmpty()) return;
 		int i = 0, len = value.length(), index = 0;
 		while (i < len) {
-			char c = value.charAt(i);
+			char c = value.charAt(i++);
 			if (c >= '0' && c <= '9') {
 				int num = c - 48;
-				for (++i; i < len; ++i) {
-					char ch = value.charAt(i);
+				while (i < len) {
+					char ch = value.charAt(i++);
 					if (ch < '0' || ch > '9') break;
 					//number * 10 = number * 8 + number * 2 = number << 3 + number << 1
 					num = (num << 3) + (num << 1) + (ch - 48);
@@ -376,9 +377,12 @@ public final class Langs {
 				consumer.accept(index++, num);
 			}
 			else {
-				for (++i; i < len; ++i) {
-					char ch = value.charAt(i);
-					if (ch >= '0' && ch <= '9') break;
+				while (i < len) {
+					char ch = value.charAt(i++);
+					if (ch >= '0' && ch <= '9') {
+						--i;
+						break;
+					}
 				}
 			}
 		}
