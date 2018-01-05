@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -43,7 +44,8 @@ public abstract class BaseDao {
 		void apply() throws Exception;
 	}
 	
-	protected static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
+	protected static final WeakCache<String, MethodAccess> methodAccessCache =
+			new WeakCache<>();
 	protected Connection conn;
 	protected List<Savepoint> savepoints;
 
@@ -94,13 +96,69 @@ public abstract class BaseDao {
 	}
 	
 	/** 批量执行SQL，参数批量
+	 * @param sqls 要执行的多个SQL语句
+	 * @return 执行结果影响记录数数组
+	 * @throws SQLException
+	 */
+	final public <T> int[] executeBatch(String[] sqls)
+			throws SQLException {
+		return executeBatch(Arrays.asList(sqls));
+	}
+
+	/** 批量执行SQL，参数批量
+	 * @param sqls 要执行的多个SQL语句
+	 * @return 执行结果影响记录数数组
+	 * @throws SQLException
+	 */
+	final public <T> int[] executeBatch(Stream<String> sqls)
+			throws SQLException {
+		return executeBatch(sqls.iterator());
+	}
+
+	/** 批量执行SQL，参数批量
+	 * @param sqls 要执行的多个SQL语句
+	 * @return 执行结果影响记录数数组
+	 * @throws SQLException
+	 */
+	final public <T> int[] executeBatch(Iterable<String> sqls)
+			throws SQLException {
+		return executeBatch(sqls.iterator());
+	}
+
+	/** 批量执行SQL，参数批量
+	 * @param sqls 要执行的多个SQL语句
+	 * @return 执行结果影响记录数数组
+	 * @throws SQLException
+	 */
+	final public <T> int[] executeBatch(Iterator<String> sqls)
+			throws SQLException {
+		if (!sqls.hasNext()) return new int[0];
+		checkConnection();
+		try (Statement stmt = conn.createStatement()) {
+			boolean isDebug = MyLogger.isDebugEnabled();
+			Fmt f = Fmt.get();
+			if (isDebug) f.append("批量执行SQL:");
+			else f.release();
+			while (sqls.hasNext()) {
+				String sql = sqls.next();
+				if (isDebug) f.append('\n').append('\t').append(sql);
+				stmt.addBatch(sql);
+			}
+			if (isDebug) MyLogger.debug(f.release());
+			int[] result = stmt.executeBatch();
+			MyLogger.debug("SQL执行完成: {}", result);
+			return result;
+		}
+	}
+	
+	/** 批量执行SQL，参数批量
 	 * @param sql SQL语句
 	 * @param args 多个参数
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	@SuppressWarnings("unchecked")
-	final public <T> int[] executeBatch(String sql, T... args) throws SQLException {
+	final public <T> int[] executeBatch(String sql,
+			@SuppressWarnings("unchecked") T... args) throws SQLException {
 		return executeBatch(sql, Stream.of(args).iterator());
 	}
 	
@@ -110,7 +168,8 @@ public abstract class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(String sql, Iterable<T> iterable) throws SQLException {
+	final public <T> int[] executeBatch(String sql, Iterable<T> iterable)
+			throws SQLException {
 		return executeBatch(sql, iterable.iterator());
 	}
 	
@@ -120,7 +179,8 @@ public abstract class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(String sql, Iterator<T> iterator) throws SQLException {
+	final public <T> int[] executeBatch(String sql, Iterator<T> iterator)
+			throws SQLException {
 		checkConnection();
 		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			while (iterator.hasNext()) {
@@ -266,7 +326,8 @@ public abstract class BaseDao {
 	 * @return 回调函数的返回值
 	 * @throws SQLException
 	 */
-	final public <T> T query(String sql, Object arg, OnQuery<T> func) throws SQLException {
+	final public <T> T query(String sql, Object arg, OnQuery<T> func)
+			throws SQLException {
 		checkConnection();
 		NamedStatement stmt = null;
 		ResultSet rs = null;
@@ -294,7 +355,8 @@ public abstract class BaseDao {
 	 * @return 回调函数的返回值
 	 * @throws SQLException
 	 */
-	final public <T> T query(String sql, OnQuery<T> func, Object...args) throws SQLException {
+	final public <T> T query(String sql, OnQuery<T> func, Object...args)
+			throws SQLException {
 		checkConnection();
 		PreparedStatement stmt = null;
 		ResultSet rs = null;
@@ -316,7 +378,8 @@ public abstract class BaseDao {
         }
 	}
 	
-	private OnQuery<Object> _qo = rs -> { return rs.next() ? rs.getObject(1) : null; };
+	private OnQuery<Object> _qo = rs -> {
+		return rs.next() ? rs.getObject(1) : null; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -333,7 +396,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Object queryForSingle(String sql, Object arg) throws SQLException {
+	final public Object queryForSingle(String sql, Object arg)
+			throws SQLException {
 		return query(sql, arg, _qo);
 	}
 	
@@ -343,11 +407,13 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Object queryForSingle(String sql, Object... args) throws SQLException {
+	final public Object queryForSingle(String sql, Object... args)
+			throws SQLException {
 		return query(sql, _qo, args);
 	}
 	
-	private OnQuery<Integer> _qoint = rs -> { return rs.next() ? rs.getInt(1) : null; };
+	private OnQuery<Integer> _qoint = rs -> {
+		return rs.next() ? rs.getInt(1) : null; };
 
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -365,7 +431,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Integer queryForInt(String sql, Object arg) throws SQLException {
+	final public Integer queryForInt(String sql, Object arg)
+			throws SQLException {
 		return query(sql, arg, _qoint);
 	}
 
@@ -376,11 +443,13 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Integer queryForInt(String sql, Object... args) throws SQLException {
+	final public Integer queryForInt(String sql, Object... args)
+			throws SQLException {
 		return query(sql, _qoint, args);
 	}
 
-	private OnQuery<Long> _qolong = rs -> { return rs.next() ? rs.getLong(1) : null; };
+	private OnQuery<Long> _qolong = rs -> {
+		return rs.next() ? rs.getLong(1) : null; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -397,7 +466,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Long queryForLong(String sql, Object arg) throws SQLException {
+	final public Long queryForLong(String sql, Object arg)
+			throws SQLException {
 		return query(sql, arg, _qolong);
 	}
 	
@@ -407,11 +477,13 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Long queryForLong(String sql, Object... args) throws SQLException {
+	final public Long queryForLong(String sql, Object... args)
+			throws SQLException {
 		return query(sql, _qolong, args);
 	}
 	
-	private OnQuery<String> _qostr = rs -> { return rs.next() ? rs.getString(1) : null; };
+	private OnQuery<String> _qostr = rs -> {
+		return rs.next() ? rs.getString(1) : null; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -428,7 +500,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public String queryForString(String sql, Object arg) throws SQLException {
+	final public String queryForString(String sql, Object arg)
+			throws SQLException {
 		return query(sql, arg, _qostr);
 	}
 	
@@ -438,7 +511,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public String queryForString(String sql, Object... args) throws SQLException {
+	final public String queryForString(String sql, Object... args)
+			throws SQLException {
 		return query(sql, _qostr, args);
 	}
 	
@@ -459,7 +533,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Date queryForDate(String sql, Object arg) throws SQLException {
+	final public Date queryForDate(String sql, Object arg)
+			throws SQLException {
 		return query(sql, arg, _qodate);
 	}
 	
@@ -469,7 +544,8 @@ public abstract class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Date queryForDate(String sql, Object... args) throws SQLException {
+	final public Date queryForDate(String sql, Object... args)
+			throws SQLException {
 		return query(sql, _qodate, args);
 	}
 	
@@ -494,7 +570,8 @@ public abstract class BaseDao {
 	 * @return 返回记录的对象
 	 * @throws SQLException
 	 */
-	final public <T> T queryForObject(String sql, Class<T> cls) throws SQLException {
+	final public <T> T queryForObject(String sql, Class<T> cls)
+			throws SQLException {
 		return query(sql, new Qobj<T>(cls));
 	}
 
@@ -505,7 +582,8 @@ public abstract class BaseDao {
 	 * @return 返回记录的对象
 	 * @throws SQLException
 	 */
-	final public <T> T queryForObject(String sql, Object arg, Class<T> cls) throws SQLException {
+	final public <T> T queryForObject(String sql, Object arg, Class<T> cls)
+			throws SQLException {
 		return query(sql, arg, new Qobj<T>(cls));
 	}
 
@@ -516,7 +594,8 @@ public abstract class BaseDao {
 	 * @return 返回记录的对象
 	 * @throws SQLException
 	 */
-	final public <T> T queryForObject(String sql, Class<T> cls, Object... args) throws SQLException {
+	final public <T> T queryForObject(String sql, Class<T> cls,
+			Object... args) throws SQLException {
 		return query(sql, new Qobj<T>(cls), args);
 	}
 	
@@ -536,7 +615,8 @@ public abstract class BaseDao {
 	 * @return 返回记录的对象
 	 * @throws SQLException
 	 */
-	final public <T> List<T> queryForList(String sql, Class<T> cls) throws SQLException {
+	final public <T> List<T> queryForList(String sql, Class<T> cls)
+			throws SQLException {
 		return query(sql, new Qlist<T>(cls));
 	}
 	
@@ -547,7 +627,8 @@ public abstract class BaseDao {
 	 * @return 返回记录的对象
 	 * @throws SQLException
 	 */
-	final public <T> List<T> queryForList(String sql, Object arg, Class<T> cls) throws SQLException {
+	final public <T> List<T> queryForList(String sql, Object arg,
+			Class<T> cls) throws SQLException {
 		return query(sql, arg, new Qlist<T>(cls));
 	}
 	
@@ -558,7 +639,8 @@ public abstract class BaseDao {
 	 * @return 返回记录的对象
 	 * @throws SQLException
 	 */
-	final public <T> List<T> queryForList(String sql, Class<T> cls, Object...args) throws SQLException {
+	final public <T> List<T> queryForList(String sql, Class<T> cls,
+			Object...args) throws SQLException {
 		return query(sql, new Qlist<T>(cls), args);
 	}
 	
@@ -591,7 +673,8 @@ public abstract class BaseDao {
 	final private int insertAfter() throws SQLException {
 		if (dbType == 0) {
 			try {
-				dbType = Class.forName("com.mysql.jdbc.Connection").isAssignableFrom(conn.getClass()) ? 1 : 2;
+				dbType = Class.forName("com.mysql.jdbc.Connection")
+						.isAssignableFrom(conn.getClass()) ? 1 : 2;
 			} catch (ClassNotFoundException e) {
 				MyLogger.error(e, e.getMessage());
 				throw new SQLException(e);
@@ -623,7 +706,8 @@ public abstract class BaseDao {
 			if (conn.getAutoCommit()) conn.setAutoCommit(false);
 			else {
 				if (savepoints == null) savepoints = new ArrayList<Savepoint>();
-				savepoints.add(conn.setSavepoint(Fmt.fmt("transaction {}", savepoints.size() + 1)));
+				savepoints.add(conn.setSavepoint(
+						Fmt.fmt("transaction {}", savepoints.size() + 1)));
 			}
 		}
 		catch (SQLException e) {
@@ -729,7 +813,8 @@ public abstract class BaseDao {
 	}
 	
 	/** 映射ResultSet到单个Object中 */
-	public static <T> T mapperObject(ResultSet rs, Class<T> cls) throws SQLException {
+	public static <T> T mapperObject(ResultSet rs, Class<T> cls)
+			throws SQLException {
 		T ret = null;
 		try {
 			ret = (T)cls.newInstance();
@@ -746,8 +831,9 @@ public abstract class BaseDao {
 
 		char[] tmpBuf = new char[MAX_COLUMN_LENGTH];
 		ResultSetMetaData rsmd = rs.getMetaData();
+		String fieldName;
 		for(int i = 1, n = rsmd.getColumnCount(), index; i <= n; ++i) {
-			String fieldName = columnNameToSetMethodName(rsmd.getColumnLabel(i), tmpBuf);
+			fieldName = columnToSetMethod(rsmd.getColumnLabel(i), tmpBuf);
 			//如果对象的属性存在，则进行赋值
 			if ((index = methodAccess.getIndex(fieldName)) != -1) {
 				methodAccess.invoke(ret, index, rs.getObject(i));
@@ -769,8 +855,9 @@ public abstract class BaseDao {
 		int columnCount = rsmd.getColumnCount();
 		int[] fieldsIndex = new int[columnCount];
 		char[] tmpBuf = new char[MAX_COLUMN_LENGTH];
+		String fieldName;
 		for(int i = 0; i < columnCount; ++i) {
-			String fieldName = columnNameToSetMethodName(rsmd.getColumnLabel(i + 1), tmpBuf);
+			fieldName = columnToSetMethod(rsmd.getColumnLabel(i + 1), tmpBuf);
 			fieldsIndex[i] = methodAccess.getIndex(fieldName);
 		}
 		
@@ -799,21 +886,25 @@ public abstract class BaseDao {
 		return methodAccess;
 	}
 	
-	final protected static String columnNameToFieldName(String columnName, char[] tmpBuf) {
+	final protected static String columnToField(String columnName,
+			char[] tmpBuf) {
 		return columnNameMap(columnName, tmpBuf, 0, false);
 	}
 	
-	final protected static String columnNameToSetMethodName(String columnName, char[] tmpBuf) {
+	final protected static String columnToSetMethod(String columnName,
+			char[] tmpBuf) {
 		tmpBuf[0] = 's'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
 		return columnNameMap(columnName, tmpBuf, 3, true);
 	}
 	
-	final protected static String columnNameToGetMethodName(String columnName, char[] tmpBuf) {
+	final protected static String columnToGetMethod(String columnName,
+			char[] tmpBuf) {
 		tmpBuf[0] = 'g'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
 		return columnNameMap(columnName, tmpBuf, 3, true);
 	}
 	
-	protected static String columnNameMap(String columnName, char[] tmpBuf, int start, boolean firstUpper) {
+	protected static String columnNameMap(String columnName, char[] tmpBuf,
+			int start, boolean firstUpper) {
 		char[] chars = tmpBuf;
 		for (int i = 0, n = columnName.length(); i < n; ++i) {
 			char c = columnName.charAt(i);
