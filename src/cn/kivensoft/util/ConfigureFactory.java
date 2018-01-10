@@ -8,6 +8,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -99,7 +100,9 @@ public final class ConfigureFactory {
 			return props;
 		} catch (IOException e) {
 			MyLogger.error(e);
-			Langs.close(reader);
+		}
+		finally {
+			Langs.close(reader, is);
 		}
 		return null;
 	}
@@ -120,10 +123,10 @@ public final class ConfigureFactory {
 		}
 		
 		if(path.endsWith(".jar")) { //在部署环境
-			path = path.substring(0, path.lastIndexOf('/') + 1);
-			subPath = addPath(null, subPath);
+			path = path.substring(0, path.lastIndexOf('/'));
+			subPath = joinPath("/", subPath);
 			if (subPath.length() > 0 && path.endsWith(subPath))
-				path = path.substring(0, path.length() - subPath.length() + 1);
+				path = path.substring(0, path.length() - subPath.length());
 		}
 		return path;
 	}
@@ -157,10 +160,12 @@ public final class ConfigureFactory {
 		int len = dirs.length;
 		// 优先加载磁盘路径下的文件
 		for (int i = 0; i < len; ++i) {
-			f = new File(rootPath, dirs[i]);
+			f = new File(joinPath(rootPath, dirs[i], fileName));
 			if (f.exists()) {
 				try {
-					return new FileInputStream(f);
+					FileInputStream fs = new FileInputStream(f);
+					MyLogger.debug("load resource: {}", f.getAbsolutePath());
+					return fs;
 				} catch (FileNotFoundException e) {
 					MyLogger.error(e, "can't open resource {}: {}",
 							f.getAbsolutePath(), e.getMessage());
@@ -169,9 +174,12 @@ public final class ConfigureFactory {
 		}
 		// 尝试以加载资源的方式加载文件
 		for (int i = 0; i < len; ++i) {
-			InputStream is = mainClass.getResourceAsStream(
-					addPath(null, dirs[i]));
-			if (is != null) return is;
+			String p = joinPath("/", dirs[i], fileName);
+			InputStream is = mainClass.getResourceAsStream(p);
+			if (is != null) {
+				MyLogger.debug("load resource: ", p);
+				return is;
+			}
 		}
 		return null;
 	}
@@ -189,12 +197,12 @@ public final class ConfigureFactory {
 		int len = dirs.length;
 		// 查找磁盘路径下的文件
 		for (int i = 0; i < len; ++i) {
-			f = new File(rootPath, dirs[i]);
+			f = new File(joinPath(rootPath, dirs[i], fileName));
 			if (f.exists()) return f.getAbsolutePath();
 		}
 		// 查找资源文件
 		for (int i = 0; i < len; ++i) {
-			String path = addPath(null, dirs[i]);
+			String path = joinPath("/", dirs[i], fileName);
 			InputStream is = mainClass.getResourceAsStream(path);
 			if (is != null) {
 				Langs.close(is);
@@ -238,19 +246,18 @@ public final class ConfigureFactory {
 		return ret;
 	}
 
-	private static String addPath(String path, String subPath) {
+	private static String joinPath(String... paths) {
 		Fmt f = Fmt.get();
-		if (path != null) {
-			f.append(path);
-			char c = f.charAt(f.length() - 1);
-			if (c != '/' && c != '\\') f.append('/');
-		}
-		else f.append('/');
-		if (subPath != null && subPath.length() > 0) {
-			if (subPath.charAt(0) == '/') f.append(subPath.substring(1));
-			else f.append(subPath);
-			char c = f.charAt(f.length() - 1);
-			if (c != '/' && c != '\\') f.append('/');
+		for (int i = 0, n = paths.length; i < n; ++i) {
+			String p = paths[i];
+			if (p == null || p.isEmpty()) 
+				continue;
+			if (f.length() > 0) {
+				char c = f.charAt(f.length() - 1);
+				if (c != '/' && c != '\\') f.append('/');
+			}
+			if (p.charAt(0) == '/') f.append(p, 1, p.length());
+			else f.append(p);
 		}
 		return f.release();
 	}

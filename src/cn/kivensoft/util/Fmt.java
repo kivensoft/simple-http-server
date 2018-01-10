@@ -335,6 +335,25 @@ public final class Fmt implements Appendable, CharSequence {
 		return get().append(iterable, delimiter, null, null, null).release();
 	}
 
+	/** 返回格式化后的字符串
+	 * @param iterable 要格式化的参数
+	 * @param delimiter 分隔符
+	 * @param func lamdba表达式,参数是数组的每个对象,返回Object
+	 * @return
+	 */
+	public static <T> String join(Iterator<T> iterator, String delimiter, Function<T, Object> func) {
+		return get().append(iterator, delimiter, null, null, func).release();
+	}
+
+	/** 返回格式化后的字符串
+	 * @param iterable 要格式化的参数
+	 * @param delimiter 分隔符
+	 * @return
+	 */
+	public static <T> String join(Iterator<T> iterator, String delimiter) {
+		return get().append(iterator, delimiter, null, null, null).release();
+	}
+
 	/** 转成16进制字符串
 	 * @param value 要转换的字节数组
 	 * @return

@@ -206,7 +206,8 @@ public final class Langs {
 	
 	/** 获取系统的今天，只包含日期部分 */
 	public static Date today() {
-		return new Date((System.currentTimeMillis() + tzOffset) / msOfDay * msOfDay);
+		return new Date((System.currentTimeMillis() + tzOffset)
+				/ msOfDay * msOfDay - tzOffset);
 	}
 	
 	/** 增加年份 */
@@ -275,12 +276,12 @@ public final class Langs {
 	
 	/** 返回一个新的日期变量，值为日期参数的日期部分 */
 	public static Date onlyDate(Date date) {
-		return new Date((date.getTime() + tzOffset) / msOfDay * msOfDay);
+		return new Date((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
 	}
 
 	/** 设置日期参数的时分秒为0 */
 	public static void trimTime(Date date) {
-		date.setTime((date.getTime() + tzOffset) / msOfDay * msOfDay);
+		date.setTime((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
 	}
 	
 	/** 转换为GMT时间 */

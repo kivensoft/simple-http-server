@@ -833,11 +833,22 @@ public abstract class BaseDao {
 	}
 	
 	/** 映射ResultSet结果到List中，并返回该list */
+	@SuppressWarnings("unchecked")
 	public static <T> List<T> mapperList(ResultSet rs, List<T> list,
 			Class<T> cls) throws SQLException {
 		
 		if (!rs.next()) return list;
 		
+		// 简单对象处理
+		if (String.class == cls || Number.class.isAssignableFrom(cls)
+				|| Date.class == cls || byte[].class == cls) {
+			do {
+				list.add((T)(rs.getObject(0)));
+			} while (rs.next());
+			return list;
+		}
+		
+		// 复杂对象处理
 		MethodAccess methodAccess = getMethodAccessByCache(cls);
 		
 		ResultSetMetaData rsmd = rs.getMetaData();
