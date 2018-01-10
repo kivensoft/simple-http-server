@@ -843,7 +843,7 @@ public abstract class BaseDao {
 		if (String.class == cls || Number.class.isAssignableFrom(cls)
 				|| Date.class == cls || byte[].class == cls) {
 			do {
-				list.add((T)(rs.getObject(0)));
+				list.add((T)(rs.getObject(1)));
 			} while (rs.next());
 			return list;
 		}
