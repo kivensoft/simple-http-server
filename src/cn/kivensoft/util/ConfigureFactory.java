@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Method;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -17,6 +16,7 @@ import org.apache.log4j.PropertyConfigurator;
 
 public final class ConfigureFactory {
 	private static final String UTF8 = "UTF-8";
+	private static final String LOG4J = "log4j.properties";
 
 	private Class<?> mainClass;
 	private String rootPath;
@@ -33,7 +33,7 @@ public final class ConfigureFactory {
 	}
 	
 	public ConfigureFactory initLog4j(String log4jFileName) {
-		if (log4jFileName == null) log4jFileName = "log4j.properties";
+		if (log4jFileName == null) log4jFileName = LOG4J;
 		initLog4j(log4jFileName, mainClass, rootPath, dirs);
 		return this;
 	}

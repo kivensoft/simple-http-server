@@ -291,7 +291,7 @@ public final class Langs {
 	
 	/** 合并两个int成long */
 	public static long mergeTwoInt(int high, int low) {
-		return ((long)(high << 32)) | ((long)low); 
+		return ((long)high << 32) | ((long)low); 
 	}
 	
 	/** 获取long的高位int */
