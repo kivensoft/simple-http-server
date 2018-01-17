@@ -3,6 +3,7 @@ package cn.kivensoft.util;
 import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -11,7 +12,11 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Calendar;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.Predicate;
 
@@ -56,8 +61,10 @@ public final class Langs {
 	 */
 	public static <T> T copyProperties(Object src, T dst) {
 		if (src == null || dst == null) return null;
-		StringBuilder sb = new StringBuilder().append('s');
+		StringBuilder sb = new StringBuilder();
 		Class<?> cls = dst.getClass();
+		Set<String> fnames = new HashSet<>();
+
 		Method[] ms = src.getClass().getMethods();
 		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
 		for (int i = 0, n = ms.length; i < n; ++i) {
@@ -69,17 +76,51 @@ public final class Langs {
 							|| !name.startsWith("get")
 							|| m.getParameterCount() > 0)
 						continue;
-					sb.setLength(1); // 第一个字符固定为's'
-					Method m2 = cls.getMethod(
-							sb.append(name, 1, name.length()).toString(),
-							m.getReturnType());
+					sb.setLength(0);
+					String mname = sb.append('s')
+							.append(name, 1, name.length()).toString();
+					sb.setLength(0);
+					String fname = sb.append(Character.toLowerCase(name.charAt(3)))
+							.append(name, 4, name.length()).toString(); 
+					Method m2 = cls.getMethod(mname, m.getReturnType());
 					if (m2 != null) m2.invoke(dst, m.invoke(src));
+					else {
+						Field f2 = cls.getField(fname);
+						if (f2 != null) f2.set(dst, m.invoke(src));
+					}
+					fnames.add(fname);
 				}
 			}
 			catch (Exception e) {}
 		}
+		
+		Field[] fs = src.getClass().getFields();
+		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
+		for (int i = 0, n = fs.length; i < n; ++i) {
+			try {
+				for (; i < n; ++i) {
+					Field f = fs[i];
+					String name = f.getName();
+					if (fnames.contains(name)) continue;
+					Field f2 = cls.getField(name);
+					if (f2 != null) f2.set(dst, f.get(src));
+					else {
+						sb.setLength(0);
+						String mname = sb.append("set")
+							.append(Character.toUpperCase(name.charAt(0)))
+							.append(name, 1, name.length()).toString();
+						Method m2 = cls.getMethod(mname, f.getType());
+						if (m2 != null)
+							m2.invoke(dst, f.get(src));
+					}
+				}
+			}
+			catch (Exception e) {}
+		}
+		
 		return dst;
 	}
+	
 	
 	/** 关闭资源，抛弃异常
 	 * @param closeable 实现可关闭接口的对象
@@ -88,6 +129,7 @@ public final class Langs {
 		if (closeable != null)
 			try { closeable.close(); } catch(IOException e) {}
 	}
+
 
 	/** 关闭多个资源，抛弃异常
 	 * @param closeables 多个实现可关闭接口的对象
@@ -105,6 +147,7 @@ public final class Langs {
 		}
 	}
 	
+
 	/** 采用反射的方式调用对象的close函数关闭资源，抛弃异常
 	 * @param args 多个需要关闭的对象
 	 */
@@ -151,10 +194,23 @@ public final class Langs {
     		if (predicate.test(array[i])) return i;
     	return -1;
     }
-
+    
     public static <T> T elementAtArray(T[] array, int start, Predicate<T> predicate) {
-    	for (int i = 0, len = array.length; i < len; ++i)
+    	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return array[i];
+    	return null;
+    }
+
+    public static <T> T find(T[] array, Predicate<T> predicate) {
+    	return elementAtArray(array, 0, predicate);
+    }
+    
+    public static <T> T find(Collection<T> collection, Predicate<T> predicate) {
+    	Iterator<T> iter = collection.iterator();
+    	while (iter.hasNext()) {
+    		T v = iter.next();
+    		if (predicate.test(v)) return v;
+    	}
     	return null;
     }
 

@@ -6,6 +6,7 @@ import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
 import java.time.LocalDate;
@@ -15,8 +16,10 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Formatter;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -928,7 +931,6 @@ public final class Fmt implements Appendable, CharSequence {
 		return append(value, delimiter, null, null, null);
 	}
 
-	
 	/** 格式化可迭代对象
 	 * @param value 可迭代对象
 	 * @param delimiter 字符串分隔符
@@ -939,7 +941,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public <T> Fmt append(Iterable<T> value, String delimiter, String prefix, String suffix) {
 		return append(value, delimiter, prefix, suffix, null);
 	}
-
 	
 	/** 格式化可迭代对象
 	 * @param value 可迭代对象
@@ -950,7 +951,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public <T> Fmt append(Iterable<T> value, String delimiter, Function<T, Object> func) {
 		return append(value, delimiter, null, null, func);
 	}
-
 	
 	/** 格式化列表
 	 * @param value 列表
@@ -964,7 +964,6 @@ public final class Fmt implements Appendable, CharSequence {
 			String suffix, Function<T, Object> func) {
 		return append(value.iterator(), delimiter, prefix, suffix, func);
 	}
-
 	
 	/** 格式化流
 	 * @param stream java8的流
@@ -974,7 +973,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public <T> Fmt append(Iterator<T> iter, String delimiter) {
 		return append(iter, delimiter, null, null, null);
 	}
-
 	
 	/** 格式化流
 	 * @param stream java8的流
@@ -986,7 +984,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public <T> Fmt append(Iterator<T> iter, String delimiter, String prefix, String suffix) {
 		return append(iter, delimiter, prefix, suffix, null);
 	}
-
 	
 	/** 格式化流
 	 * @param stream java8的流
@@ -997,7 +994,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public <T> Fmt append(Iterator<T> iter, String delimiter, Function<T, Object> func) {
 		return append(iter, delimiter, null, null, func);
 	}
-
 	
 	/** 格式化流元素
 	 * @param stream 流
@@ -1022,16 +1018,13 @@ public final class Fmt implements Appendable, CharSequence {
 		if (suffix != null) buffer.append(suffix);
 		return this;
 	}
-
 	
 	private void appendNull() {
 		buffer.append('n').append('u').append('l').append('l');
 	}
-
 	
 	private final static int [] sizeTable = { 9, 99, 999, 9999, 99999, 999999, 9999999,
 			99999999, 999999999, Integer.MAX_VALUE };
-
 	
 	/** 追加整数，不足前面补0
 	 * @param value 要追加的整数
@@ -1046,7 +1039,6 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append(value);
 		return this;
 	}
-
 	
 	/** 追加字符串，不足前面补空格
 	 * @param text 要追加的文本
@@ -1056,7 +1048,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public Fmt append(String text, int width) {
 		return append(text, width, ' ');
 	}
-
 	
 	/** 追加字符串，不足前面补空格
 	 * @param text 要追加的文本
@@ -1071,7 +1062,6 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append(text);
 		return this;
 	}
-
 	
 	/** 生成指定重复次数的字符串
 	 * @param text 需要重复的文本
@@ -1081,7 +1071,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public Fmt repeat(String text, int count) {
 		return repeat(text, count, '\0', '\0');
 	}
-
 	
 	/** 生成指定重复次数的字符串
 	 * @param text 需要重复的文本
@@ -1092,7 +1081,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public Fmt repeat(String text, int count, char delimiter) {
 		return repeat(text, count, delimiter, '\0');
 	}
-
 	
 	/** 生成指定重复次数的字符串
 	 * @param text 需要重复的文本
@@ -1113,7 +1101,6 @@ public final class Fmt implements Appendable, CharSequence {
 			while (count-- > 0) buffer.append(text);
 		return this;
 	}
-
 	
 	/** 生成指定重复次数的字符串
 	 * @param text 需要重复的文本
@@ -1126,7 +1113,6 @@ public final class Fmt implements Appendable, CharSequence {
 		while (count-- > 0) buffer.append(delimiter).append(text);
 		return this;
 	}
-
 	
 	/** 生成指定重复次数的字符串
 	 * @param c 需要重复的字符
@@ -1137,7 +1123,6 @@ public final class Fmt implements Appendable, CharSequence {
 		while(--count >= 0) buffer.append(c);
 		return this;
 	}
-
 	
 	/** 将对象以json格式增加
 	 * @param value 要格式化的对象
@@ -1183,38 +1168,58 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-
 	private void objectToJson(Object value) {
 		buffer.append('{');
 		Class<?> cls = value.getClass();
 		Method[] ms = cls.getMethods();
+		Set<String> names = new HashSet<>();
 		boolean first = false;
 		for (int i = 0, n = ms.length; i < n; ++i) {
-			Method m = ms[i];
-			String msn = m.getName();
-			if (msn.length() < 4
-					|| !msn.startsWith("get")
-					|| msn.charAt(3) == '_'
-					|| msn.equals("getClass")
-					|| m.getParameterCount() > 0) {
-				continue;
-			}
 			try {
-				Object obj = m.invoke(value);
-				if (obj == null) continue;
-				if (!first) first = true;
-				else buffer.append(',').append(' ');
-				buffer.append('"');
-				char c = msn.charAt(3);
-				buffer.append((c >= 'A' && c <= 'Z') ? (char)(c + 0x20) : c);
-				if (msn.length() > 4) buffer.append(msn, 4, msn.length());
-				buffer.append('"').append(':').append(' ');
-				appendJson(obj);
+				for (; i < n; ++i) {
+					Method m = ms[i];
+					String mn = m.getName();
+					if (mn.length() < 4
+							|| !mn.startsWith("get")
+							|| mn.equals("getClass")
+							|| m.getParameterCount() > 0)
+						continue;
+					Object obj = m.invoke(value);
+					if (obj == null) continue;
+					if (!first) first = true;
+					else buffer.append(',').append(' ');
+					buffer.append('"');
+					char c = mn.charAt(3);
+					String fname = Fmt.get()
+							.append((c >= 'A' && c <= 'Z') ? (char)(c + 0x20) : c)
+							.append(mn, 4, mn.length()).release();
+					names.add(fname);
+					buffer.append(fname).append('"').append(':').append(' ');
+					appendJson(obj);
+				}
 			} catch (Exception e) { }
 		}
+		
+		Field[] fs = cls.getFields();
+		for (int i = 0, n = fs.length; i < n; ++i) {
+			try {
+				for (; i < n; ++i) {
+					Field f = fs[i];
+					String fn = f.getName();
+					if (names.contains(fn)) continue;
+					Object obj = f.get(value);
+					if (obj == null) continue;
+					if (!first) first = true;
+					else buffer.append(',').append(' ');
+					buffer.append('"');
+					buffer.append(fn).append('"').append(':').append(' ');
+					appendJson(obj);
+				}
+			} catch (Exception e) { }
+		}
+		
 		buffer.append('}');
 	}
-
 
 	private void iterableToJson(Iterable<?> value) {
 		Iterator<?> iter = value.iterator();
@@ -1226,7 +1231,6 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		buffer.append(']');
 	}
-
 
 	private void charToJson(Character value) {
 		buffer.append('"');
@@ -1244,20 +1248,27 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append('"');
 	}
 
-
 	private void mapToJson(Map<?, ?> value) {
 		buffer.append('{');
-		boolean first = true;
-		for (Map.Entry<?, ?> v : value.entrySet()) {
-			if(first) first = false;
-			else buffer.append(',').append(' ');
-			buffer.append('"').append(v.getKey().toString()).append('"')
-				.append(':').append(' ');
-			appendJson(v.getValue());
+		Iterator<?> iter = value.entrySet().iterator();
+		if (iter.hasNext()) {
+			Map.Entry<?, ?> entry = (Map.Entry<?, ?>) iter.next();
+			if (entry != null) {
+				buffer.append('"').append(entry.getKey().toString())
+						.append('"').append(':').append(' ');
+				appendJson(entry.getValue());
+			}
+		}
+		while (iter.hasNext()) {
+			Map.Entry<?, ?> entry = (Map.Entry<?, ?>) iter.next();
+			if (entry == null) continue;
+			buffer.append(',').append(' ').append('"')
+					.append(entry.getKey().toString()).append('"')
+					.append(':').append(' ');
+			appendJson(entry.getValue());
 		}
 		buffer.append('}');
 	}
-
 
 	private void arrayToJson(Object value) {
 		buffer.append('[');
@@ -1269,7 +1280,6 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		buffer.append(']');
 	}
-
 	
 	/*
 	private static char toLowerCase(char c) {
@@ -1287,7 +1297,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public Fmt appendHex(final byte[] bytes) {
 		return appendHex(bytes, '\0');
 	}
-
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes, char delimiter) {
@@ -1308,7 +1317,6 @@ public final class Fmt implements Appendable, CharSequence {
 		
 		return this;
 	}
-
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final int value) {
@@ -1319,7 +1327,6 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		return this;
 	}
-
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final int...args) {
@@ -1328,7 +1335,6 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	
 	/** 转换成16进制 */
 	public Fmt appendHex(final char delimiter, final int... args) {
 		if (args.length > 0) appendHex(args[0]);
@@ -1338,7 +1344,6 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		return this;
 	}
-
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final long value) {
@@ -1349,7 +1354,6 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		return this;
 	}
-
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final long...args) {
@@ -1357,7 +1361,6 @@ public final class Fmt implements Appendable, CharSequence {
 			appendHex(args[i]);
 		return this;
 	}
-
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final char delimiter, final long... args) {
@@ -1368,7 +1371,6 @@ public final class Fmt implements Appendable, CharSequence {
 		}
 		return this;
 	}
-
 	
 	private final static char[] BASE64_DIGEST = 
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
@@ -1427,13 +1429,11 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-
 	@Override
 	public Fmt append(CharSequence s) {
 		buffer.append(s);
 		return this;
 	}
-
 
 	@Override
 	public Fmt append(CharSequence s, int start, int end) {
@@ -1441,20 +1441,17 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-
 	/** 变更指定位置的字符 */
 	public Fmt setCharAt(int index, char ch) {
 		buffer.setCharAt(index, ch);
 		return this;
 	}
 
-
 	/** 删除指定位置的字符 */
 	public Fmt delete(int start, int end) {
 		buffer.delete(start, end);
 		return this;
 	}
-
 
 	/** 删除指定位置的字符 */
 	public Fmt deleteCharAt(int index) {
@@ -1466,7 +1463,6 @@ public final class Fmt implements Appendable, CharSequence {
 	public Fmt deleteLastChar() {
 		return deleteLastChar(1);
 	}
-
 	
 	/** 删除最后count个字符
 	 * @param count 要删除的字符数量
@@ -1477,14 +1473,12 @@ public final class Fmt implements Appendable, CharSequence {
 			buffer.setLength(buffer.length() - count);
 		return this;
 	}
-
 	
 	/** 设置字符串缓冲区长度 */
 	public Fmt setLength(int newLength) {
 		buffer.setLength(newLength);
 		return this;
 	}
-
 	
 	/** 重新调整字符串缓冲区长度 */
 	public Fmt reduce(int size) {
@@ -1493,39 +1487,32 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-
 	@Override
 	public char charAt(int index) {
 		return buffer.charAt(index);
 	}
 
-
 	@Override
 	public int length() {
 		return buffer.length();
 	}
-
 	
 	public CharSequence subSequence(int start) {
 		return subSequence(start, buffer.length());
 	}
-
 	
 	@Override
 	public CharSequence subSequence(int start, int end) {
 		return buffer.subSequence(start, end);
 	}
-
 	
 	public String substring(int start) {
 		return substring(start, buffer.length());
 	}
-
 	
 	public String substring(int start, int end) {
 		return buffer.substring(start, end);
 	}
-
 	
 	/** 以json字符串方式追加字符串, 自动对字符串进行json方式转义 */
 	public void appendJavascriptString(CharSequence value) {
