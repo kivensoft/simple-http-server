@@ -28,6 +28,7 @@ import com.sun.net.httpserver.HttpServer;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.MyLogger;
 import cn.kivensoft.util.ObjectPool;
+import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
 
 public class SimpleHttpServer implements HttpHandler {
@@ -330,22 +331,25 @@ public class SimpleHttpServer implements HttpHandler {
 	 */
 	private final String readStringFromInputStream(InputStream inputStream) {
 		String ret = null;
+		PoolItem<char[]> ciItem = charsPool.get();
+		PoolItem<StringBuilder> bItem = bufferPool.get();
 		try {
 			Reader reader = new BufferedReader(new InputStreamReader(inputStream, UTF_8));
-			CharsItem ciItem = charsPool.get();
-			BufferItem bItem = bufferPool.get();
-			char[] buf = ciItem.buf;
+			char[] buf = ciItem.get();
+			StringBuilder sb = bItem.get();
 			int readCount;
 
 			while ((readCount = reader.read(buf)) != -1)
-				bItem.sb.append(buf, 0, readCount);
+				sb.append(buf, 0, readCount);
 			
-			ret = bItem.sb.toString();
-			ciItem.recycle();
-			bItem.recycle();
+			ret = sb.toString();
 		}
 		catch(IOException e) {
 			MyLogger.error(e, "读取网络输入流时错误.");
+		}
+		finally {
+			ciItem.recycle();
+			bItem.recycle();
 		}
 		
 		return ret;
@@ -369,19 +373,9 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** char数组对象池 */
-	private ObjectPool<CharsItem> charsPool = new ObjectPool<>(() -> new CharsItem()); 
-	private class CharsItem extends ObjectPool.Item {
-		char[] buf = new char[512];
-	}
+	private ObjectPool<char[]> charsPool = new ObjectPool<>(() -> new char[512]); 
 	
 	/** StringBuilder对象池 */
-	private ObjectPool<BufferItem> bufferPool = new ObjectPool<>(() -> new BufferItem()); 
-	private class BufferItem extends ObjectPool.Item {
-		StringBuilder sb = new StringBuilder(1024);
-		@Override
-		protected void clear() {
-			super.clear();
-			sb.setLength(0);
-		}
-	}
+	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(
+			() -> new StringBuilder(), v -> v.setLength(0)); 
 }

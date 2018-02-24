@@ -34,13 +34,13 @@ public abstract class BaseDao {
 	}
 	
 	@FunctionalInterface
-	public static interface OnTransaction<T> {
-		T apply() throws SQLException;
+	public static interface OnTransaction<R> {
+		R apply(BaseDao dao) throws SQLException;
 	}
 	
 	@FunctionalInterface
 	public static interface OnConnection {
-		void apply() throws Exception;
+		void accept(BaseDao dao) throws Exception;
 	}
 	
 	protected static final WeakCache<String, MethodAccess> methodAccessCache =
@@ -60,19 +60,6 @@ public abstract class BaseDao {
 	}
 	
 	
-	/** 使用连接工厂创建连接, 执行回调函数并关闭连接
-	 * @param connectionFactory 实现Supplier接口的连接工厂
-	 * @param func 连接打开后要执行的回调函数
-	 */
-	public BaseDao(Supplier<Connection> connectionFactory, OnConnection func) {
-		this(connectionFactory);
-		try {
-			func.apply();
-		} catch (Exception e) { }
-		close();
-	}
-	
-	
 	/** 使用已有的连接创建dao, 通常用于同一个线程且同一个事务中共享连接
 	 * @param conn 已有的连接
 	 */
@@ -80,18 +67,6 @@ public abstract class BaseDao {
 		if (conn == null)
 			throw new IllegalArgumentException("connection is null.");
 		this.conn = conn;
-	}
-	
-	/** 使用已有的连接创建dao, 通常用于同一个线程且同一个事务中共享连接
-	 * @param conn 已有的连接
-	 * @param func 连接打开后要执行的回调函数
-	 */
-	public BaseDao(Connection conn, OnConnection func) {
-		this(conn);
-		try {
-			func.apply();
-		} catch (Exception e) { }
-		close();
 	}
 	
 	/** 批量执行SQL，参数批量
@@ -367,16 +342,14 @@ public abstract class BaseDao {
         }
 	}
 	
-	private OnQuery<Object> _qo = rs -> {
-		return rs.next() ? rs.getObject(1) : null; };
-	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
 	final public Object queryForSingle(String sql) throws SQLException {
-		return query(sql, _qo);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getObject(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -387,7 +360,8 @@ public abstract class BaseDao {
 	 */
 	final public Object queryForSingle(String sql, Object arg)
 			throws SQLException {
-		return query(sql, arg, _qo);
+		return query(sql, arg, rs -> {
+			return rs.next() ? rs.getObject(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -398,19 +372,18 @@ public abstract class BaseDao {
 	 */
 	final public Object queryForSingle(String sql, Object... args)
 			throws SQLException {
-		return query(sql, _qo, args);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getObject(1) : null; }, args);
 	}
 	
-	private OnQuery<Integer> _qoint = rs -> {
-		return rs.next() ? rs.getInt(1) : null; };
-
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
 	final public Integer queryForInt(String sql) throws SQLException {
-		return query(sql, _qoint);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getInt(1) : null; });
 	}
 
 
@@ -422,7 +395,8 @@ public abstract class BaseDao {
 	 */
 	final public Integer queryForInt(String sql, Object arg)
 			throws SQLException {
-		return query(sql, arg, _qoint);
+		return query(sql, arg, rs -> {
+			return rs.next() ? rs.getInt(1) : null; });
 	}
 
 
@@ -434,19 +408,18 @@ public abstract class BaseDao {
 	 */
 	final public Integer queryForInt(String sql, Object... args)
 			throws SQLException {
-		return query(sql, _qoint, args);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getInt(1) : null; }, args);
 	}
 
-	private OnQuery<Long> _qolong = rs -> {
-		return rs.next() ? rs.getLong(1) : null; };
-	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
 	final public Long queryForLong(String sql) throws SQLException {
-		return query(sql, _qolong);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getLong(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -457,7 +430,8 @@ public abstract class BaseDao {
 	 */
 	final public Long queryForLong(String sql, Object arg)
 			throws SQLException {
-		return query(sql, arg, _qolong);
+		return query(sql, arg, rs -> {
+			return rs.next() ? rs.getLong(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -468,11 +442,9 @@ public abstract class BaseDao {
 	 */
 	final public Long queryForLong(String sql, Object... args)
 			throws SQLException {
-		return query(sql, _qolong, args);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getLong(1) : null; }, args);
 	}
-	
-	private OnQuery<String> _qostr = rs -> {
-		return rs.next() ? rs.getString(1) : null; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -480,7 +452,8 @@ public abstract class BaseDao {
 	 * @throws SQLException
 	 */
 	final public String queryForString(String sql) throws SQLException {
-		return query(sql, _qostr);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getString(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -491,7 +464,8 @@ public abstract class BaseDao {
 	 */
 	final public String queryForString(String sql, Object arg)
 			throws SQLException {
-		return query(sql, arg, _qostr);
+		return query(sql, arg, rs -> {
+			return rs.next() ? rs.getString(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -502,10 +476,9 @@ public abstract class BaseDao {
 	 */
 	final public String queryForString(String sql, Object... args)
 			throws SQLException {
-		return query(sql, _qostr, args);
+		return query(sql, rs -> {
+			return rs.next() ? rs.getString(1) : null; }, args);
 	}
-	
-	private OnQuery<Date> _qodate = rs -> { return rs.next() ? rs.getDate(1) : null; };
 	
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
@@ -513,7 +486,7 @@ public abstract class BaseDao {
 	 * @throws SQLException
 	 */
 	final public Date queryForDate(String sql) throws SQLException {
-		return query(sql, _qodate);
+		return query(sql, rs -> { return rs.next() ? rs.getDate(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -524,7 +497,7 @@ public abstract class BaseDao {
 	 */
 	final public Date queryForDate(String sql, Object arg)
 			throws SQLException {
-		return query(sql, arg, _qodate);
+		return query(sql, arg, rs -> { return rs.next() ? rs.getDate(1) : null; });
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -535,7 +508,7 @@ public abstract class BaseDao {
 	 */
 	final public Date queryForDate(String sql, Object... args)
 			throws SQLException {
-		return query(sql, _qodate, args);
+		return query(sql, rs -> { return rs.next() ? rs.getDate(1) : null; }, args);
 	}
 	
 	private class Qobj<T> implements OnQuery<T> {
@@ -756,7 +729,7 @@ public abstract class BaseDao {
 		beginTransaction();
 
 		try {
-			T ret = transaction.apply();
+			T ret = transaction.apply(this);
 			if (predicate.test(ret)) commit();
 			else rollback();
 			return ret;
@@ -774,6 +747,14 @@ public abstract class BaseDao {
 				conn.close();
 				conn = null;
 			} catch(SQLException e) {}
+	}
+	
+	/** 执行指定的函数后关闭连接 */
+	final public void close(OnConnection func) {
+		try {
+			func.accept(this);
+		} catch (Exception e) { }
+		close();
 	}
 	
 	/** 关闭资源 */

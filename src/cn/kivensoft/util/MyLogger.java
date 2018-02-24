@@ -25,15 +25,17 @@ final public class MyLogger {
 	}
 	
 	protected static Priority toLevel(LogLevel level) {
+		Level v;
 		switch (level) {
-			case trace: return Level.TRACE;
-			case debug: return Level.DEBUG;
-			case info: return Level.INFO;
-			case warn: return Level.WARN;
-			case error: return Level.ERROR;
+			case trace: v = Level.TRACE; break;
+			case debug: v = Level.DEBUG; break;
+			case info: v = Level.INFO; break;
+			case warn: v = Level.WARN; break;
+			case error: v = Level.ERROR; break;
 			default:
-				return Level.OFF;
+				v = Level.OFF;
 		}
+		return v;
 	}
 	
 	public static boolean isEnabledFor(LogLevel level) {

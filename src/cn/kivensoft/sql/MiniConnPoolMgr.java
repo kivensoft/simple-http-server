@@ -24,9 +24,11 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 	// 定时回收多余连接的间隔时间
 	private final int DELAY_SECONDS = 120;
 	
-	private final Queue<PooledConnection> recycledConnections = new LinkedBlockingDeque<PooledConnection>();
-	private final PoolConnectionEventListener poolConnectionEventListener = new PoolConnectionEventListener();
-	
+	private final Queue<PooledConnection> recycledConnections =
+			new LinkedBlockingDeque<>();
+	private final PoolConnectionEventListener poolConnectionEventListener =
+			new PoolConnectionEventListener();
+
 	private final String driverClassName;
 	private final String url;
 	private final String username;
@@ -176,14 +178,14 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 	private class PoolConnectionEventListener implements ConnectionEventListener {
 		@Override
 		public void connectionClosed(ConnectionEvent event) {
-			PooledConnection pconn = (PooledConnection) event.getSource();
+			PooledConnection pconn = (PooledConnection)event.getSource();
 			pconn.removeConnectionEventListener(this);
 			recycleConnection(pconn);
 		}
 
 		@Override
 		public void connectionErrorOccurred(ConnectionEvent event) {
-			PooledConnection pconn = (PooledConnection) event.getSource();
+			PooledConnection pconn = (PooledConnection)event.getSource();
 			pconn.removeConnectionEventListener(this);
 			disposeConnection(pconn);
 		}

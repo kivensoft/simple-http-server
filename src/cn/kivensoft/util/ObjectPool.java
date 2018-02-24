@@ -2,40 +2,51 @@ package cn.kivensoft.util;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /** 对象池，采用弱引用方式保存使用过的对象，减少创建对象的次数，降低内存占用率
  * 使用方法: 
- *     class A extends ObjectPool.Item {}
- *     static ObjectPool<A> x = new ObjectPool<>(A.class);
- *     A value = x.get();
- *     value.recycle();
+ *     static ObjectPool<T> x = new ObjectPool<>(() -> new T());
+ *     PoolItem<A> item = x.get();
+ *     A a = item.get();
+ *     item.recycle();
  * @author kiven lee
  * @version 1.0
  * @date 2015-09-27
  */
-public class ObjectPool<T extends ObjectPool.Item> {
+final public class ObjectPool<T> {
 	
-	abstract public static class Item {
-		ObjectPool<Item> _pool;
-		WeakReference<Item> _self, _next;
-		protected void clear() {};
-		public void recycle() {
-			clear();
-			_pool.push(this);
+	private class Item implements PoolItem<T> {
+		private T value;
+		private WeakReference<Item> _self, _next;
+		private Item(T value) {
+			this.value = value;
+			_self = new WeakReference<>(this);
 		}
+		@Override public T get() { return value; }
+		@Override public void recycle() { ObjectPool.this.push(this); }
 	}
-	
+
 	// 全局无锁非阻塞堆栈头部指针
-	AtomicReference<WeakReference<Item>> head = new AtomicReference<>();
-	Supplier<T> supplier;
+	private AtomicReference<WeakReference<Item>> head = new AtomicReference<>();
+	// 对象生产工厂
+	private Supplier<T> objFactory;
+	// 对象清除工厂
+	private Consumer<T> objClear;
 	
-	public ObjectPool(Supplier<T> supplier) {
-		this.supplier = supplier;
+	public ObjectPool(Supplier<T> objFactory) {
+		super();
+		this.objFactory = objFactory;
+	}
+
+	public ObjectPool(Supplier<T> objFactory, Consumer<T> objClear) {
+		this(objFactory);
+		this.objClear = objClear;
 	}
 
 	// 无锁非阻塞弹出栈顶元素
-	Item pop() {
+	private PoolItem<T> pop() {
 		WeakReference<Item> old_head, new_head;
 		Item item;
 		do {
@@ -53,8 +64,9 @@ public class ObjectPool<T extends ObjectPool.Item> {
 	}
 		
 	// 无锁非阻塞元素压入栈顶
-	void push(Item value) {
+	private void push(Item value) {
 		if (value._next != null) return;
+		if (objClear != null) objClear.accept(value.get());
 		WeakReference<Item> old_head;
 		do {
 			old_head = head.get();
@@ -63,29 +75,50 @@ public class ObjectPool<T extends ObjectPool.Item> {
 		} while (!head.compareAndSet(old_head, value._self));
 	}
 		
-	/** 获取缓存中的ObjectPool实例 */
-	@SuppressWarnings("unchecked")
-	public T get() {
-		T value = (T)pop();
-		if (value == null)
+	/** 获取缓存中的PoolItem实例, 缓存没有则新建一个实例返回 */
+	public PoolItem<T> get() {
+		PoolItem<T> value = pop();
+		if (value == null) {
 			try {
-				value = supplier.get();
-				value._pool = (ObjectPool<Item>) this;
-				value._self = new WeakReference<>(value);
+				value = new Item(objFactory.get());
 			} catch (Exception e) { }
+		}
 		return value;
 	}
 	
-	public T[] get(int count) {
+	/** 获取缓存中的PoolItem实例数组, 缓存没有则新建 */
+	public PoolItem<T>[] get(int count) {
 		@SuppressWarnings("unchecked")
-		T[] values = (T[])(new Object[count]);
+		PoolItem<T>[] values = (PoolItem<T>[])(new Object[count]);
 		for (int i = 0; i < count; ++i)
 			values[i] = get();
 		return values;
 	}
 
-	public void recycle(Item... values) {
-		for(int i = 0, n = values.length; i < n; ++i)
-			values[i].recycle();
+	/** 清除缓存中的所有实例 */
+	public void clear() {
+		WeakReference<Item> old_head = head.getAndSet(null);
+		while (old_head != null) {
+			Item item = old_head.get();
+			if (item == null) break;
+			old_head = item._next;
+			item.value = null;
+			item._self = null;
+			item._next = null;
+		}
 	}
+	
+	/** 获取当前缓存的对象数量 */
+	public int size() {
+		int count = 0;
+		WeakReference<Item> old_head = head.get();
+		while (old_head != null) {
+			Item item = old_head.get();
+			if (item == null) break;
+			old_head = item._next;
+			++count;
+		}
+		return count;
+	}
+
 }

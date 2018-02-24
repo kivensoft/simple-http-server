@@ -60,7 +60,9 @@ public final class ConfigureFactory {
 		Properties props = load(configFile, mainClass, rootPath, dirs);
 		if (props == null) return config;
 		Class<?> cls = config.getClass();
-		Map<String, Class<?>> ms = getSetMethods(cls);
+		Map<String, Class<?>> ms = findSetMethods(cls);
+		Class<?>[] cls_args = new Class<?>[1];
+		Object[] obj_args = new Object[1];
 		for (Map.Entry<Object, Object> entry : props.entrySet()) {
 			String value = (String) entry.getValue();
 			if ((value != null) && (!value.isEmpty())) {
@@ -68,9 +70,10 @@ public final class ConfigureFactory {
 				Class<?> argType = (Class<?>) ms.get(name);
 				if (argType != null) {
 					try {
-						Method m = cls.getMethod(name, new Class[] { argType });
-						m.invoke(config,
-								new Object[] { Langs.valueOf(argType, value) });
+						cls_args[0] = argType;
+						Method m = cls.getMethod(name, cls_args);
+						obj_args[0] = Strings.valueOf(argType, value);
+						m.invoke(config, obj_args);
 					}
 					catch (Exception e) {
 						MyLogger.warn(e, "invoke method error.");
@@ -212,6 +215,7 @@ public final class ConfigureFactory {
 		return null;
 	}
 	
+	/** 配置文件中的多个"."分割的配置键转换成设置属性函数 */
 	private static String key2Method(String key) {
 		Fmt f = Fmt.get().append("set").append(Character.toUpperCase(key.charAt(0)));
 		boolean dot = false;
@@ -229,7 +233,8 @@ public final class ConfigureFactory {
 		return f.release();
 	}
 	  
-	private static Map<String, Class<?>> getSetMethods(Class<?> cls) {
+	/** 只查找getXXX函数，换成setXXX函数 **/
+	public static Map<String, Class<?>> findSetMethods(Class<?> cls) {
 		Map<String, Class<?>> ret = new HashMap<>();
 		StringBuilder sb = new StringBuilder();
 		for (Method m : cls.getMethods()) {
@@ -246,12 +251,12 @@ public final class ConfigureFactory {
 		return ret;
 	}
 
-	private static String joinPath(String... paths) {
+	/** 连接多个个路径串成一个路径名, 主要是自动处理头尾两端的路径分隔符 */
+	public static String joinPath(String... paths) {
 		Fmt f = Fmt.get();
 		for (int i = 0, n = paths.length; i < n; ++i) {
 			String p = paths[i];
-			if (p == null || p.isEmpty()) 
-				continue;
+			if (p == null || p.length() == 0) continue;
 			if (f.length() > 0) {
 				char c = f.charAt(f.length() - 1);
 				if (c != '/' && c != '\\') f.append('/');
@@ -261,4 +266,5 @@ public final class ConfigureFactory {
 		}
 		return f.release();
 	}
+
 }

@@ -5,8 +5,6 @@ import java.io.IOException;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -24,6 +22,14 @@ import java.util.function.Predicate;
  * @author Kiven Lee
  * @version 1.2.0
  */
+/**
+ * @author kiven
+ *
+ */
+/**
+ * @author kiven
+ *
+ */
 public final class Langs {
 	private static long msOfDay = 86400000;
 	private static long tzOffset = TimeZone.getDefault().getRawOffset();
@@ -37,12 +43,41 @@ public final class Langs {
 		return src == null ? dst == null : src.equals(dst);
 	}
 	
+	/** 比较整数对象与整数基本值
+	 * @param obj 整数对象
+	 * @param i 整数基本值
+	 * @return
+	 */
+	public static boolean isEquals(int i, Integer obj) {
+		return obj == null ? false : obj.intValue() == i;
+	}
+	
+	/** 比较整数对象与整数基本值
+	 * @param obj 整数对象
+	 * @param i 整数基本值
+	 * @return
+	 */
+	public static boolean isEquals(long i, Long obj) {
+		return obj == null ? false : obj.longValue() == i;
+	}
+	
+	/** 比较两个日期时间对象是否相等
+	 * @param obj 整数对象
+	 * @param i 整数基本值
+	 * @return
+	 */
+	public static boolean isEquals(Date d1, Date d2) {
+		return d1 == null ? d2 == null
+				: d2 == null ? false : d1.getTime() == d2.getTime();
+	}
+	
 	/** 判断参数列表中是否有null的对象
 	 * @param args 参数列表
 	 * @return 有null返回true，没有返回false
 	 */
-	public static boolean isNullAny(Object...args) {
-		for(Object obj : args) if (obj == null) return true;
+	public static boolean isAnyNull(Object...args) {
+		int count = args.length;
+		while (--count >= 0) if (args[count] == null) return true;
 		return false;
 	}
 	
@@ -50,9 +85,51 @@ public final class Langs {
 	 * @param args 参数列表
 	 * @return 有非null对象返回true，全null返回false
 	 */
-	public static boolean isNotNullAny(Object... args) {
-		for(Object obj : args) if (obj != null) return true;
+	public static boolean isAnyNotNull(Object... args) {
+		int count = args.length;
+		while (--count >= 0) if (args[count] != null) return true;
 		return false;
+	}
+	
+	@FunctionalInterface
+	public static interface MyBiConsumer<T, U> {
+		void accept(T t, U u) throws Exception;
+	}
+	
+	/** 双重嵌套的数组循环函数, 减少性能损失
+	 * @param args 需要循环的数组
+	 * @param value 循环时用到的变量
+	 * @param consumer 循环回调函数
+	 */
+	public static <T, R> R forEachWithCatch(T[] args, R value,
+			MyBiConsumer<T, R> consumer) {
+		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
+		for (int i = 0, n = args.length; i < n; ++i) {
+			try {
+				for (; i < n; ++i) consumer.accept(args[i], value);
+			}
+			catch (Exception e) {}
+		}
+		return value;
+	}
+	
+	/** 双重嵌套的数组循环函数, 减少性能损失
+	 * @param args 需要循环的数组
+	 * @param value 循环时用到的变量
+	 * @param consumer 循环回调函数
+	 */
+	public static <T, R> R forEachWithCatch(Collection<T> args, R value,
+			MyBiConsumer<T, R> consumer) {
+		Iterator<T> iter = args.iterator();
+		while (iter.hasNext()) {
+			try {
+				do {
+					consumer.accept(iter.next(), value);
+				} while (iter.hasNext());
+			}
+			catch (Exception e) {}
+		}
+		return value;
 	}
 	
 	/** javabean的属性复制，只支持同名同类型属性的复制
@@ -60,67 +137,56 @@ public final class Langs {
 	 * @param dst 复制的目标对象
 	 */
 	public static <T> T copyProperties(Object src, T dst) {
-		if (src == null || dst == null) return null;
-		StringBuilder sb = new StringBuilder();
-		Class<?> cls = dst.getClass();
-		Set<String> fnames = new HashSet<>();
+		if (src == null || dst == null) return dst;
 
-		Method[] ms = src.getClass().getMethods();
-		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
-		for (int i = 0, n = ms.length; i < n; ++i) {
-			try {
-				for (; i < n; ++i) {
-					Method m = ms[i];
-					String name = m.getName();
-					if (name.length() < 4 || name.equals("getClass")
-							|| !name.startsWith("get")
-							|| m.getParameterCount() > 0)
-						continue;
-					sb.setLength(0);
-					String mname = sb.append('s')
-							.append(name, 1, name.length()).toString();
-					sb.setLength(0);
-					String fname = sb.append(Character.toLowerCase(name.charAt(3)))
-							.append(name, 4, name.length()).toString(); 
-					Method m2 = cls.getMethod(mname, m.getReturnType());
-					if (m2 != null) m2.invoke(dst, m.invoke(src));
-					else {
-						Field f2 = cls.getField(fname);
-						if (f2 != null) f2.set(dst, m.invoke(src));
-					}
-					fnames.add(fname);
-				}
+		//lambda表达式用到的变量
+		Pair3<StringBuilder, Class<?>, Set<String>> p3 = Pair3.of(
+				new StringBuilder(), dst.getClass(), new HashSet<String>());
+
+		forEachWithCatch(src.getClass().getMethods(), p3, (item, value) -> {
+			String name = item.getName();
+			if (name.length() < 4 || name.equals("getClass")
+					|| !name.startsWith("get")
+					|| item.getParameterCount() > 0)
+				return;
+			StringBuilder sb = value.getFirst();
+			sb.setLength(0);
+			String mname = sb.append('s')
+					.append(name, 1, name.length()).toString();
+			sb.setLength(0);
+			String fname = sb.append(Character.toLowerCase(name.charAt(3)))
+					.append(name, 4, name.length()).toString(); 
+			Class<?> cls = value.getSecond();
+			Method m = cls.getMethod(mname, item.getReturnType());
+			if (m != null) m.invoke(dst, item.invoke(src));
+			else {
+				Field f2 = cls.getField(fname);
+				if (f2 != null) f2.set(dst, item.invoke(src));
 			}
-			catch (Exception e) {}
-		}
+			value.getThree().add(fname);
+		});
 		
-		Field[] fs = src.getClass().getFields();
-		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
-		for (int i = 0, n = fs.length; i < n; ++i) {
-			try {
-				for (; i < n; ++i) {
-					Field f = fs[i];
-					String name = f.getName();
-					if (fnames.contains(name)) continue;
-					Field f2 = cls.getField(name);
-					if (f2 != null) f2.set(dst, f.get(src));
-					else {
-						sb.setLength(0);
-						String mname = sb.append("set")
-							.append(Character.toUpperCase(name.charAt(0)))
-							.append(name, 1, name.length()).toString();
-						Method m2 = cls.getMethod(mname, f.getType());
-						if (m2 != null)
-							m2.invoke(dst, f.get(src));
-					}
-				}
+		forEachWithCatch(src.getClass().getFields(), p3, (item, value) -> {
+			String name = item.getName();
+			if (p3.getThree().contains(name)) return;
+			Class<?> cls = p3.getSecond();
+			Field f2 = cls.getField(name);
+			if (f2 != null) f2.set(dst, item.get(src));
+			else {
+				StringBuilder sb = p3.getFirst();
+				sb.setLength(0);
+				String mname = sb.append("set")
+					.append(Character.toUpperCase(name.charAt(0)))
+					.append(name, 1, name.length()).toString();
+				Method m = cls.getMethod(mname, item.getType());
+				if (m != null)
+					m.invoke(dst, item.get(src));
 			}
-			catch (Exception e) {}
-		}
+			
+		});
 		
 		return dst;
 	}
-	
 	
 	/** 关闭资源，抛弃异常
 	 * @param closeable 实现可关闭接口的对象
@@ -129,7 +195,6 @@ public final class Langs {
 		if (closeable != null)
 			try { closeable.close(); } catch(IOException e) {}
 	}
-
 
 	/** 关闭多个资源，抛弃异常
 	 * @param closeables 多个实现可关闭接口的对象
@@ -147,7 +212,6 @@ public final class Langs {
 		}
 	}
 	
-
 	/** 采用反射的方式调用对象的close函数关闭资源，抛弃异常
 	 * @param args 多个需要关闭的对象
 	 */
@@ -189,22 +253,44 @@ public final class Langs {
         return (T[]) Array.newInstance(clazz, length);
     }
     
+    /** 返回第一个回调为true的元素在数组中的索引位置
+     * @param array 数组
+     * @param start 起始查找位置
+     * @param predicate 回调函数
+     * @return 找到返回指定索引, 否则返回-1
+     */
     public static <T> int indexOfArray(T[] array, int start, Predicate<T> predicate) {
     	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return i;
     	return -1;
     }
     
+    /** 返回表达式为true时的数组所在位置的元素
+     * @param array 迭代的数组
+     * @param start 起始迭代位置
+     * @param predicate 回调函数
+     * @return 返回找到的元素, 否则返回null
+     */
     public static <T> T elementAtArray(T[] array, int start, Predicate<T> predicate) {
     	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return array[i];
     	return null;
     }
 
+    /** 查找元素
+     * @param array 进行迭代查找的数组
+     * @param predicate 回调函数
+     * @return 找到则返回该元素, 否则返回false
+     */
     public static <T> T find(T[] array, Predicate<T> predicate) {
     	return elementAtArray(array, 0, predicate);
     }
     
+    /** 查找元素
+     * @param collection 要迭代的集合
+     * @param predicate 回调函数
+     * @return 找到返回该元素, 否则返回false
+     */
     public static <T> T find(Collection<T> collection, Predicate<T> predicate) {
     	Iterator<T> iter = collection.iterator();
     	while (iter.hasNext()) {
@@ -214,14 +300,17 @@ public final class Langs {
     	return null;
     }
 
+	private static Calendar calendar = null;
+	
 	/** 转换为Date类型 */
 	public static Date toDate(LocalDate date) {
-		return Date.from(date.atStartOfDay().atZone(ZoneId.systemDefault()) .toInstant());
+		return Date.from(date.atStartOfDay().atZone(ZoneId.systemDefault())
+				.toInstant());
 	}
 	
 	/** 转换为Date类型 */
 	public static Date toDate(LocalDateTime daettime) {
-		return Date.from(daettime.atZone(ZoneId.systemDefault()) .toInstant());
+		return Date.from(daettime.atZone(ZoneId.systemDefault()).toInstant());
 	}
 	
 	/** 转换为Date类型 */
@@ -237,8 +326,8 @@ public final class Langs {
 	/** 转换为Date类型 */
 	public static Date toDate(int year, int month, int day, int hour,
 			int minute, int second, int millseconds) {
+		if (calendar == null) calendar = Calendar.getInstance();
 		synchronized (calendar) {
-			calendar.setTimeZone(TimeZone.getDefault());
 			calendar.set(year, month - 1, day, hour, minute, second);
 			calendar.set(Calendar.MILLISECOND, millseconds);
 			return calendar.getTime();
@@ -257,7 +346,8 @@ public final class Langs {
 	
 	/** 转换为LocalDateTime类型 */
 	public static LocalDateTime toLocalDateTime(Date value) {
-		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+		return value.toInstant().atZone(ZoneId.systemDefault())
+				.toLocalDateTime();
 	}
 	
 	/** 获取系统的今天，只包含日期部分 */
@@ -268,6 +358,7 @@ public final class Langs {
 	
 	/** 增加年份 */
 	public static Date addYears(Date date, int years) {
+		if (calendar == null) calendar = Calendar.getInstance();
 		synchronized (calendar) {
 			calendar.setTime(date);
 			if (years != 0) calendar.add(Calendar.YEAR, years);
@@ -277,6 +368,7 @@ public final class Langs {
 
 	/** 增加月份 */
 	public static Date addMonths(Date date, int months) {
+		if (calendar == null) calendar = Calendar.getInstance();
 		synchronized (calendar) {
 			calendar.setTime(date);
 			if (months != 0) calendar.add(Calendar.MONTH, months);
@@ -286,15 +378,12 @@ public final class Langs {
 
 	/** 增加天数 */
 	public static Date addDays(Date date, int days) {
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
-			return calendar.getTime();
-		}
+		return new Date(date.getTime() + msOfDay * days);
 	}
 	
 	/** 增加年月日 */
 	public static Date addDate(Date date, int years, int months, int days) {
+		if (calendar == null) calendar = Calendar.getInstance();
 		synchronized (calendar) {
 			calendar.setTime(date);
 			if (years != 0) calendar.add(Calendar.YEAR, years);
@@ -307,6 +396,7 @@ public final class Langs {
 	/** 增加年月日时分秒 */
 	public static Date addDate(Date date, int years, int months, int days,
 			int hours, int minutes, int seconds) {
+		if (calendar == null) calendar = Calendar.getInstance();
 		synchronized (calendar) {
 			calendar.setTime(date);
 			if (years != 0) calendar.add(Calendar.YEAR, years);
@@ -321,18 +411,14 @@ public final class Langs {
 
 	/** 增加时分秒 */
 	public static Date addTime(Date date, int hours, int minutes, int seconds) {
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (hours != 0) calendar.add(Calendar.HOUR, hours);
-			if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
-			if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
-			return calendar.getTime();
-		}
+		return new Date(date.getTime()
+				+ hours * 3600000 + minutes * 60000 + seconds * 1000);
 	}
 	
 	/** 返回一个新的日期变量，值为日期参数的日期部分 */
 	public static Date onlyDate(Date date) {
-		return new Date((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
+		return new Date((date.getTime()
+				+ tzOffset) / msOfDay * msOfDay - tzOffset);
 	}
 
 	/** 设置日期参数的时分秒为0 */
@@ -346,156 +432,25 @@ public final class Langs {
 	}
 	
 	/** 合并两个int成long */
-	public static long mergeTwoInt(int high, int low) {
-		return ((long)high << 32) | ((long)low); 
+	public static long mergeInt(int high, int low) {
+		return ((long)high << 32) | ((long)low & 0xFFFFFFFFL);
 	}
 	
 	/** 获取long的高位int */
-	public static int highIntFromLong(long value) {
-		return (int)(value >> 32 & 0xFFFFFFFF);
+	public static int highInt(long value) {
+		return (int)(value >> 32 & 0xFFFFFFFFL);
 	}
 	
 	/** 获取long的低位int */
-	public static int lowIntForLong(long value) {
-		return (int)(value &0xFFFFFFFF);
+	public static int lowInt(long value) {
+		return (int)(value &0xFFFFFFFFL);
 	}
 	
-	/** 转换文本内容为对象
-	 * @param cls 对象类型
-	 * @param value 文本内容
-	 * @return 转换后生成的对象，转换失败返回null
-	 */
-	@SuppressWarnings("unchecked")
-	public static <T> T valueOf(Class<T> cls, String value) {
-		if (value == null || value.isEmpty())
-			return null;
-		if (cls == String.class)
-			return (T)value;
-		try {
-			if (cls == Integer.class || cls == Integer.TYPE)
-				return (T)Integer.valueOf(value);
-			if (cls == Long.class || cls == Long.TYPE)
-				return (T)Long.valueOf(value);
-			if (cls == Float.class || cls == Float.TYPE)
-				return (T)Float.valueOf(value);
-			if (cls == Date.class)
-				return (T)parseDate(value);
-			if (cls == Boolean.class || cls == Boolean.TYPE)
-				return (T)Boolean.valueOf(value);
-			if (cls == BigDecimal.class)
-				return (T)new BigDecimal(value);
-			if (cls == BigInteger.class)
-				return (T)new BigInteger(value);
-			if (cls == LocalDate.class)
-				return (T)parseLocalDate(value);
-			if (cls == LocalDateTime.class)
-				return (T)parseLocalDateTime(value);
-			if (cls == LocalTime.class)
-				return (T)parseLocalTime(value);
-			if (cls == Double.class || cls == Double.TYPE)
-				return (T)Double.valueOf(value);
-			if (cls == Byte.class || cls == Byte.TYPE)
-				return (T)Byte.valueOf(value);
-			if (cls == Short.class || cls == Short.TYPE)
-				return (T)Short.valueOf(value);
-			if (cls == Character.class || cls == Character.TYPE)
-				return (T)Character.valueOf(value.charAt(0));
-			if (cls.isEnum()) {
-				Enum<?>[] vs = (Enum<?>[])cls.getMethod("values").invoke(null);
-				try {
-					int n = Integer.parseInt(value);
-					return (T)vs[n];
-				}
-				catch (NumberFormatException e) {
-					for (int i = 0, n = vs.length; i < n; ++i)
-						if (vs[i].name().equals(value)) return (T)vs[i];
-				}
-			}
-		}
-		catch (Exception e) {}
-		return null;
-	}
-	
-    public static interface SplitFunc { void accept(int index, int value); }
-
-    public static void splitInt(String value, SplitFunc consumer) {
-		if (value == null || value.isEmpty()) return;
-		int i = 0, len = value.length(), index = 0;
-		while (i < len) {
-			char c = value.charAt(i++);
-			if (c >= '0' && c <= '9') {
-				int num = c - 48;
-				while (i < len) {
-					char ch = value.charAt(i++);
-					if (ch < '0' || ch > '9') break;
-					//number * 10 = number * 8 + number * 2 = number << 3 + number << 1
-					num = (num << 3) + (num << 1) + (ch - 48);
-				}
-				consumer.accept(index++, num);
-			}
-			else {
-				while (i < len) {
-					char ch = value.charAt(i++);
-					if (ch >= '0' && ch <= '9') {
-						--i;
-						break;
-					}
-				}
-			}
-		}
-	}
-	
-	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
-	public static int[] splitDate (String value) {
-		int[] vs = new int[7];
-		splitInt(value, (i, v) -> { if (i < 7) vs[i] = v; });
-		return vs;
-	}
-	
-	private static Calendar calendar = Calendar.getInstance();
-	public static Date parseDate(String text) {
-		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-		boolean isGmt = text.indexOf('T') > 0;
-		int[] vs = splitDate(text);
-		Date ret = null;
-		synchronized (calendar) {
-			if (isGmt) calendar.setTimeZone(TimeZone.getTimeZone("GMT"));
-			else calendar.setTimeZone(TimeZone.getDefault());
-			calendar.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
-			calendar.set(Calendar.MILLISECOND, vs[6]);
-			ret = calendar.getTime();
-		}
-		return ret;
-	}
-	
-	public static LocalDate parseLocalDate(String text) {
-		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-		int[] vs = splitDate(text);
-		return LocalDate.of(vs[0], vs[1], vs[2]);
-	}
-
-	public static LocalDateTime parseLocalDateTime(String text) {
-		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-		int[] vs = splitDate(text);
-		return LocalDateTime.of(vs[0], vs[1], vs[2], vs[3], vs[4], vs[5], vs[6]);
-	}
-
-	public static LocalTime parseLocalTime(String text) {
-		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf(':') < 1 || text.length() < 5) return null;
-		int[] vs = splitDate(text);
-		return LocalTime.of(vs[0], vs[1], vs[2], vs[3]);
-	}
-
-
 	@FunctionalInterface
 	public interface Act {
 		void accept();
 	}
-	
+
 	@FunctionalInterface
 	public interface Act1<T1> {
 		void accept(T1 arg);
@@ -515,7 +470,7 @@ public final class Langs {
 	public interface Act4<T1, T2, T3, T4> {
 		void accept(T1 arg1, T2 arg2, T3 arg3, T4 arg4);
 	}
-	
+
 	@FunctionalInterface
 	public interface Func<R> {
 		R apply();

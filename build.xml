@@ -76,7 +76,7 @@
 				<attribute name="Implementation-Time" value="${build.time}" />
 			</manifest>
 			<!-- 编译后的目录下的所有文件 -->
-			<fileset dir="${basedir}/${bin}"/>
+			<fileset dir="${basedir}/${bin}" excludes="test/**"/>
 			<!-- 其它需要包含的文件 -->
 			<fileset dir="${basedir}" includes="${jar.inc}"/>
 			<!-- 源文件 -->

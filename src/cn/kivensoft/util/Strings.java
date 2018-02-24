@@ -1,13 +1,18 @@
 package cn.kivensoft.util;
 
 import java.io.UnsupportedEncodingException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.DateFormat;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
@@ -18,53 +23,68 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 public abstract class Strings {
-	private static final String UTF8 = "UTF-8";
+	private final static String UTF8 = "UTF-8";
 	private final static char[] HEX_DIGEST = "0123456789abcdef".toCharArray();
-	private final static char[] BASE64_DIGEST = 
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
+	private final static char[] BASE64_DIGEST = {
+			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+			'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm',
+			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
 	private final static int[] INV = new int[128];
 
 	static {
 		Arrays.fill(INV, -1);
-		for (int i = 0, n = BASE64_DIGEST.length; i < n; i++)
+		for (int i = 0, n = BASE64_DIGEST.length; i < n; ++i)
 			INV[BASE64_DIGEST[i]] = i;
 		INV[PAD] = 0;
 	}
 
 	
-	/** 字符串空值转换成空字符串,如果传入参数不是空字符串则不进行转换 */
+	/** 字符串空值转成空字符串
+	 * @param string
+	 * @return 参数是空值返回空字符串, 否则返回原字符串
+	 */
 	public static String nullToEmpty(String string) {
 		return (string == null) ? "" : string;
 	}
 
-	/** 空字符串转成空值，非空字符串不进行转换 */
+	/** 空字符串转成null
+	 * @param string
+	 * @return 参数为空字符串时返回null, 否则返回原字符串
+	 */
 	public static String emptyToNull(String string) {
 		return (string != null && string.isEmpty()) ? null : string;
 	}
 
-	/** 字符串非空判断,空值和空字符串都返回false */
-	public static boolean isNotNullOrEmpty(String string) {
+	/** 字符串非空判断, 空值和空字符串都返回false
+	 * @param string
+	 * @return 空值与空字符串返回false, 否则返回true
+	 */
+	public static boolean isNotNullAndEmpty(String string) {
 		return string != null && !string.isEmpty();
 	}
 
-	/** 字符串空判断，支持同时判断多个，全部有效返回true */
-	public static boolean isNotNullOrEmpty(String ...args) {
+	/** 多个字符串参数判断, 全部非空返回true, 否则返回false
+	 * @param args
+	 * @return 全部非空返回true, 否则返回false
+	 */
+	public static boolean isNotNullAndEmpty(String ...args) {
 		int count = args.length;
-		String arg;
-		while (count-- > 0) {
-			arg = args[count];
+		while (--count >= 0) {
+			String arg = args[count];
 			if(arg == null || arg.isEmpty()) return false;
 		}
 		return true;
 	}
 
 	/** 对象空判断，支持同时判断多个，全部有效返回true */
-	public static boolean isNotNullOrEmpty(Object ...args) {
+	public static boolean isNotNullAndEmpty(Object ...args) {
 		Class<?> cls = String.class;
 		int count = args.length;
 		Object arg;
-		while (count-- > 0) {
+		while (--count >= 0) {
 			arg = args[count];
 			if(arg == null || arg.getClass() == cls && ((String)arg).isEmpty())
 				return false;
@@ -81,25 +101,26 @@ public abstract class Strings {
 	public static boolean isNullOrEmpty(String ...args) {
 		int count = args.length;
 		String arg;
-		while (count-- > 0) {
+		while (--count >= 0) {
 			arg = args[count];
 			if(arg != null && !arg.isEmpty()) return false;
 		}
 		return true;
 	}
 
-	/** 对象空判断，支持同时判断多个，全部有效返回true */
+	/** 对象空判断，支持同时判断多个，全部为null或空返回true */
 	public static boolean isNullOrEmpty(Object ...args) {
 		Class<?> cls = String.class;
 		int count = args.length;
 		Object arg;
-		while (count-- > 0) {
+		while (--count >= 0) {
 			arg = args[count];
-			if(arg != null)
+			if(arg != null) {
 				if (arg.getClass() == cls) {
 					if (!((String)arg).isEmpty()) return false;
 				}
 				else return false;
+			}
 		}
 		return true;
 	}
@@ -111,7 +132,7 @@ public abstract class Strings {
 		char[] chars = new char[minLength];
 		for(int i = 0, n = minLength - strLen; i < n; ++i)
 			chars[i] = padChar;
-		string.getChars(0, strLen, chars, strLen);
+		string.getChars(0, strLen, chars, minLength - strLen);
 		return new String(chars);
 	}
 
@@ -128,18 +149,15 @@ public abstract class Strings {
 
 	/** 生成重复N次的字符串 */
 	public static String repeat(String string, int count) {
-		int strLen = string.length();
-		
+		int strlen = string.length();
 		//如果字符串长度为1，转为调用速度更快的方法
-		if(strLen == 1) return repeat(string.charAt(0), count);
+		if(strlen == 1) return repeat(string.charAt(0), count);
 		
-		char[] chars = new char[strLen];
-		char[] retChars = new char[strLen * count];
-		string.getChars(0, strLen, chars, 0);
-		for(int i = 0; i < count; i += strLen)
-			System.arraycopy(chars, 0, retChars, i, strLen);
+		char[] retChars = new char[strlen * count];
+		for(int i = 0; i < count; ++i)
+			string.getChars(0, strlen, retChars, i * strlen);
 
-		return new String(chars);
+		return new String(retChars);
 	}
 
 	/** 生成重复N次的字符串 */
@@ -147,6 +165,34 @@ public abstract class Strings {
 		char[] chars = new char[count];
 		for(int i = 0; i < count; ++i) chars[i] = ch;
 		return new String(chars);
+	}
+
+	/** 字节数组转字符串 */
+	public static String ba2s(byte[] bytes) {
+		return ba2s(bytes, 0, bytes.length);
+	}
+	
+	/** 字节数组转字符串 */
+	public static String ba2s(byte[] bytes, int offset) {
+		return ba2s(bytes, 0, bytes.length - offset);
+	}
+
+	/** 字节数组转字符串 */
+	public static String ba2s(byte[] bytes, int offset, int length) {
+		try {
+			return new String(bytes, offset, length, UTF8);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
+	}
+	
+	/** 字符串转字节数组 */
+	public static byte[] s2ba(String string) {
+		try {
+			return string.getBytes(UTF8);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	/** md5加密
@@ -158,7 +204,7 @@ public abstract class Strings {
 			MessageDigest md = MessageDigest.getInstance("MD5");
 			return md.digest(bytes);
 		} catch (NoSuchAlgorithmException e) {
-			return null;
+			throw new RuntimeException(e);
 		}
 	}
 	
@@ -170,7 +216,7 @@ public abstract class Strings {
 		try {
 			return toHex(md5(text.getBytes(UTF8)));
 		} catch (UnsupportedEncodingException e) {
-			return null;
+			throw new RuntimeException(e);
 		}
 	}
 	
@@ -186,7 +232,7 @@ public abstract class Strings {
 			mac.init(secretKey);
 			return mac.doFinal(bytes);
 		} catch (Exception e) {
-			return null;
+			throw new RuntimeException(e);
 		}
 	}
 	
@@ -199,7 +245,7 @@ public abstract class Strings {
 		try {
 			return toBase64(hmacsha1(key.getBytes(UTF8), text.getBytes(UTF8)));
 		} catch (UnsupportedEncodingException e) {
-			return null;
+			throw new RuntimeException(e);
 		}
 	}
 
@@ -209,61 +255,57 @@ public abstract class Strings {
 	}
 	
 	/** 转换成16进制 */
-	public static String toHex(final byte[] bytes, char separator) {
+	public static String toHex(final byte[] bytes, final char separator) {
 		if(bytes == null) return null;
 		if (bytes.length == 0) return "";
-		boolean no_pad = separator == '\0';
 		//转码后的长度是字节数组长度的2倍
 		int len = bytes.length * 2;
-		if (!no_pad) len += bytes.length - 1;
+		if (separator != '\0') len += bytes.length - 1;
 		char[] chars = new char[len];
-		
-		int c_idx = -1;
+
+		int idx = -1;
 		int b = bytes[0];
-		chars[++c_idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
-		chars[++c_idx] = HEX_DIGEST[b & 0xF]; //取低4位
-		
+		chars[++idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
+		chars[++idx] = HEX_DIGEST[b & 0xF]; //取低4位
+
 		for(int i = 1, n = bytes.length; i < n; ++i) {
-			if (!no_pad) chars[++c_idx] = separator;
+			if (separator != '\0') chars[++idx] = separator;
 			b = bytes[i];
-			chars[++c_idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
-			chars[++c_idx] = HEX_DIGEST[b & 0xF]; //取低4位
+			chars[++idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
+			chars[++idx] = HEX_DIGEST[b & 0xF]; //取低4位
 		}
-		
+
 		return new String(chars);
 	}
 
 	/** 从16进制转换成字符串 */
 	public static byte[] fromHex(final String string) {
+		if (string == null || string.length() < 2) return null;
+		
+		// 计算有效字符数量, 空格逗号等分隔符不计入内
 		byte[] sb = string.getBytes();
-		int sep_count = 0;
+		int count = 0;
 		for (int i = 0, n = sb.length; i < n; ++i) {
 			byte b = sb[i];
-			if (b < 0x30 || (b > 0x39 && b < 0x41)
-					|| (b > 0x46 && b < 0x61) || b > 0x66)
-				++sep_count;
+			if (b >= 0x30 && b <= 0x39 || b >= 0x41 && b <= 0x46
+					|| b >= 0x61 && b <= 0x66)
+				++count;
 		}
-			
-		byte[] ret = new byte[(sb.length - sep_count) >> 1];
-		int pos = -1, cc = -1;
-		byte[] bs = new byte[2];
+
+		byte[] ret = new byte[count >> 1];
+		int pos = -1;
+		int fb = -1, tb;
 		for(int i = 0, n = sb.length; i < n; ++i) {
-			byte b = sb[i];
-			if (b < 0x30 || (b > 0x39 && b < 0x41)
-					|| (b > 0x46 && b < 0x61) || b > 0x66)
-				continue;
-			bs[++cc] = b;
-			if (cc < 1) continue;
-			byte b1 = bs[0];
-			if(b1 >= 0x30 && b1 <= 0x39) b1 -= 0x30; //0-9
-			else if(b1 >= 0x41 && b1 <= 0x46) b1 -= 0x37; //A-F
-			else if(b1 >= 0x61 && b1 <= 0x66) b1 -= 0x57; //a-f
-			byte b2 = bs[1];
-			if(b2 >= 0x30 && b2 <= 0x39) b2 -= 0x30;
-			else if(b2 >= 0x41 && b2 <= 0x46) b2 -= 0x37;
-			else if(b2 >= 0x61 && b2 <= 0x66) b2 -= 0x57;
-			ret[++pos] = (byte)(b1 << 4 | b2);
-			cc = -1;
+			Byte b = sb[i];
+			if(b >= 0x30 && b <= 0x39) tb = b - 0x30; //0-9
+			else if(b >= 0x41 && b <= 0x46) tb = b - 0x37; //A-F
+			else if(b >= 0x61 && b <= 0x66) tb = b - 0x57; //a-f
+			else continue;
+			if (fb == -1) fb = tb;
+			else {
+				ret[++pos] = (byte)(fb << 4 | tb);
+				fb = -1;
+			}
 		}
 		
 		return ret;
@@ -274,55 +316,59 @@ public abstract class Strings {
 		return toBase64(bytes, false);
 	}
 	
-	/** base64编码
+	/** base64编码, 3个字节转4个字节，即3个8位转成4个前两位固定为0的8位共24位
 	 * @param bytes 要编码的字节数组
-	 * @param lineSeparator 是否每76个字符换行标志
+	 * @param lineBreak 是否每76个字符换行标志
 	 * @return 编码后的字符串
 	 */
-	public static String toBase64(final byte[] bytes, boolean lineSeparator) {
-		//base64转码为3个字节转4个字节，即3个8位转成4个前两位固定为0的共24位
+	public static String toBase64(final byte[] bytes, boolean lineBreak) {
 		if (bytes == null) return null;
 		if (bytes.length == 0) return "";
 		int len = bytes.length;
-		int bpos = -1, cpos = -1, cc = 0; //字符数组和字节数组的当前写入和读取的索引位置
-		//转码数组长度，3的倍数乘4
+		// 转码数组长度，3的倍数乘4
 		int dlen = (len + 2) / 3 * 4;
-		if (lineSeparator) dlen += (dlen - 1) / 76 << 1;
+		// 有换行要求, 则转码数组长度要加上每76个字符\r\n2个换行符
+		if (lineBreak) dlen += (dlen - 1) / 76 << 1;
 		char[] chars = new char[dlen];
-		for (int slen = len - 3; bpos < slen; ) {
-			int b1 = bytes[++bpos] & 0xFF; //与FF是防止java的负数二进制补码扩展
-			int b2 = bytes[++bpos] & 0xFF;
-			int b3 = bytes[++bpos] & 0xFF;
+		// 字符数组和字节数组的当前写入和读取的索引位置
+		int bpos = 0, cpos = 0, cc = 0;
+		// 循环处理, 剩余的字节再单独做补"="字符处理
+		for (int slen = len - 2, rdlen = dlen - 2; bpos < slen; bpos += 3) {
+			int b1 = bytes[bpos] & 0xFF; //与FF是防止java的负数二进制补码扩展
+			int b2 = bytes[bpos + 1] & 0xFF;
+			int b3 = bytes[bpos + 2] & 0xFF;
 			//原第一字节的头6位
-			chars[++cpos] = BASE64_DIGEST[b1 >>> 2];
+			chars[cpos] = BASE64_DIGEST[b1 >>> 2];
 			//原第一字节的后2位+原第二字节的前4位
-			chars[++cpos] = BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F];
+			chars[cpos + 1] = BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F];
 			//原第二字节的前4位+原第三字节的后2位
-			chars[++cpos] = BASE64_DIGEST[((b2 << 2) | (b3 >>> 6)) & 0x3F];
+			chars[cpos + 2] = BASE64_DIGEST[((b2 << 2) | (b3 >>> 6)) & 0x3F];
 			//原第四字节的后6位
-			chars[++cpos] = BASE64_DIGEST[b3 & 0x3F];
+			chars[cpos + 3] = BASE64_DIGEST[b3 & 0x3F];
+			cpos += 4;
 
-			if (lineSeparator && ++cc == 19 && cpos < dlen - 2) {
-				chars[++cpos] = '\r';
-				chars[++cpos] = '\n';
+			if (lineBreak && ++cc == 19 && cpos < rdlen) {
+				chars[cpos] = '\r';
+				chars[cpos + 1] = '\n';
+				cpos += 2;
 				cc = 0;
 			}
 		}
 
 		int modcount = bytes.length % 3;
 		if(modcount > 0) { //非字节对齐时的处理，不足后面补=号，余数为1补2个，余数为2补1个
-			int b1 = bytes[++bpos] & 0xFF;
-			chars[++cpos] = BASE64_DIGEST[b1 >>> 2];
+			int b1 = bytes[bpos++] & 0xFF;
+			chars[cpos++] = BASE64_DIGEST[b1 >>> 2];
 			if(modcount == 2){
-				int b2 = bytes[++bpos] & 0xFF;
-				chars[++cpos] = BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F];
-				chars[++cpos] = BASE64_DIGEST[(b2 << 2) & 0x3F];
+				int b2 = bytes[bpos++] & 0xFF;
+				chars[cpos++] = BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F];
+				chars[cpos++] = BASE64_DIGEST[(b2 << 2) & 0x3F];
 			}
 			else{ 
-				chars[++cpos] = BASE64_DIGEST[(b1 << 4) & 0x3F];
-				chars[++cpos] = PAD; //余数为1，第三个也是=号
+				chars[cpos++] = BASE64_DIGEST[(b1 << 4) & 0x3F];
+				chars[cpos++] = PAD; //余数为1，第三个也是=号
 			}
-			chars[++cpos] = PAD; //余数为1，第三个也是=号
+			chars[cpos++] = PAD; //余数为1，第三个也是=号
 		}
 
 		return new String(chars);
@@ -331,36 +377,45 @@ public abstract class Strings {
 	/** base64简单解码，处理自动换行 */
 	public static byte[] fromBase64(final String base64) {
 		byte[] bb = base64.getBytes();
-		int padc = 0;
-		for(int i = bb.length - 1; i >= 0; --i) {
+		// 计算"="等号数量
+		int padc = 0, nl = 0, i = bb.length;
+		while (--i >= 0) {
 			byte b =  bb[i];
 			if (b == '=') padc++;
 			else if (b != '\r' && b != '\n') break;
 		}
-		int nl = 0;
-		for (int i = 0, n = bb.length; i < n; ++i) {
+		// 计算回车换行数量
+		i = bb.length;
+		while (--i >= 0) {
 			byte b = bb[i];
 			if (b == '\r' || b == '\n') ++nl;
 		}
-		System.out.println("padc = " + padc + ", ret size = " + ((bb.length - nl) / 4 * 3 - padc));
-
+		// 分配解码内存
 		byte[] ret = new byte[(bb.length - nl) / 4 * 3 - padc];
-		
-		int pos = -1, bpos = -1, cc = -1;
-		int[] ints = new int[4];
-		for(int n = bb.length - 1, m = ret.length - 1; bpos < n; ) {
-			byte b = bb[++bpos];
+		int pos = 0, bpos = 0, cc = 0, tmp = 0;
+		for (int blen = bb.length, clen = ret.length - 3; bpos < blen; ++bpos) {
+			byte b = bb[bpos];
 			if (b == '\r' || b == '\n') continue;
-			ints[++cc] = INV[b];
-			if (cc < 3) continue;
-			ret[++pos] = (byte)((ints[0] << 2) | ((ints[1] >> 4) & 0x3));
-			if (ints[2] != 0 && pos < m)
-				ret[++pos] = (byte)((ints[1] << 4) | (ints[2] >> 2 & 0xF));
-			if (ints[3] != 0 && pos < m)
-				ret[++pos] = (byte)((ints[2] << 6) | ints[3]);
-			cc = -1;
+			switch (cc++) {
+				case 0: tmp = (INV[b] << 18) & 0xFFFFFF; break;
+				case 1: tmp |= (INV[b] << 12) & 0x3FFFF; break;
+				case 2: tmp |= (INV[b] << 6) & 0xFFF; break;
+				case 3:
+					if (pos < clen) {
+						ret[pos] = (byte)(tmp >> 16);
+						ret[pos + 1] = (byte)(tmp >> 8);
+						ret[pos + 2] = (byte)(tmp | INV[b]);
+						pos += 3;
+						cc = 0;
+					}
+					else {
+						ret[pos] = (byte)(tmp >> 16);
+						if (padc < 2) ret[pos + 1] = (byte)(tmp >> 8);
+						if (padc < 1) ret[pos + 2] = (byte)(tmp | INV[b]);
+					}
+			}
 		}
-		
+
 		return ret;
 	}
 	
@@ -369,7 +424,14 @@ public abstract class Strings {
 	 * @return true:纯数字,false:不是纯数字
 	 */
 	public static boolean isInt(String text) {
-		return Pattern.matches("-?[0-9]+", text);
+		if (text == null || text.isEmpty()) return false;
+		char c = text.charAt(0);
+		if (c != '-' && c != '+' && (c < '0' || c > '9')) return false;
+		for (int i = 1, n = text.length(); i < n; ++i) {
+			c = text.charAt(i);
+			if (c < '0' || c > '9') return false;
+		}
+		return true;
 	}
 
 	/** 判断字符串是否浮点数格式
@@ -388,16 +450,19 @@ public abstract class Strings {
 		return Pattern.matches("-?[0-9]+(\\.[0-9][0-9]?)?", text);
 	}
 	
-	private static DateFormat dfDate = new SimpleDateFormat("yyyy-MM-dd");
-	private static DateFormat dfDateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-	private static DateFormat dfTime = new SimpleDateFormat("HH:mm:ss");
-	private static DateFormat dfGmtDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+	private static DateFormat dfDate = null;
+	private static DateFormat dfDateTime = null;
+	private static DateFormat dfTime = null;
+	private static DateFormat dfGmtDateTime = null;
 
 	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
 	public static String formatDateTime(Date date) {
+		if (date == null) return "";
+		if (dfDateTime == null)
+			dfDateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
 		synchronized (dfDateTime) {
 			return dfDateTime.format(date);
 		}
@@ -408,6 +473,11 @@ public abstract class Strings {
 	 * @return 格式化后的文本
 	 */
 	public static String formatDate(Date date) {
+		if (date == null) return "";
+		synchronized (calendar) {
+			calendar.setTime(date);
+		}
+		if (dfDate == null) dfDate = new SimpleDateFormat("yyyy-MM-dd");
 		synchronized (dfDate) {
 			return dfDate.format(date);
 		}
@@ -418,6 +488,8 @@ public abstract class Strings {
 	 * @return 格式化后的文本
 	 */
 	public static String formatTime(Date date) {
+		if (date == null) return "";
+		if (dfTime == null) dfTime = new SimpleDateFormat("HH:mm:ss");
 		synchronized (dfTime) {
 			return dfTime.format(date);
 		}
@@ -427,167 +499,111 @@ public abstract class Strings {
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
-	public static String formatGmtDate(Date date) {
-		synchronized (dfGmtDateTime) {
+	public static String formatGmtDateTime(Date date) {
+		if (date == null) return "";
+		if (dfGmtDateTime == null) {
+			dfGmtDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 			dfGmtDateTime.setTimeZone(TimeZone.getTimeZone("GMT"));
+		}
+		synchronized (dfGmtDateTime) {
 			return dfGmtDateTime.format(date);
 		}
 	}
 	
-	/** 解析时间日期, 按下列优先级进行解析:
-	 *      yyyy-MM-dd
-	 *      yyyy-MM-dd HH:mm:ss
-	 *      yyyy-MM-dd'T'HH:mm:ss'Z'
-	 * @param text 需要格式化的文本
-	 * @return
-	 */
-	public static Date parseDateTime(String text) {
-		Date d = parseDate(text);
-		if (d != null) return d;
-		try {
-			synchronized (dfDateTime) {
-				return dfDateTime.parse(text);
-			}
-		} catch (ParseException e) { }
-		try {
-			synchronized (dfGmtDateTime) {
-				return dfGmtDateTime.parse(text);
-			}
-		} catch (ParseException e) {
-			return null;
-		}
+	@FunctionalInterface
+	public static interface OnSplitInt<T> {
+		void accept (int index, int value, T result);
 	}
 	
-	/** 解析时间日期, 按下列优先级进行解析: yyyy-MM-dd
-	 * @param text 需要格式化的文本
-	 * @return
-	 */
+	/** 解析由逗号或空格分隔的数字字符串成整数数组 */
+    public static <R> R splitInt(String value, R result, OnSplitInt<R> consumer) {
+		if (value == null || value.isEmpty()) return result;
+		int i = 0, len = value.length(), index = 0;
+		while (i < len) {
+			char c = value.charAt(i++);
+			if (c >= '0' && c <= '9') {
+				int num = c - 48;
+				while (i < len) {
+					char ch = value.charAt(i++);
+					if (ch < '0' || ch > '9') break;
+					//number * 10 = number * 8 + number * 2 = number << 3 + number << 1
+					num = (num << 3) + (num << 1) + (ch - 48);
+				}
+				consumer.accept(index++, num, result);
+			}
+			else {
+				while (i < len) {
+					char ch = value.charAt(i++);
+					if (ch >= '0' && ch <= '9') {
+						--i;
+						break;
+					}
+				}
+			}
+		}
+		return result;
+	}
+	
+	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
+	public static int[] splitDate (String value) {
+		return splitInt(value, new int[7],
+				(i, v, r) -> { if (i < 7) r[i] = v;
+		});
+	}
+	
+	private static Calendar calendar = null;
+	private static Calendar gmt_calendar = null;
+
+	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text) {
-		try {
-			synchronized (dfDate) {
-				return dfDate.parse(text);
-			}
-		} catch (ParseException e) {
-			return null;
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		boolean isGmt = text.indexOf('T') > 0;
+		int[] vs = splitDate(text);
+		Date ret = null;
+		Calendar cal;
+		if (isGmt) {
+			if (gmt_calendar == null)
+				gmt_calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+			cal = gmt_calendar;
 		}
+		else {
+			if (calendar == null) calendar = Calendar.getInstance();
+			cal = calendar;
+		}
+
+		synchronized (cal) {
+			cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
+			cal.set(Calendar.MILLISECOND, vs[6]);
+			ret = cal.getTime();
+		}
+		return ret;
 	}
 	
-	/** 解析时间日期, 按下列优先级进行解析: HH:mm:ss
-	 * @param text 需要格式化的文本
-	 * @return
-	 */
-	public static Date parseTime(String text) {
-		try {
-			synchronized (dfTime) {
-				return dfTime.parse(text);
-			}
-		} catch (ParseException e) {
-			return null;
-		}
+	/** 解析本地日期格式 yyyy-MM-dd格式 */
+	public static LocalDate parseLocalDate(String text) {
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		int[] vs = splitDate(text);
+		return LocalDate.of(vs[0], vs[1], vs[2]);
 	}
 
-	/** 解析字符串,按指定的字符做分隔符
-	 * @param text 要解析的文本
-	 * @param separator 分隔符
-	 * @return 解析后的字符串列表
-	 */
-	public static List<String> split(String text, char separator) {
-		List<String> result = new ArrayList<>();
-		split(text, separator, (b, e) -> text.substring(b, e));
-		return result;
-	}
-	
-	/** 解析字符串,按指定的字符做分隔符
-	 * @param text 要解析的文本
-	 * @param separator 分隔符, 多个
-	 * @return 解析后的字符串列表
-	 */
-	public static List<String> split(String text, char... separators) {
-		List<String> result = new ArrayList<>();
-		split(text, separators, (b, e) -> text.substring(b, e));
-		return result;
-	}
-	
-	/** 解析字符串,按指定的字符做分隔符
-	 * @param text 要解析的文本
-	 * @param separator 分隔符字符串, 多个
-	 * @return 解析后的字符串列表
-	 */
-	public static List<String> split(String text, String separator) {
-		List<String> result = new ArrayList<>();
-		split(text, separator, (b, e) -> text.substring(b, e));
-		return result;
-	}
-	
-    public static interface SplitConsumer { void accept(int start, int stop); }
-    
-	/** 解析字符串,按指定的字符做分隔符
-	 * @param text 要解析的文本
-	 * @param separator 分隔符
-	 */
-	public static void split(String text, char separator, SplitConsumer consumer) {
-		if (text == null || text.isEmpty()) return;
-		int index = 0;
-		boolean finded = false;
-		for (int i = 0, len = text.length(); i < len; ++i) {
-			char c = text.charAt(i);
-			if (c == separator) {
-				if (finded) {
-					consumer.accept(index, i);
-					finded = false;
-				}
-			}
-			else {
-				if (!finded) {
-					index = i;
-					finded = true;
-				}
-			}
-		}
-		if (finded) consumer.accept(index, text.length());
+	/** 解析本地日期时间格式 yyyy-MM-dd HH:mm:ss.sss 格式 */
+	public static LocalDateTime parseLocalDateTime(String text) {
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		int[] vs = splitDate(text);
+		return LocalDateTime.of(vs[0], vs[1], vs[2], vs[3], vs[4], vs[5], vs[6]);
 	}
 
-	/** 解析字符串,按指定的字符做分隔符
-	 * @param text 要解析的文本
-	 * @param separator 分隔符字符串, 多个
-	 */
-	public static void split(String text, String separator, SplitConsumer consumer) {
-		if (text == null || text.isEmpty()) return;
-		int len = separator.length();
-		char[] chars = new char[len];
-		separator.getChars(0, len, chars, 0);
-		split(text, chars, consumer);
+	/** 解析本地时间格式 HH:mm:ss.sss格式 */
+	public static LocalTime parseLocalTime(String text) {
+		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf(':') < 1 || text.length() < 5) return null;
+		int[] vs = splitDate(text);
+		return LocalTime.of(vs[0], vs[1], vs[2], vs[3]);
 	}
-	
-	/** 解析字符串,按指定的字符做分隔符
-	 * @param text 要解析的文本
-	 * @param separator 分隔符字符串, 多个
-	 */
-	public static void split(String text, char[] separators, SplitConsumer consumer) {
-		if (text == null || text.isEmpty()) return;
-		int len = separators.length;
-		int index = 0;
-		boolean finded = false;
-		for (int i = 0, n = text.length(); i < n; ++i) {
-			char c = text.charAt(i);
-			int j = 0;
-			while (j < len) if (c == separators[j]) break; else ++j;
-			if (j < len) {
-				if (finded) {
-					consumer.accept(index, i);
-					finded = false;
-				}
-			}
-			else {
-				if (!finded) {
-					index = i;
-					finded = true;
-				}
-			}
-		}
-		if (finded) consumer.accept(index, text.length());
-	}
-	
+
 	/** 解析命令行参数，双引号""表示一个完整的参数，反斜杠\表示转义字符
 	 * @param line 命令行
 	 * @return 解析后的参数
@@ -595,7 +611,7 @@ public abstract class Strings {
 	public static List<String> parseCmdLine(String line) {
 		List<String> args = new ArrayList<String>();
 		if (line == null || line.isEmpty()) return args;
-		
+
 		StringBuilder sb = new StringBuilder();
 		boolean inWord = false, isQuota = false, isEscape = false;
 		// 处理用户输入的命令, 分割成标准的命令行参数
@@ -658,6 +674,157 @@ public abstract class Strings {
 		return args;
 	}
 
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符
+	 * @return 解析后的字符串列表
+	 */
+	public static List<String> split(String text, char separator) {
+		return split(text, separator, new ArrayList<>(),
+				(b, e, r) -> r.add(text.substring(b, e)));
+	}
+
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符, 多个
+	 * @return 解析后的字符串列表
+	 */
+	public static List<String> split(String text, char... separators) {
+		return split(text, separators, new ArrayList<String>(),
+				(b, e, r) -> r.add(text.substring(b, e)));
+	}
+	
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符字符串, 多个
+	 * @return 解析后的字符串列表
+	 */
+	public static List<String> split(String text, String separator) {
+		return split(text, separator, new ArrayList<String>(),
+				(b, e, r) -> r.add(text.substring(b, e)));
+	}
+	
+	@FunctionalInterface
+    public static interface SplitConsumer<T> {
+		void accept(int start, int stop, T result);
+	}
+    
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符
+	 */
+	public static <R> R split(String text, char separator, R result,
+			SplitConsumer<R> consumer) {
+		if (text == null || text.isEmpty()) return result;
+		int index = -1;
+		for (int i = 0, len = text.length(); i < len; ++i) {
+			char c = text.charAt(i);
+			if (c == separator) {
+				if (index != -1) {
+					consumer.accept(index, i, result);
+					index = -1;
+				}
+			}
+			else if (index == -1) index = i;
+		}
+		if (index != -1) consumer.accept(index, text.length(), result);
+		return result;
+	}
+
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符字符串, 多个
+	 */
+	public static <R> R split(String text, String separator, R result,
+			SplitConsumer<R> consumer) {
+		if (text == null || text.isEmpty()) return result;
+		int len = separator.length();
+		char[] chars = new char[len];
+		separator.getChars(0, len, chars, 0);
+		return split(text, chars, result, consumer);
+	}
+	
+	/** 解析字符串,按指定的字符做分隔符
+	 * @param text 要解析的文本
+	 * @param separator 分隔符字符串, 多个
+	 */
+	public static <R> R split(String text, char[] separators, R result,
+			SplitConsumer<R> consumer) {
+		if (text == null || text.isEmpty()) return result;
+		int len = separators.length;
+		int index = -1;
+		for (int i = 0, n = text.length(); i < n; ++i) {
+			char c = text.charAt(i);
+			int j = 0;
+			while (j < len && c != separators[j]) ++j;
+			if (j < len) {
+				if (index != -1) {
+					consumer.accept(index, i, result);
+					index = -1;
+				}
+			}
+			else if (index == -1) index = i;
+		}
+		if (index != -1) consumer.accept(index, text.length(), result);
+		return result;
+	}
+	
+	/** 转换文本内容为对象
+	 * @param cls 对象类型
+	 * @param value 文本内容
+	 * @return 转换后生成的对象，转换失败返回null
+	 */
+	@SuppressWarnings("unchecked")
+	public static <T> T valueOf(Class<T> cls, String value) {
+		if (value == null || value.isEmpty())
+			return null;
+		if (cls == String.class)
+			return (T)value;
+		try {
+			if (cls == Integer.class || cls == Integer.TYPE)
+				return (T)Integer.valueOf(value);
+			if (cls == Long.class || cls == Long.TYPE)
+				return (T)Long.valueOf(value);
+			if (cls == Float.class || cls == Float.TYPE)
+				return (T)Float.valueOf(value);
+			if (cls == Date.class)
+				return (T)parseDate(value);
+			if (cls == Boolean.class || cls == Boolean.TYPE)
+				return (T)Boolean.valueOf(value);
+			if (cls == BigDecimal.class)
+				return (T)new BigDecimal(value);
+			if (cls == BigInteger.class)
+				return (T)new BigInteger(value);
+			if (cls == LocalDate.class)
+				return (T)parseLocalDate(value);
+			if (cls == LocalDateTime.class)
+				return (T)parseLocalDateTime(value);
+			if (cls == LocalTime.class)
+				return (T)parseLocalTime(value);
+			if (cls == Double.class || cls == Double.TYPE)
+				return (T)Double.valueOf(value);
+			if (cls == Byte.class || cls == Byte.TYPE)
+				return (T)Byte.valueOf(value);
+			if (cls == Short.class || cls == Short.TYPE)
+				return (T)Short.valueOf(value);
+			if (cls == Character.class || cls == Character.TYPE)
+				return (T)Character.valueOf(value.charAt(0));
+			if (cls.isEnum()) {
+				Enum<?>[] vs = (Enum<?>[])cls.getMethod("values").invoke(null);
+				try {
+					int n = Integer.parseInt(value);
+					return (T)vs[n];
+				}
+				catch (NumberFormatException e) {
+					for (int i = 0, n = vs.length; i < n; ++i)
+						if (vs[i].name().equals(value)) return (T)vs[i];
+				}
+			}
+		}
+		catch (Exception e) {}
+		return null;
+	}
+	
 	public static void main(String[] args) throws Exception {
 		if(args.length == 0)
 			System.out.println("Usage: Crypt <string> <string>");

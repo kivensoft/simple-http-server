@@ -12,7 +12,6 @@ import java.nio.charset.Charset;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Formatter;
@@ -20,9 +19,11 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.ObjIntConsumer;
 import java.util.stream.Stream;
 
 /**格式化到动态字符串缓冲区的类，采取缓存方式实现，增强对日期、数组、列表的格式化
@@ -90,7 +91,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 */
 	public Fmt(int capacity) {
 		buffer = new StringBuilder(capacity);
-		self = new WeakReference<>(this);
+		self = new WeakReference<Fmt>(this);
 	}
 
 
@@ -123,7 +124,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String fmt(String format, Object arg1) {
-		return get().format(format, arg1, null, null).release();
+		return get().format(format, 1, arg1, null, null).release();
 	}
 	
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
@@ -133,7 +134,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String fmt(String format, Object arg1, Object arg2) {
-		return get().format(format, arg1, arg2, null).release();
+		return get().format(format, 2, arg1, arg2, null).release();
 	}
 	
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
@@ -144,7 +145,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String fmt(String format, Object arg1, Object arg2, Object arg3) {
-		return get().format(format, arg1, arg2, arg3).release();
+		return get().format(format, 3, arg1, arg2, arg3).release();
 	}
 	
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
@@ -153,6 +154,15 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String fmt(String format, IntFunction<Object> func) {
+		return get().format(format, func).release();
+	}
+	
+	/** 以{}为格式化标识符进行快速格式化，类似日志输出
+	 * @param format 格式化字符串
+	 * @param func 返回格式化参数的lambda表达式
+	 * @return
+	 */
+	public static String fmt(String format, ObjIntConsumer<Fmt> func) {
 		return get().format(format, func).release();
 	}
 	
@@ -421,6 +431,24 @@ public final class Fmt implements Appendable, CharSequence {
 		System.out.println(Fmt.fmtJson(fmt, args));
 	}
 
+	/** 获取缓存对象数量 */
+	public static int getCacheCount() {
+		WeakReference<Fmt> h = head.get();
+		int count = 0;
+		while (h != null) {
+			Fmt f = h.get();
+			if (f == null) break;
+			h = f.next;
+			++count;
+		}
+		return count;
+	}
+	
+	/** 获取格式化对象依赖的Buffer属性 */
+	public StringBuilder getBuffer() {
+		return buffer;
+	}
+
 	@Override
 	public String toString() {
 		return buffer.toString();
@@ -516,12 +544,15 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 
 	/** 使用{}作为格式化参数进行格式化 */
-	public Fmt format(String format, Object...args) {
-		if (args.length == 0) buffer.append(format);
-		else
+	public Fmt format(String format, Object... args) {
+		int len = args.length;
+		if (len == 0) buffer.append(format);
+		else {
 			for (int i = -1, pos = nextPlaceHolder(format, 0);
 					pos >= 0; pos = nextPlaceHolder(format, pos)) 
-				append(args[++i]);
+				if (++i < len) append(args[i]);
+				else buffer.append('{').append('}');
+		}
 		return this;
 	}
 	
@@ -531,7 +562,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public Fmt format(String format, Object arg1) {
-		return format(format, arg1, null, null);
+		return format(format, 1, arg1, null, null);
 	}
 
 	/** 使用{}作为格式化参数进行格式化 
@@ -541,7 +572,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public Fmt format(String format, Object arg1, Object arg2) {
-		return format(format, arg1, arg2, null);
+		return format(format, 2, arg1, arg2, null);
 	}
 	
 	/** 使用{}作为格式化参数进行格式化 
@@ -552,12 +583,31 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public Fmt format(String format, Object arg1, Object arg2, Object arg3) {
+		return format(format, 3, arg1, arg2, arg3);
+	}
+
+	/** 使用{}作为格式化参数进行格式化 
+	 * @param format 字符串格式模板
+	 * @param count 格式化参数个数
+	 * @param arg1 格式化参数1
+	 * @param arg2 格式化参数2
+	 * @param arg3 格式化参数3
+	 * @return
+	 */
+	private Fmt format(String format, int count, Object arg1,
+			Object arg2, Object arg3) {
 		for (int i = -1, pos = nextPlaceHolder(format, 0);
 				pos >= 0; pos = nextPlaceHolder(format, pos)) 
 			switch (++i) {
 				case 0: append(arg1); break;
-				case 1: append(arg2); break;
-				case 2: append(arg3); break;
+				case 1:
+					if (count > 1) append(arg2);
+					else buffer.append('{').append('}');
+					break;
+				case 2:
+					if (count > 2) append(arg3);
+					else buffer.append('{').append('}');
+					break;
 			}
 		return this;
 	}
@@ -567,6 +617,14 @@ public final class Fmt implements Appendable, CharSequence {
 		for (int i = -1, pos = nextPlaceHolder(format, 0);
 				pos >= 0; pos = nextPlaceHolder(format, pos)) 
 			append(func.apply(++i));
+		return this;
+	}
+
+	/** 使用{}作为格式化参数进行格式化 */
+	public Fmt format(String format, ObjIntConsumer<Fmt> func) {
+		for (int i = -1, pos = nextPlaceHolder(format, 0);
+				pos >= 0; pos = nextPlaceHolder(format, pos)) 
+			func.accept(this, ++i);
 		return this;
 	}
 
@@ -586,7 +644,7 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	protected int nextPlaceHolder(String format, int start) {
+	private int nextPlaceHolder(String format, int start) {
 		int len = format.length();
 		while (start < len) {
 			int idx = format.indexOf('{', start);
@@ -669,7 +727,7 @@ public final class Fmt implements Appendable, CharSequence {
 			if (cls.isArray() && cls.getComponentType() == char.class)
 				buffer.append((char[])obj);
 			else if (obj.getClass().getComponentType().isPrimitive())
-				appendPrimitiveArray(obj, ",");
+				appendPrimitiveArray(obj, ",", null, null);
 			else append((Object[])obj, ",");
 		}
 		else if (CharSequence.class.isAssignableFrom(cls))
@@ -800,8 +858,20 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	
 	/** 格式化日期 */
+	public Fmt appendGmtDateTime(Date date) {
+		Calendar cal = getCalendar(date);
+		cal.setTimeZone(TimeZone.getTimeZone("GMT"));
+		append(cal);
+		cal.setTimeZone(TimeZone.getDefault());
+		return this;
+	}
+	
+	/** 格式化日期 */
 	public Fmt append(Calendar calendar) {
-		return appendDate(calendar).append(' ').appendTime(calendar);
+		if (calendar.getTimeZone().getRawOffset() == 0)
+			return appendDate(calendar).append('T').appendTime(calendar).append('Z');
+		else
+			return appendDate(calendar).append(' ').appendTime(calendar);
 	}
 	
 	/** 格式化年月日
@@ -872,10 +942,16 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param func lambda表达式，为null时使用数组本身值
 	 * @return
 	 */
-	private Fmt appendPrimitiveArray(Object obj, String delimiter) {
-		if (Array.getLength(obj) > 0) append(Array.get(obj, 0));
-		for (int i = 0, n = Array.getLength(obj); i < n; ++i)
-			append(delimiter).append(Array.get(obj, i));
+	public Fmt appendPrimitiveArray(Object obj, String delimiter,
+			String prefix, String suffix) {
+		if (obj == null) appendNull();
+		else {
+			if (prefix != null) buffer.append(prefix);
+			if (Array.getLength(obj) > 0) append(Array.get(obj, 0));
+			for (int i = 1, n = Array.getLength(obj); i < n; ++i)
+				append(delimiter).append(Array.get(obj, i));
+			if (suffix != null) buffer.append(suffix);
+		}
 		return this;
 	}
 
@@ -895,8 +971,9 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param suffix 格式化后缀
 	 * @return
 	 */
-	public <T> Fmt append(T[] value, String delimiter, String prefix, String suffix) {
-		return append(value, delimiter, null, null, null);
+	public <T> Fmt append(T[] value, String delimiter, String prefix,
+			String suffix) {
+		return append(value, delimiter, prefix, suffix, null);
 	}
 	
 	/** 格式化数组
@@ -919,7 +996,32 @@ public final class Fmt implements Appendable, CharSequence {
 	 */
 	public <T> Fmt append(T[] value, String delimiter, String prefix,
 			String suffix, Function<T, Object> func) {
-		return append(Arrays.asList(value), delimiter, prefix, suffix, func);
+		if (value == null) appendNull();
+		else {
+			if (prefix != null) buffer.append(prefix);
+			int len = value.length;
+			if (len > 0) append(func == null ? value[0] : func.apply(value[0]));
+			if (func == null) {
+				if (delimiter != null) {
+					for (int i = 1; i < len; ++i) {
+						buffer.append(delimiter);
+						append(value[i]);
+					}
+				}
+				else for (int i = 1; i < len; ++i) append(value[i]);
+			}
+			else {
+				if (delimiter != null) {
+					for (int i = 1; i < len; ++i) {
+						buffer.append(delimiter);
+						append(func.apply(value[i]));
+					}
+				}
+				else for (int i = 1; i < len; ++i) append(func.apply(value[i]));
+			}
+			if (suffix != null) buffer.append(suffix);
+		}
+		return this;
 	}
 	
 	/** 格式化可迭代对象
@@ -1005,17 +1107,31 @@ public final class Fmt implements Appendable, CharSequence {
 	 */
 	public <T> Fmt append(Iterator<T> iter, String delimiter, String prefix,
 			String suffix, Function<T, Object> func) {
-		if (prefix != null) buffer.append(prefix);
 		if (iter == null) appendNull();
 		else {
+			if (prefix != null) buffer.append(prefix);
 			if (iter.hasNext())
 				append(func == null ? iter.next() : func.apply(iter.next()));
-			while(iter.hasNext()) {
-				if (delimiter != null) buffer.append(delimiter);
-				append(func == null ? iter.next() : func.apply(iter.next()));
+			if (func == null) {
+				if (delimiter != null) {
+					while(iter.hasNext()) {
+						buffer.append(delimiter);
+						append(iter.next());
+					}
+				}
+				else while(iter.hasNext()) append(iter.next());
 			}
+			else {
+				if (delimiter != null) {
+					while(iter.hasNext()) {
+						buffer.append(delimiter);
+						append(func.apply(iter.next()));
+					}
+				}
+				else while(iter.hasNext()) append(func.apply(iter.next()));
+			}
+			if (suffix != null) buffer.append(suffix);
 		}
-		if (suffix != null) buffer.append(suffix);
 		return this;
 	}
 	
@@ -1094,7 +1210,7 @@ public final class Fmt implements Appendable, CharSequence {
 		if (delimiter1 != '\0' && delimiter2 != '\0')
 			while (count-- > 0) buffer.append(delimiter1).append(delimiter2).append(text);
 		else if (delimiter1 != '\0')
-			while (count-- > '\0') buffer.append(delimiter1).append(text);
+			while (count-- > 0) buffer.append(delimiter1).append(text);
 		else if (delimiter2 != '\0')
 			while (count-- > 0) buffer.append(delimiter2).append(text);
 		else
@@ -1161,7 +1277,8 @@ public final class Fmt implements Appendable, CharSequence {
 		else if (value instanceof Character)
 			charToJson((Character)value);
 		else if (value instanceof Enum<?>)
-			appendJavascriptString(value.toString());
+			buffer.append(((Enum<?>)value).ordinal());
+			//appendJavascriptString(value.toString());
 		else 
 			objectToJson(value);
 
@@ -1172,7 +1289,7 @@ public final class Fmt implements Appendable, CharSequence {
 		buffer.append('{');
 		Class<?> cls = value.getClass();
 		Method[] ms = cls.getMethods();
-		Set<String> names = new HashSet<>();
+		Set<String> names = new HashSet<String>();
 		boolean first = false;
 		for (int i = 0, n = ms.length; i < n; ++i) {
 			try {
@@ -1182,10 +1299,10 @@ public final class Fmt implements Appendable, CharSequence {
 					if (mn.length() < 4
 							|| !mn.startsWith("get")
 							|| mn.equals("getClass")
-							|| m.getParameterCount() > 0)
+							|| m.getTypeParameters().length > 0)
 						continue;
 					Object obj = m.invoke(value);
-					if (obj == null) continue;
+					if (obj == null) continue; //属性为空则忽略该属性
 					if (!first) first = true;
 					else buffer.append(',').append(' ');
 					buffer.append('"');
@@ -1291,7 +1408,8 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	*/
 
-	private final static char[] HEX_DIGEST = "0123456789abcdef".toCharArray();
+	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4', '5',
+			'6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes) {
@@ -1300,17 +1418,21 @@ public final class Fmt implements Appendable, CharSequence {
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes, char delimiter) {
-		if(bytes == null) return append("null");
-		if (bytes.length == 0) return this;
-		boolean no_pad = delimiter == '\0';
+		if(bytes == null) {
+			appendNull();
+			return this;
+		}
+		int len = bytes.length;
 		
-		int b = bytes[0];
-		buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
-			.append(HEX_DIGEST[b & 0xF]); //取低4位
+		if (len > 0) {
+			int b = bytes[0];
+			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
+				.append(HEX_DIGEST[b & 0xF]); //取低4位
+		}
 		
-		for(int i = 1, n = bytes.length; i < n; ++i) {
-			if (!no_pad) buffer.append(delimiter);
-			b = bytes[i];
+		for(int i = 1; i < len; ++i) {
+			int b = bytes[i];
+			if (delimiter != '\0') buffer.append(delimiter);
 			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
 				.append(HEX_DIGEST[b & 0xF]); //取低4位
 		}
@@ -1320,19 +1442,20 @@ public final class Fmt implements Appendable, CharSequence {
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final int value) {
-		int i = 32;
-		while (i > 0) {
-			i -= 4;
-			buffer.append(HEX_DIGEST[(value >> i) & 0xF]);
-		}
+		buffer.append(HEX_DIGEST[(value >> 28) & 0xF])
+			.append(HEX_DIGEST[(value >> 24) & 0xF])
+			.append(HEX_DIGEST[(value >> 20) & 0xF])
+			.append(HEX_DIGEST[(value >> 16) & 0xF])
+			.append(HEX_DIGEST[(value >> 12) & 0xF])
+			.append(HEX_DIGEST[(value >> 8) & 0xF])
+			.append(HEX_DIGEST[(value >> 4) & 0xF])
+			.append(HEX_DIGEST[value & 0xF]);
 		return this;
 	}
 	
 	/** 转换成16进制 */
-	public Fmt appendHex(final int...args) {
-		for (int i = 0, n = args.length; i < n; ++i)
-			appendHex(args[i]);
-		return this;
+	public Fmt appendHex(final int... args) {
+		return appendHex('\0', args);
 	}
 
 	/** 转换成16进制 */
@@ -1356,10 +1479,8 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	
 	/** 转换成16进制 */
-	public Fmt appendHex(final long...args) {
-		for (int i = 0, n = args.length; i < n; ++i)
-			appendHex(args[i]);
-		return this;
+	public Fmt appendHex(final long... args) {
+		return appendHex('\0', args);
 	}
 	
 	/** 转换成16进制 */
@@ -1378,44 +1499,44 @@ public final class Fmt implements Appendable, CharSequence {
 
 	/** base64编码
 	 * @param bytes 要编码的字节数组
-	 * @param lineSeparator 是否每76个字符换行标志
+	 * @param lineBreak 是否每76个字符换行标志
 	 * @return 编码后的字符串
 	 */
-	public Fmt appendBase64(final byte[] bytes, boolean lineSeparator) {
+	public Fmt appendBase64(final byte[] bytes, boolean lineBreak) {
 		//base64转码为3个字节转4个字节，即3个8位转成4个前两位固定为0的共24位
-		if (bytes == null) return append("null");
-		if (bytes.length == 0) return this;
+		if (bytes == null) appendNull();
+		if (bytes == null || bytes.length == 0) return this;
 		int len = bytes.length;
-		int bpos = -1, cpos = -1, cc = 0; //字符数组和字节数组的当前写入和读取的索引位置
+		int bpos = 0, cpos = 0, cc = 0; //字符数组和字节数组的当前写入和读取的索引位置
 		//转码数组长度，3的倍数乘4
 		int dlen = (len + 2) / 3 * 4;
-		if (lineSeparator) dlen += (dlen - 1) / 76 << 1;
-		//char[] chars = new char[dlen];
-		for (int slen = len - 3; bpos < slen; ) {
-			int b1 = bytes[++bpos] & 0xFF; //与FF是防止java的负数二进制补码扩展
-			int b2 = bytes[++bpos] & 0xFF;
-			int b3 = bytes[++bpos] & 0xFF;
-			//原第一字节的头6位
+		if (lineBreak) dlen += (dlen - 1) / 76 << 1;
+		for (int slen = len - 2, rdlen = dlen - 2; bpos < slen; bpos += 3) {
+			int b1 = bytes[bpos] & 0xFF; //与FF是防止java的负数二进制补码扩展
+			int b2 = bytes[bpos + 1] & 0xFF;
+			int b3 = bytes[bpos + 2] & 0xFF;
+			//1:第一字节的头6位, 2:第一字节的后2位+第二字节的前4位
+			//3:第二字节的前4位+第三字节的后2位, 4:第四字节的后6位
 			buffer.append(BASE64_DIGEST[b1 >>> 2])
-			//原第一字节的后2位+原第二字节的前4位
 				.append(BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F])
-			//原第二字节的前4位+原第三字节的后2位
 				.append(BASE64_DIGEST[((b2 << 2) | (b3 >>> 6)) & 0x3F])
-			//原第四字节的后6位
 				.append(BASE64_DIGEST[b3 & 0x3F]);
+			cpos += 4;
 
-			if (lineSeparator && ++cc == 19 && cpos < dlen - 2) {
+			if (lineBreak && ++cc == 19 && cpos < rdlen) {
 				buffer.append('\r').append('\n');
+				cpos += 2;
 				cc = 0;
 			}
 		}
 
 		int modcount = bytes.length % 3;
-		if(modcount > 0) { //非字节对齐时的处理，不足后面补=号，余数为1补2个，余数为2补1个
-			int b1 = bytes[++bpos] & 0xFF;
+		//非字节对齐时的处理，不足后面补=号，余数为1补2个，余数为2补1个
+		if (modcount > 0) {
+			int b1 = bytes[bpos++] & 0xFF;
 			buffer.append(BASE64_DIGEST[b1 >>> 2]);
-			if(modcount == 2){
-				int b2 = bytes[++bpos] & 0xFF;
+			if (modcount == 2) {
+				int b2 = bytes[bpos++] & 0xFF;
 				buffer.append(BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F])
 					.append(BASE64_DIGEST[(b2 << 2) & 0x3F]);
 			}

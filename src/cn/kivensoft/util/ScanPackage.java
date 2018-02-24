@@ -47,7 +47,7 @@ final public class ScanPackage {
 			Predicate<String> predicate) {
 		
 		// 第一个class类的集合
-		List<Class<?>> classes = new ArrayList<>();
+		List<Class<?>> classes = new ArrayList<Class<?>>();
 		// 获取包的名字 并进行替换
 		String packageDirName = packageName.replace('.', '/');
 		// 定义一个枚举的集合 并进行循环来处理这个目录下的things
@@ -93,17 +93,16 @@ final public class ScanPackage {
 
 		// 如果存在 就获取包下的所有文件 包括目录
 		// 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
-		File[] dirfiles = dir.listFiles(file ->
-			recursive && file.isDirectory() || file.getName().endsWith(CLASS_NAME));
+		File[] dirfiles = dir.listFiles();
 
 		// 循环所有文件
 		for (int i = 0, n = dirfiles.length; i < n; ++i) {
 			File file = dirfiles[i];
 			// 如果是目录 则继续扫描
-			if (file.isDirectory())
+			if (recursive && file.isDirectory())
 				findByFile(Fmt.concat(packageName, ".", file.getName()),
 						file.getAbsolutePath(), recursive, classes, predicate);
-			else {
+			else if (file.getName().endsWith(CLASS_NAME)) {
 				// 如果是java类文件 去掉后面的.class 只留下类名
 				String className = file.getName().substring(0,
 						file.getName().length() - CLASS_NAME.length());
