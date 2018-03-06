@@ -45,6 +45,8 @@ public abstract class BaseDao {
 	
 	protected static final WeakCache<String, MethodAccess> methodAccessCache =
 			new WeakCache<>();
+	protected static final WeakCache<String, String> tableSqlCache =
+			new WeakCache<>();
 	protected Connection conn;
 	protected List<Savepoint> savepoints;
 
@@ -792,12 +794,8 @@ public abstract class BaseDao {
 		catch (Exception e) {
 			throw new SQLException("mapperObject cls.newInstance error.");
 		}
-		
+
 		MethodAccess methodAccess = getMethodAccessByCache(cls);
-		if (methodAccess == null) {
-			methodAccess = MethodAccess.get(cls);
-			methodAccessCache.put(cls.getName(), methodAccess);
-		}
 
 		char[] tmpBuf = new char[MAX_COLUMN_LENGTH];
 		ResultSetMetaData rsmd = rs.getMetaData();
@@ -857,7 +855,7 @@ public abstract class BaseDao {
 		
 		return list;
 	}
-	
+
 	final static MethodAccess getMethodAccessByCache(Class<?> cls) {
 		MethodAccess methodAccess = methodAccessCache.get(cls.getName());
 		if (methodAccess == null) {
@@ -866,25 +864,24 @@ public abstract class BaseDao {
 		}
 		return methodAccess;
 	}
-	
-	final protected static String columnToField(String columnName,
-			char[] tmpBuf) {
+
+	final static String columnToField(String columnName, char[] tmpBuf) {
 		return columnNameMap(columnName, tmpBuf, 0, false);
 	}
-	
-	final protected static String columnToSetMethod(String columnName,
+
+	final static String columnToSetMethod(String columnName,
 			char[] tmpBuf) {
 		tmpBuf[0] = 's'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
 		return columnNameMap(columnName, tmpBuf, 3, true);
 	}
 	
-	final protected static String columnToGetMethod(String columnName,
+	final static String columnToGetMethod(String columnName,
 			char[] tmpBuf) {
 		tmpBuf[0] = 'g'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
 		return columnNameMap(columnName, tmpBuf, 3, true);
 	}
 	
-	protected static String columnNameMap(String columnName, char[] tmpBuf,
+	final static String columnNameMap(String columnName, char[] tmpBuf,
 			int start, boolean firstUpper) {
 		char[] chars = tmpBuf;
 		for (int i = 0, n = columnName.length(); i < n; ++i) {

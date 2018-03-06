@@ -779,8 +779,8 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 
 	/** 追加一个值 */
-	public Fmt append(char str[], int offset, int len) {
-		buffer.append(str, offset, len); return this;
+	public Fmt append(char str[], int off, int len) {
+		buffer.append(str, off, len); return this;
 	}
 
 	/** 格式化字节流, 以字符串方式写入
@@ -797,8 +797,45 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param len 长度
 	 * @return
 	 */
-	public Fmt appendBytes(byte[] bytes, int offset, int len) {
-		return appendBytes(bytes, offset, len, utf8Charset);
+	public Fmt appendBytes(byte[] bytes, int off, int len) {
+		int pos = off, max_pos = off + len;
+		if (max_pos > bytes.length) throw new IndexOutOfBoundsException();
+		while (pos < max_pos) {
+			int b = bytes[pos++] & 0xff;
+			int next = 0;
+			if (b < 0x80) {
+				buffer.append((char) b);
+				continue;
+			} else if (b < 0xc0) {
+				throw new UnsupportedOperationException("bad byte to transaction utf8");
+			} else if (b < 0xe0) {
+				b &= 0x1f;
+				next = 1;
+			} else if (b < 0xf0) {
+				b &= 0x0f;
+				next = 2;
+			} else if (b < 0xf8) {
+				b &= 0x07;
+				next = 3;
+			} else if (b < 0xfc) {
+				b &= 0x03;
+				next = 4;
+			} else {
+				b &= 0x01;
+				next = 5;
+			}
+			for (int i = 1; i <= next && pos < max_pos; ++i, ++pos)
+				b = b << 6 | bytes[pos] & 0x3f;
+			
+			if (b <= 0xffff) buffer.append((char) b);
+			else if (b <= 0xeffff){
+				buffer.append((char) (0xd800 + (b >> 10) - 0x40))
+					.append((char) (0xdc00 + (b & 0x3ff)));
+			}
+			else throw new UnsupportedOperationException(
+					"bad byte to transaction utf8");
+		}
+		return this;
 	}
 
 	/** 格式化字节流, 以字符串方式写入
@@ -1662,4 +1699,6 @@ public final class Fmt implements Appendable, CharSequence {
 	}
 	
 }
+
+
 

@@ -146,6 +146,17 @@ public class FmtTest {
 			}
 		}));
 	}
-	
+
+	@Test
+	public void testAppendUtf8() {
+		String s = "ab中文";
+		byte[] bs = Strings.s2ba(s);
+		byte[] b1 = new byte[3];
+		byte[] b2 = new byte[bs.length - 3];
+		System.arraycopy(bs, 0, b1, 0, 3);
+		System.arraycopy(bs, 3, b2, 0, b2.length);
+		String s2 = Fmt.get().appendBytes(bs).release();
+		assertEquals(s, s2);
+	}
 }
 

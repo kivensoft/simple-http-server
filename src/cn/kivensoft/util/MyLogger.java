@@ -13,18 +13,18 @@ import org.apache.log4j.Priority;
 final public class MyLogger {
 	public static enum LogLevel {trace, debug, info, warn, error};
 
-	final static String FQCN = MyLogger.class.getName();
-	final static Logger _logger = Logger.getLogger(MyLogger.class);
+	private final static String FQCN = MyLogger.class.getName();
+	private final static Logger _logger = Logger.getLogger(MyLogger.class);
 	
-	protected static void log(Priority level, String msg, Throwable e) {
+	private static void log(Priority level, String msg, Throwable e) {
 		_logger.log(FQCN, level, msg, e);
 	}
 	
-	protected static boolean isEnabledFor(Priority level) {
+	private static boolean isEnabledFor(Priority level) {
 		return _logger.isEnabledFor(level);
 	}
 	
-	protected static Priority toLevel(LogLevel level) {
+	private static Priority toLevel(LogLevel level) {
 		Level v;
 		switch (level) {
 			case trace: v = Level.TRACE; break;
