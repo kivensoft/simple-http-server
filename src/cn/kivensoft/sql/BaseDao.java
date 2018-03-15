@@ -1,5 +1,6 @@
 package cn.kivensoft.sql;
 
+import java.lang.reflect.Field;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -26,8 +28,6 @@ import cn.kivensoft.util.WeakCache;
  *
  */
 public abstract class BaseDao {
-	private static final int MAX_COLUMN_LENGTH = 128;
-	
 	@FunctionalInterface
 	public static interface OnQuery<T> {
 		T apply(ResultSet rs) throws SQLException;
@@ -43,10 +43,8 @@ public abstract class BaseDao {
 		void accept(BaseDao dao) throws Exception;
 	}
 	
-	protected static final WeakCache<String, MethodAccess> methodAccessCache =
-			new WeakCache<>();
-	protected static final WeakCache<String, String> tableSqlCache =
-			new WeakCache<>();
+	static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
+	static final WeakCache<String, List<Field>> fieldsCache = new WeakCache<>();
 	protected Connection conn;
 	protected List<Savepoint> savepoints;
 
@@ -123,8 +121,9 @@ public abstract class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
+	@SuppressWarnings("unchecked")
 	final public <T> int[] executeBatch(String sql,
-			@SuppressWarnings("unchecked") T... args) throws SQLException {
+			T... args) throws SQLException {
 		return executeBatch(sql, Arrays.asList(args));
 	}
 	
@@ -607,27 +606,197 @@ public abstract class BaseDao {
 			Object...args) throws SQLException {
 		return query(sql, new Qlist<T>(cls), args);
 	}
-	
+
 	private volatile int dbType = 0;
 	private final String LAST_INSERT_QUERY_MYSQL = "select LAST_INSERT_ID()";
 	private final String LAST_INSERT_QUERY_HSQL = "call identity()";
 	
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql) throws SQLException {
-		execute(sql);
-		return insertAfter();
+		return execute(sql) == 0 ? 0 : insertAfter();
 	}
 
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql, Object arg) throws SQLException {
-		execute(sql, arg);
-		return insertAfter();
+		return execute(sql, arg) == 0 ? 0 : insertAfter();
 	}
 	
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql, Object... args) throws SQLException {
-		execute(sql, args);
-		return insertAfter();
+		return execute(sql, args) == 0 ? 0 : insertAfter();
+	}
+	
+	/** 插入记录, 动态根据对象属性生成sql
+	 * @param arg 要生成记录的对象
+	 * @param allowNull 是否允许null值字段
+	 * @return 新纪录的ID
+	 * @throws SQLException
+	 */
+	final public int insertBy(Object arg, boolean allowNull)
+			throws SQLException {
+		List<Field> fs = getFieldsByCache(arg.getClass());
+		if (fs.size() == 0)
+			throw new IllegalArgumentException("arg not field.");
+		List<Object> args = new LinkedList<>();
+		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+
+		Fmt fmt = Fmt.get().format("insert into {} (",
+				classToTable(arg.getClass().getSimpleName()));
+		boolean first = true;
+		for (Field f : fs) {
+			// NotField注解的字段和没有SetXXX函数的字段跳过
+			if (f.getAnnotation(NotField.class) != null) continue;
+			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			if (index == -1) continue;
+			Object v = ma.invoke(arg, index);
+			// 如果忽略空字段, 则跳过空字段
+			if (!allowNull && v == null) continue;
+
+			if (first) first = false;
+			else fmt.append(',').append(' ');
+			fmt.append(fieldToColumn(f.getName()));
+			args.add(v);
+		}
+		fmt.append(") values (?");
+		for (int i = 1, n = args.size(); i < n; ++i)
+			fmt.append(',').append(' ').append('?');
+		fmt.append(')');
+		String sql = fmt.release();
+		
+		if (args.size() == 0) throw new IllegalArgumentException("arg not field.");
+		return execute(sql, args.toArray()) == 0 ? 0 : insertAfter();
+	}
+	
+	/** 更新记录, 动态根据对象属性生成sql
+	 * @param arg 要更新的对象
+	 * @param allowNull 是否允许更新null值属性
+	 * @return 更新的记录数
+	 * @throws SQLException
+	 */
+	final public int updateById(Object arg, boolean allowNull)
+			throws SQLException {
+		List<Field> fs = getFieldsByCache(arg.getClass());
+		if (fs.size() == 0)
+			throw new IllegalArgumentException("arg not field.");
+		Field id_field = null;
+		Object id_data = null;
+		List<Object> args = new LinkedList<>();
+		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+		Fmt fmt = Fmt.get();
+		StringBuilder sb = fmt.getBuffer();
+		sb.append("update ")
+				.append(classToTable(arg.getClass().getSimpleName()))
+				.append(" set ");
+		boolean first = true;
+		for (Field f : fs) {
+			if (id_field == null && f.getAnnotation(IdField.class) != null) {
+				id_field = f;
+				int idx = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+				if (idx == -1)
+					throw new IllegalArgumentException("not id field method.");
+				id_data = ma.invoke(arg, idx);
+				if (id_data == null)
+					throw new IllegalArgumentException("id field is null.");
+				continue;
+			}
+			// NotField注解的字段和没有SetXXX函数的字段跳过
+			if (f.getAnnotation(NotField.class) != null) continue;
+			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			if (index == -1) continue;
+			Object v = ma.invoke(arg, index);
+			// 如果忽略空字段, 则跳过空字段
+			if (!allowNull && v == null) continue;
+
+			if (first) first = false;
+			else sb.append(',').append(' ');
+			sb.append(fieldToColumn(f.getName())).append(" = ?");
+			args.add(v);
+		}
+		if (id_field == null)
+			throw new IllegalArgumentException("not id field.");
+		args.add(id_data);
+		sb.append(" where ").append(fieldToColumn(id_field.getName()))
+				.append(" = ?");
+		
+		return execute(fmt.release(), args.toArray());
+	}
+
+	final public <T> T selectById(Object id, Class<T> cls)
+			throws SQLException {
+		Field id_field = getIdFieldByCache(cls);
+		if (id_field == null)
+			throw new IllegalArgumentException("arg not id field.");
+		String sql = Fmt.fmt("select * from {} where {} = ?",
+				classToTable(cls.getSimpleName()),
+				fieldToColumn(id_field.getName()));
+		return queryForObject(sql, cls, id);
+	}
+	
+	@SuppressWarnings("unchecked")
+	final public <T> T selectBy(T arg) throws SQLException {
+		List<Object> args = new LinkedList<>();
+		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+		Fmt fmt = Fmt.get().format("select * from {} where ",
+				classToTable(arg.getClass().getSimpleName()));
+		boolean first = true;
+		for (Field f : getFieldsByCache(arg.getClass())) {
+			// NotField注解的字段和没有SetXXX函数的字段跳过
+			if (f.getAnnotation(NotField.class) != null) continue;
+			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			if (index == -1) continue;
+			Object v = ma.invoke(arg, index);
+			// 如果忽略空字段, 则跳过空字段
+			if (v == null) continue;
+
+			if (first) first = false;
+			else fmt.append(" and ");
+			fmt.append(fieldToColumn(f.getName())).append(" = ?");
+			args.add(v);
+		}
+		return (T) queryForObject(fmt.release(), arg.getClass(), args.toArray());
+	}
+	
+	/** 根据ID删除记录, 动态生成sql
+	 * @param id
+	 * @param cls 库表对应的实体类
+	 * @return 删除的记录数
+	 * @throws SQLException
+	 */
+	final public int deleteById(Object id, Class<?> cls) throws SQLException {
+		Field id_field = getIdFieldByCache(cls);
+		if (id_field == null)
+			throw new IllegalArgumentException("arg not id field.");
+		String sql = Fmt.fmt("delete from {} where {} = ?",
+				classToTable(cls.getSimpleName()),
+				fieldToColumn(id_field.getName()));
+		return execute(sql, new Object[] {id});
+	}
+	
+	/** 根据参数值删除记录, 动态创建sql
+	 * @param arg 匹配条件
+	 * @return 删除的记录数
+	 * @throws SQLException
+	 */
+	final public int deleteBy(Object arg) throws SQLException {
+		List<Object> args = new LinkedList<>();
+		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+		Fmt fmt = Fmt.get().format("delete from {} where ");
+		boolean first = true;
+		for (Field f : getFieldsByCache(arg.getClass())) {
+			// NotField注解的字段和没有SetXXX函数的字段跳过
+			if (f.getAnnotation(NotField.class) != null) continue;
+			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			if (index == -1) continue;
+			Object v = ma.invoke(arg, index);
+			// 跳过空字段
+			if (v == null) continue;
+
+			if (first) first = false;
+			else fmt.append(" and ");
+			fmt.append(fieldToColumn(f.getName())).append(" = ?");
+			args.add(v);
+		}
+		return execute(fmt.release(), args.toArray());
 	}
 	
 	/** 插入记录后获取该记录的自增ID值
@@ -760,19 +929,19 @@ public abstract class BaseDao {
 	}
 	
 	/** 关闭资源 */
-	final private void closeResource(Statement stmt, ResultSet rs) {
+	final protected void closeResource(Statement stmt, ResultSet rs) {
         if (rs != null) try { rs.close(); } catch(SQLException e) {}
         if (stmt != null) try { stmt.close(); } catch(SQLException e) {}
 	}
 
 	/** 关闭资源 */
-	final private void closeResource(NamedStatement stmt, ResultSet rs) {
+	final protected void closeResource(NamedStatement stmt, ResultSet rs) {
         if (rs != null) try { rs.close(); } catch(SQLException e) {}
         if (stmt != null) stmt.close();
 	}
 	
 	/** 检查连接状态 */
-	final private void checkConnection() throws SQLException {
+	final protected void checkConnection() throws SQLException {
 		if (conn == null) throw new SQLException("connection is already close.");
 	}
 	
@@ -797,11 +966,10 @@ public abstract class BaseDao {
 
 		MethodAccess methodAccess = getMethodAccessByCache(cls);
 
-		char[] tmpBuf = new char[MAX_COLUMN_LENGTH];
 		ResultSetMetaData rsmd = rs.getMetaData();
 		String fieldName;
 		for(int i = 1, n = rsmd.getColumnCount(), index; i <= n; ++i) {
-			fieldName = columnToSetMethod(rsmd.getColumnLabel(i), tmpBuf);
+			fieldName = columnToSetMethod(rsmd.getColumnLabel(i));
 			//如果对象的属性存在，则进行赋值
 			if ((index = methodAccess.getIndex(fieldName)) != -1) {
 				methodAccess.invoke(ret, index, rs.getObject(i));
@@ -833,13 +1001,12 @@ public abstract class BaseDao {
 		ResultSetMetaData rsmd = rs.getMetaData();
 		int columnCount = rsmd.getColumnCount();
 		int[] fieldsIndex = new int[columnCount];
-		char[] tmpBuf = new char[MAX_COLUMN_LENGTH];
 		String fieldName;
 		for(int i = 0; i < columnCount; ++i) {
-			fieldName = columnToSetMethod(rsmd.getColumnLabel(i + 1), tmpBuf);
+			fieldName = columnToSetMethod(rsmd.getColumnLabel(i + 1));
 			fieldsIndex[i] = methodAccess.getIndex(fieldName);
 		}
-		
+	
 		try {
 			do {
 				T obj = (T) cls.newInstance();
@@ -856,7 +1023,7 @@ public abstract class BaseDao {
 		return list;
 	}
 
-	final static MethodAccess getMethodAccessByCache(Class<?> cls) {
+	final protected static MethodAccess getMethodAccessByCache(Class<?> cls) {
 		MethodAccess methodAccess = methodAccessCache.get(cls.getName());
 		if (methodAccess == null) {
 			methodAccess = MethodAccess.get(cls);
@@ -865,45 +1032,113 @@ public abstract class BaseDao {
 		return methodAccess;
 	}
 
-	final static String columnToField(String columnName, char[] tmpBuf) {
-		return columnNameMap(columnName, tmpBuf, 0, false);
+	final protected static String columnToField(String columnName) {
+		Fmt f = Fmt.get();
+		columnNameMap(columnName, f.getBuffer(), false);
+		return f.release();
 	}
 
-	final static String columnToSetMethod(String columnName,
-			char[] tmpBuf) {
-		tmpBuf[0] = 's'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
-		return columnNameMap(columnName, tmpBuf, 3, true);
+	final protected static String columnToSetMethod(String columnName) {
+		Fmt f = Fmt.get().append('s').append('e').append('t');
+		columnNameMap(columnName, f.getBuffer(), true);
+		return f.release();
 	}
 	
-	final static String columnToGetMethod(String columnName,
-			char[] tmpBuf) {
-		tmpBuf[0] = 'g'; tmpBuf[1] = 'e'; tmpBuf[2] = 't';
-		return columnNameMap(columnName, tmpBuf, 3, true);
+	final protected static String columnToGetMethod(String columnName) {
+		Fmt f = Fmt.get().append('g').append('e').append('t');
+		columnNameMap(columnName, f.getBuffer(), true);
+		return f.release();
 	}
 	
-	final static String columnNameMap(String columnName, char[] tmpBuf,
-			int start, boolean firstUpper) {
-		char[] chars = tmpBuf;
+	final protected static void columnNameMap(String columnName,
+			StringBuilder sb, boolean firstUpper) {
 		for (int i = 0, n = columnName.length(); i < n; ++i) {
 			char c = columnName.charAt(i);
 			if (c == '_') firstUpper = true;
 			else {
 				if (firstUpper) {
 					if (c >= 'a' && c <= 'z' && firstUpper)
-						chars[start++] = (char)(c - 0x20);
-					else chars[start++] = c;
+						c = (char)(c - 0x20);
+					sb.append(c);
 					firstUpper = false;
 				}
 				else {
 					if (c >= 'A' && c <= 'Z' && !firstUpper)
-						chars[start++] = (char)(c + 0x20);
-					else chars[start++] = c;
+						c = (char)(c + 0x20);
+					sb.append(c);
 				}
 			}
 		}
-		return new String(chars, 0, start);
 	}
 
+	final protected static Field getIdFieldByCache(Class<?> cls) {
+		for (Field f : getFieldsByCache(cls)) {
+			if (f.getAnnotation(IdField.class) != null)
+				return f;
+		}
+		return null;
+	}
+	
+	final protected static List<Field> getFieldsByCache(Class<?> cls) {
+		List<Field> fs = fieldsCache.get(cls.getName());
+		if (fs == null) {
+			fs = getAllFields(cls);
+			fieldsCache.put(cls.getName(), fs);
+		}
+		return fs;
+	}
+	
+	final protected static List<Field> getAllFields(Class<?> cls) {
+		List<Field> list = new LinkedList<>();
+		while (cls != Object.class) {
+			Field[] fs = cls.getDeclaredFields();
+			for (int i = 0, n = fs.length; i < n; ++i) list.add(fs[i]);
+			cls = cls.getSuperclass();
+		}
+		return list;
+	}
+
+	final protected static String fieldToGetMethod(String fieldName) {
+		Fmt f = Fmt.get().append('g').append('e').append('t');
+		fieldToMethod(fieldName, f.getBuffer());
+		return f.release();
+	}
+	
+	final protected static String fieldToSetMethod(String fieldName) {
+		Fmt f = Fmt.get().append('s').append('e').append('t');
+		fieldToMethod(fieldName, f.getBuffer());
+		return f.release();
+	}
+	
+	final protected static void fieldToMethod(String fieldName,
+			StringBuilder sb) {
+		char c = fieldName.charAt(0);
+		if (c >= 'a' && c <= 'z') c = (char) (c - 0x20);
+		sb.append(c).append(fieldName.substring(1));
+	}
+	
+	final static String fieldToColumn(String fieldName) {
+		Fmt f = Fmt.get();
+		fieldNameMap(fieldName, f.getBuffer());
+		return f.release();
+	}
+	
+	final protected static String classToTable(String className) {
+		Fmt f = Fmt.get().append('T');
+		fieldNameMap(className, f.getBuffer());
+		return f.release();
+	}
+
+	final protected static void fieldNameMap(String fieldName,
+			StringBuilder sb) {
+		for (int i = 0, n = fieldName.length(); i < n; ++i) {
+			char c = fieldName.charAt(i);
+			if (c >= 'A' && c <= 'Z') sb.append('_');
+			else if (c >= 'a' && c <= 'z') c = (char) (c - 0x20);
+			sb.append(c);
+		}
+	}
+	
 	final protected void logSQL(String sql, Object arg) {
 		MyLogger.debug("执行SQL: {}", sql);
 		if (arg != null) MyLogger.debugJson("SQL参数: {}", arg);

@@ -37,6 +37,9 @@
 	<target name="init">
 		<mkdir dir="${bin}" />
 		<mkdir dir="${output}" />
+		<delete includeemptydirs="true">
+			<fileset dir="${bin}" includes="**/*"/>
+		</delete>
 	</target>
 
 	<!-- 编译java源文件，把不需要编译的非java文件复制到编译目录下 -->

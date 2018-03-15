@@ -1,8 +1,10 @@
 package cn.kivensoft.sql;
 
+import java.io.Closeable;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Queue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -12,6 +14,7 @@ import javax.sql.ConnectionEvent;
 import javax.sql.ConnectionEventListener;
 import javax.sql.ConnectionPoolDataSource;
 import javax.sql.PooledConnection;
+import javax.xml.ws.WebServiceException;
 
 import cn.kivensoft.util.MyLogger;
 
@@ -20,7 +23,8 @@ import cn.kivensoft.util.MyLogger;
  * @version 1.2
  * @date 2017-10.22
  */
-public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
+public final class MiniConnPoolMgr implements Supplier<Connection>,
+		Runnable, Closeable {
 	// 定时回收多余连接的间隔时间
 	private final int DELAY_SECONDS = 120;
 	
@@ -38,15 +42,22 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 	private final ScheduledExecutorService schedule;
 	private final ConnectionPoolDataSource dataSource;
 	
-	private boolean isDisposed = false;
+	private boolean selfSchedule;
+	// 线程池对象关闭标志
+	private boolean isDisposed;
 	// 部分低版本的jdbc驱动不支持isValid函数，需判断
-	private boolean skipValid = false;
+	private boolean skipValid;
 
 	public MiniConnPoolMgr(String driverClassName, String url,
 			String username, String password, int minIdle, int maxIdle,
-			ScheduledExecutorService scheduleExecutorService) throws Exception {
+			ScheduledExecutorService schedule) throws Exception {
 		if (minIdle > maxIdle)
-			throw new Exception("Error create MiniConnPoolMgr, minIdle greater than maxIdle.");
+			throw new IllegalArgumentException(
+					"Error create MiniConnPoolMgr, minIdle greater than maxIdle.");
+		if (schedule == null) {
+			selfSchedule = true;
+			schedule = Executors.newSingleThreadScheduledExecutor();
+		}
 		
 		this.driverClassName = driverClassName;
 		this.url = url;
@@ -54,14 +65,13 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 		this.password = password;
 		this.minIdle = minIdle;
 		this.maxIdle = maxIdle;
-		this.schedule = scheduleExecutorService;
+		this.schedule = schedule;
 		
 		//创建ConnectionPoolDataSource
 		dataSource = createDataSource();
 		run();
-		if (schedule != null)
-			schedule.scheduleWithFixedDelay(this, DELAY_SECONDS,
-					DELAY_SECONDS, TimeUnit.SECONDS);
+		schedule.scheduleWithFixedDelay(this, DELAY_SECONDS,
+				DELAY_SECONDS, TimeUnit.SECONDS);
 		
 		MyLogger.info("初始化数据库连接池，url={}, live={}, minIdle={}, maxIdle={}",
 				url, recycledConnections.size(), minIdle, maxIdle);
@@ -97,13 +107,6 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 		return conn;
 	}
 	
-	public void dispose() {
-		isDisposed = true;
-		PooledConnection pconn;
-		while((pconn = recycledConnections.poll()) != null)
-			disposeConnection(pconn);
-	}
-
 	private Connection getConnection2() throws SQLException {
 		if (isDisposed)
 			throw new IllegalStateException("Connection pool has been disposed.");
@@ -138,6 +141,7 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 
 	@Override
 	public void run() {
+		if (isDisposed) return;
 		// 如果线程池中可用连接小于最小空闲连接数，则创建
 		try {
 			while(recycledConnections.size() < minIdle) {
@@ -200,6 +204,15 @@ public final class MiniConnPoolMgr implements Supplier<Connection>, Runnable {
 			MyLogger.error(e, "获取数据库连接出错.");
 			return null;
 		}
+	}
+
+	@Override
+	public void close() throws WebServiceException {
+		isDisposed = true;
+		if (selfSchedule) schedule.shutdown();
+		PooledConnection pconn;
+		while((pconn = recycledConnections.poll()) != null)
+			disposeConnection(pconn);
 	}
 
 }
