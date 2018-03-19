@@ -38,6 +38,14 @@ final public class MyLogger {
 		return v;
 	}
 	
+	public static String caller() {
+		StackTraceElement[] stacks = new Throwable().getStackTrace();
+		StackTraceElement s = stacks[0];
+		if (s.getClassName().equals(MyLogger.class.getName())) s = stacks[1];
+		int idx = s.getClassName().lastIndexOf('.');
+		return Fmt.concat(s.getClassName().substring(idx + 1), ".", s.getMethodName());
+	}
+	
 	public static boolean isEnabledFor(LogLevel level) {
 		return _logger.isEnabledFor(toLevel(level));
 	}
