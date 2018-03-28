@@ -32,8 +32,7 @@ final public class MyLogger {
 			case info: v = Level.INFO; break;
 			case warn: v = Level.WARN; break;
 			case error: v = Level.ERROR; break;
-			default:
-				v = Level.OFF;
+			default: v = Level.OFF;
 		}
 		return v;
 	}
@@ -85,6 +84,12 @@ final public class MyLogger {
 		if (isEnabledFor(v)) log(v, Fmt.fmt(msg, arg1, arg2), null);
 	}
 	
+	public static void log(LogLevel level, String msg, Object arg1,
+			Object arg2, Object arg3) {
+		Priority v = toLevel(level);
+		if (isEnabledFor(v)) log(v, Fmt.fmt(msg, arg1, arg2, arg3), null);
+	}
+	
 	public static void log(LogLevel level, String msg, Object... args) {
 		Priority v = toLevel(level);
 		if (isEnabledFor(v)) log(v, Fmt.fmt(msg, args), null);
@@ -105,9 +110,16 @@ final public class MyLogger {
 		if (isEnabledFor(v)) log(v, Fmt.fmt(msg, arg1), e);
 	}
 	
-	public static void log(LogLevel level, Throwable e, String msg, Object arg1, Object arg2) {
+	public static void log(LogLevel level, Throwable e, String msg,
+			Object arg1, Object arg2) {
 		Priority v = toLevel(level);
 		if (isEnabledFor(v)) log(v, Fmt.fmt(msg, arg1, arg2), e);
+	}
+	
+	public static void log(LogLevel level, Throwable e, String msg,
+			Object arg1, Object arg2, Object arg3) {
+		Priority v = toLevel(level);
+		if (isEnabledFor(v)) log(v, Fmt.fmt(msg, arg1, arg2, arg3), e);
 	}
 	
 	public static void log(LogLevel level, Throwable e, String msg, Object... args) {
@@ -137,6 +149,10 @@ final public class MyLogger {
 		if (isTraceEnabled()) log(Level.TRACE, Fmt.fmt(msg, arg1, arg2), null);
 	}
 	
+	public static void trace(String msg, Object arg1, Object arg2, Object arg3) {
+		if (isTraceEnabled()) log(Level.TRACE, Fmt.fmt(msg, arg1, arg2, arg3), null);
+	}
+	
 	public static void trace(String msg, Object... args) {
 		if (isTraceEnabled()) log(Level.TRACE, Fmt.fmt(msg, args), null);
 	}
@@ -155,6 +171,11 @@ final public class MyLogger {
 	
 	public static void trace(Throwable e, String msg, Object arg1, Object arg2) {
 		if (isTraceEnabled()) log(Level.TRACE, Fmt.fmt(msg, arg1, arg2), e);
+	}
+	
+	public static void trace(Throwable e, String msg, Object arg1,
+			Object arg2, Object arg3) {
+		if (isTraceEnabled()) log(Level.TRACE, Fmt.fmt(msg, arg1, arg2, arg3), e);
 	}
 	
 	public static void trace(Throwable e, String msg, Object... args) {
@@ -181,6 +202,10 @@ final public class MyLogger {
 		if (isDebugEnabled()) log(Level.DEBUG, Fmt.fmt(msg, arg1, arg2), null);
 	}
 	
+	public static void debug(String msg, Object arg1, Object arg2, Object arg3) {
+		if (isDebugEnabled()) log(Level.DEBUG, Fmt.fmt(msg, arg1, arg2, arg3), null);
+	}
+	
 	public static void debug(String msg, Object... args) {
 		if (isDebugEnabled()) log(Level.DEBUG, Fmt.fmt(msg, args), null);
 	}
@@ -199,6 +224,11 @@ final public class MyLogger {
 	
 	public static void debug(Throwable e, String msg, Object arg1, Object arg2) {
 		if (isDebugEnabled()) log(Level.DEBUG, Fmt.fmt(msg, arg1, arg2), e);
+	}
+	
+	public static void debug(Throwable e, String msg, Object arg1,
+			Object arg2, Object arg3) {
+		if (isDebugEnabled()) log(Level.DEBUG, Fmt.fmt(msg, arg1, arg2, arg3), e);
 	}
 	
 	public static void debug(Throwable e, String msg, Object... args) {
@@ -224,6 +254,10 @@ final public class MyLogger {
 	public static void info(String msg, Object arg1, Object arg2) {
 		if (isInfoEnabled()) log(Level.INFO, Fmt.fmt(msg, arg1, arg2), null);
 	}
+
+	public static void info(String msg, Object arg1, Object arg2, Object arg3) {
+		if (isInfoEnabled()) log(Level.INFO, Fmt.fmt(msg, arg1, arg2, arg3), null);
+	}
 	
 	public static void info(String msg, Object... args) {
 		if (isInfoEnabled()) log(Level.INFO, Fmt.fmt(msg, args), null);
@@ -243,6 +277,11 @@ final public class MyLogger {
 	
 	public static void info(Throwable e, String msg, Object arg1, Object arg2) {
 		if (isInfoEnabled()) log(Level.INFO, Fmt.fmt(msg, arg1, arg2), e);
+	}
+	
+	public static void info(Throwable e, String msg, Object arg1,
+			Object arg2, Object arg3) {
+		if (isInfoEnabled()) log(Level.INFO, Fmt.fmt(msg, arg1, arg2, arg3), e);
 	}
 	
 	public static void info(Throwable e, String msg, Object... args) {
@@ -269,6 +308,10 @@ final public class MyLogger {
 		if (isWarnEnabled()) log(Level.WARN, Fmt.fmt(msg, arg1, arg2), null);
 	}
 	
+	public static void warn(String msg, Object arg1, Object arg2, Object arg3) {
+		if (isWarnEnabled()) log(Level.WARN, Fmt.fmt(msg, arg1, arg2, arg3), null);
+	}
+	
 	public static void warn(String msg, Object... args) {
 		if (isWarnEnabled()) log(Level.WARN, Fmt.fmt(msg, args), null);
 	}
@@ -287,6 +330,11 @@ final public class MyLogger {
 	
 	public static void warn(Throwable e, String msg, Object arg1, Object arg2) {
 		if (isWarnEnabled()) log(Level.WARN, Fmt.fmt(msg, arg1, arg2), e);
+	}
+	
+	public static void warn(Throwable e, String msg, Object arg1,
+			Object arg2, Object arg3) {
+		if (isWarnEnabled()) log(Level.WARN, Fmt.fmt(msg, arg1, arg2, arg3), e);
 	}
 	
 	public static void warn(Throwable e, String msg, Object... args) {
@@ -313,6 +361,10 @@ final public class MyLogger {
 		if (isWarnEnabled()) log(Level.ERROR, Fmt.fmt(msg, arg1, arg2), null);
 	}
 	
+	public static void error(String msg, Object arg1, Object arg2, Object arg3) {
+		if (isWarnEnabled()) log(Level.ERROR, Fmt.fmt(msg, arg1, arg2, arg3), null);
+	}
+	
 	public static void error(String msg, Object... args) {
 		if (isWarnEnabled()) log(Level.ERROR, Fmt.fmt(msg, args), null);
 	}
@@ -331,6 +383,11 @@ final public class MyLogger {
 	
 	public static void error(Throwable e, String msg, Object arg1, Object arg2) {
 		if (isWarnEnabled()) log(Level.ERROR, Fmt.fmt(msg, arg1, arg2), e);
+	}
+	
+	public static void error(Throwable e, String msg, Object arg1,
+			Object arg2, Object arg3) {
+		if (isWarnEnabled()) log(Level.ERROR, Fmt.fmt(msg, arg1, arg2, arg3), e);
 	}
 	
 	public static void error(Throwable e, String msg, Object... args) {

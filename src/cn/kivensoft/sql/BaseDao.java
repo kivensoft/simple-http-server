@@ -387,7 +387,6 @@ public abstract class BaseDao {
 			return rs.next() ? rs.getInt(1) : null; });
 	}
 
-
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
 	 * @param arg  基于命名方式的参数
@@ -399,7 +398,6 @@ public abstract class BaseDao {
 		return query(sql, arg, rs -> {
 			return rs.next() ? rs.getInt(1) : null; });
 	}
-
 
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
