@@ -7,6 +7,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -26,16 +27,17 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 import cn.kivensoft.util.Fmt;
+import cn.kivensoft.util.Langs;
 import cn.kivensoft.util.MyLogger;
 import cn.kivensoft.util.ObjectPool;
 import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
+import cn.kivensoft.util.Strings;
 
 public class SimpleHttpServer implements HttpHandler {
 	private static final String UTF_8 = "UTF-8";
 	private static final String DEFAULT_SERVER_NAME = "SimpleHttpServer";
 	private static final String HTTP_VERSION = "1.0";
-	private static final String CTRL_NAME = "Controller";
 	
 	private static enum EError { 
 		系统内部错误, 参数解析失败, 请求的地址不存在;
@@ -70,13 +72,9 @@ public class SimpleHttpServer implements HttpHandler {
 	 * @param cls 要映射的类
 	 */
 	public void mapController(String prefix, Class<?> cls) {
-		if (!cls.getSimpleName().endsWith(CTRL_NAME)) {
-			MyLogger.warn("can't mapping class {} beacause it isn't \"Controller\" suffix");
-			return;
-		}
 		StringBuilder sb = new StringBuilder();
 		pathAppend(sb, prefix);
-		mapClass(cls, sb, true);
+		mapClass(cls, sb);
 	}
 
 	/** 搜索指定包下面的类并进行映射，只有带注解RequestMapping的类及函数才进行映射
@@ -90,10 +88,9 @@ public class SimpleHttpServer implements HttpHandler {
 		pathAppend(sb, prefix);
 		int prefix_len = sb.length();
 
-		List<Class<?>> clss = ScanPackage.getClasses(packageName, true,
-				clsName -> clsName.endsWith(CTRL_NAME));
-		for (int i = 0, n = clss.size(); i < n; ++i) {
-			mapClass(clss.get(i), sb, true);
+		List<Class<?>> clss = ScanPackage.getClasses(packageName, true, null);
+		for (Class<?> cls : clss) {
+			mapClass(cls, sb);
 			sb.setLength(prefix_len);
 		}
 	}
@@ -105,7 +102,7 @@ public class SimpleHttpServer implements HttpHandler {
 
 		// 解析请求路径及请求参数，找到系统对应的处理函数进行调用处理，处理调用结果
 		String path = he.getRequestURI().getPath().toLowerCase();
-		ApiResult ret = null;
+		Object ret = null;
 		int httpCode = 200; // http成功代码
 		try {
 			// 查找路径对应的处理函数并解析参数，然后进行调用
@@ -135,17 +132,11 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** 映射类cls中的函数到url */
-	final private void mapClass(Class<?> cls, StringBuilder sb, boolean useAnnotation) {
-		if (useAnnotation) {
-			// 如果类没有RequestMapping注解，则不是控制器
-			RequestMapping mapping = cls.getAnnotation(RequestMapping.class);
-			if (mapping == null) return;
-			pathAppend(sb, mapping.value());
-		}
-		else {
-			String name = cls.getSimpleName();
-			pathAppend(sb, name.substring(0, name.length() - CTRL_NAME.length()));
-		}
+	final private void mapClass(Class<?> cls, StringBuilder sb) {
+		// 如果类没有RequestMapping注解，则不是控制器
+		RequestMapping mapping = cls.getAnnotation(RequestMapping.class);
+		if (mapping == null) return;
+		pathAppend(sb, mapping.value());
 		
 		Object ctrl = null;
 		try {
@@ -153,33 +144,22 @@ public class SimpleHttpServer implements HttpHandler {
 		} catch (Exception e) {
 			return;
 		}
+
 		int prefix_len = sb.length();
 		Method[] ms = cls.getMethods();
 		for (int i = 0, n = ms.length; i < n; ++i) {
 			Method m = ms[i];
-			// 函数类型必须是：1、返回类型ApiResult
-			//                2、小于2个请求参数
-			//                3、具备RequestMapping注解
-			if (m.getReturnType() != ApiResult.class) continue;
+			// 函数必须具备RequestMapping注解, 具备0个或1个参数
+			RequestMapping rm = m.getAnnotation(RequestMapping.class);
+			if (rm == null) continue;
 			Class<?>[] ps = m.getParameterTypes();
-			// 如果是2个参数，第一个必须是Map<String, Object>类型
-			if (ps.length > 2 || ps.length == 2 && !Map.class.isAssignableFrom(ps[0]))
-				continue;
-
-			String desc = null;
-			if (useAnnotation) {
-				RequestMapping rm = m.getAnnotation(RequestMapping.class);
-				if (rm == null) continue;
-				pathAppend(sb, rm.value());
-				desc = rm.desc();
-			}
-			else pathAppend(sb, m.getName());
-			
-			Class<?> arg1Type = ps.length == 0 ? null : ps[0];
-			Class<?> arg2Type = ps.length == 2 ? ps[1] : null;
+			if (ps.length > 1) continue;
+			Class<?> p = ps.length == 0 ? null : ps[0];
+			String desc = rm.desc();
+			pathAppend(sb, rm.value());
 			String uri = sb.toString();
-			handles.put(uri, new MethodInfo(ctrl, m, arg1Type, arg2Type, desc));
-			logMappingInfo(uri, cls, m, arg1Type, arg2Type);
+			handles.put(uri, new MethodInfo(ctrl, m, desc, p));
+			logMappingInfo(uri, cls, m, p);
 			sb.setLength(prefix_len);
 		}
 	}
@@ -193,19 +173,27 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** 根据MethodInfo的参数个数进行相应的函数处理 */
-	final private ApiResult invokeMethodInfo(HttpExchange he, MethodInfo act) throws Exception {
+	final private Object invokeMethodInfo(HttpExchange he, MethodInfo act) throws Exception {
 		// 0个参数
-		if (act.arg1Type == null)
-			return (ApiResult) act.method.invoke(act.obj);
-		// 1个参数
-		Object arg1 = Map.class.isAssignableFrom(act.arg1Type)
-				? parseQuery(he.getRequestURI().getRawQuery())
-				: parseBody(he, act.arg1Type);
-		if (act.arg2Type == null)
-			return (ApiResult) act.method.invoke(act.obj, arg1);
-		// 2个参数
-		Object arg2 = parseBody(he, act.arg2Type);
-		return (ApiResult) act.method.invoke(act.obj, arg1, arg2);
+		if (act.argType == null) return act.method.invoke(act.obj);
+		
+		// 读取并设置post参数
+		Object arg = null;
+		if ("post".equalsIgnoreCase(he.getRequestMethod())) {
+			arg = parseBody(he, act.argType);
+		} else {
+			arg = act.argType.newInstance();
+		}
+		
+		// 读取并设置url中的参数
+		Map<String, List<String>> values = parseQuery(he.getRequestURI().getRawQuery());
+		if (values != null && values.size() > 0) {
+			Object def_arg = act.argType.newInstance();
+			for (Map.Entry<String, List<String>> item : values.entrySet())
+				setObjectProperty(act.argType, arg, def_arg, item);
+		}
+		
+		return act.method.invoke(act.obj, arg);
 	}
 
 	/** 解析POST请求的body内容的json格式参数,返回类型为参数cls类型 */
@@ -220,7 +208,6 @@ public class SimpleHttpServer implements HttpHandler {
 					SerializerFeature.WriteDateUseDateFormat,
 					SerializerFeature.DisableCircularReferenceDetect));
 			return ret;
-
 		} catch (Exception e) {
 			MyLogger.error(e, "parseBody error.");
 			return null;
@@ -228,9 +215,10 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** 解析url地址带的参数成hashmap类型返回值 */
-	@SuppressWarnings("unchecked")
-	final private HashMap<String, Object> parseQuery(String query) throws UnsupportedEncodingException {
-		HashMap<String, Object> ret = new HashMap<>();
+	final static private HashMap<String, List<String>> parseQuery(String query) {
+		if (query == null || query.isEmpty()) return null;
+
+		HashMap<String, List<String>> ret = new HashMap<>();
 		if (query == null || query.isEmpty()) return ret;
 		int start, idx = -1;
 		do {
@@ -242,44 +230,34 @@ public class SimpleHttpServer implements HttpHandler {
 				MyLogger.debug("parseQuery warning, query string can't parse");
 				continue;
 			}
-			String key = URLDecoder.decode(query.substring(start, pos), UTF_8);
-			String value = URLDecoder.decode(query.substring(
-					pos + 1, idx > 0 ? idx : query.length()), UTF_8);
+			String key = null;
+			String value = null;
+			try {
+				key = URLDecoder.decode(query.substring(start, pos), UTF_8);
+				value = URLDecoder.decode(query.substring(
+						pos + 1, idx > 0 ? idx : query.length()), UTF_8);
+			} catch (UnsupportedEncodingException e) {
+				continue;
+			}
 			
 			// 写入键值到字典表中
-			Object old_value = ret.putIfAbsent(key, value);
-			if (old_value != null) {
-				List<String> values;
-				if (old_value instanceof String) {
-					values = new ArrayList<>();
-					values.add((String)old_value);
-				}
-				else if (old_value instanceof List<?>) {
-					values = (List<String>)old_value;
-				}
-				else continue;
-				values.add(value);
-				ret.put(key, values);
+			List<String> vals = ret.get(key);
+			if (vals == null) {
+				vals = new ArrayList<>();
+				ret.put(key, vals);
 			}
+			vals.add(value);
 		} while (idx != -1);
 		
 		return ret;
 	}
 	
 	/** 记录映射api的条目 */
-	private void logMappingInfo(String uri, Class<?> cls, Method method,
-			Class<?> arg1Type, Class<?> arg2Type) {
-		if (MyLogger.isInfoEnabled()) {
-			String paramsDefine;
-			if (arg2Type != null)
-				paramsDefine = Fmt.concat(arg1Type.getSimpleName(),
-						", ", arg2Type.getSimpleName());
-			else if (arg1Type != null)
-				paramsDefine = arg1Type.getSimpleName();
-			else paramsDefine = "";
-			MyLogger.info("Mapping api url: {}  ->  {}.{}({})",
-					uri, cls.getSimpleName(), method.getName(), paramsDefine);
-		}
+	private void logMappingInfo(String uri, Class<?> cls, Method method, Class<?> argType) {
+		if (!MyLogger.isDebugEnabled()) return;
+		String paramsDefine = argType == null ? "" : argType.getName();
+		MyLogger.info("Mapping api url: {}  ->  {}.{}({})",
+				uri, cls.getSimpleName(), method.getName(), paramsDefine);
 	}
 
 	/** 记录访问日志 */
@@ -303,25 +281,32 @@ public class SimpleHttpServer implements HttpHandler {
 	 * @throws IOException
 	 */
 	private void processResult(HttpExchange he, String path, int status,
-			ApiResult result) throws IOException {
-		// 记录返回结果日志
-		if (MyLogger.isDebugEnabled())
-			MyLogger.debug("{} result: {}", path, JSON.toJSONString(result,
-					SerializerFeature.WriteDateUseDateFormat,
-					SerializerFeature.DisableCircularReferenceDetect));
+			Object result) throws IOException {
 
-		// 返回结果使用json方式传输
-		byte[] jsonBytes = JSON.toJSONBytes(result,
-				SerializerFeature.WriteDateUseDateFormat,
-				SerializerFeature.DisableCircularReferenceDetect);
-		
-		// 向调用方客户端返回结果
 		Headers headers = he.getResponseHeaders();
 		headers.add("Server", serverName);
-		headers.add("Content-Type", "application/json; charset=UTF-8");
-		he.sendResponseHeaders(status, jsonBytes.length);
 		OutputStream out = he.getResponseBody();
-		out.write(jsonBytes);
+		
+		if (result != null && result.getClass() == BinResult.class) {
+			BinResult br = (BinResult) result;
+			headers.add("Content-Type", br.getContentType());
+			he.sendResponseHeaders(status, br.getData().length);
+			out.write(br.getData());
+			
+		} else {
+			// 记录返回结果日志
+			if (MyLogger.isDebugEnabled())
+				MyLogger.debug("{} result: {}", path, Fmt.toJson(result));
+			// 返回结果使用json方式传输
+			byte[] jsonBytes = JSON.toJSONBytes(result,
+					SerializerFeature.WriteDateUseDateFormat,
+					SerializerFeature.DisableCircularReferenceDetect);
+			// 向调用方客户端返回结果
+			headers.add("Content-Type", "application/json; charset=UTF-8");
+			he.sendResponseHeaders(status, jsonBytes.length);
+			out.write(jsonBytes);
+		}
+
 		out.close();
 	}
 	
@@ -355,20 +340,62 @@ public class SimpleHttpServer implements HttpHandler {
 		return ret;
 	}
 	
+	private static final void setObjectProperty(Class<?> cls, Object arg,
+			Object def, Map.Entry<String, List<String>> item) {
+		if (item.getValue() == null || item.getValue().size() == 0)
+			return;
+		String key = item.getKey();
+		String suffix = Fmt.get()
+				.append(Character.toUpperCase(key.charAt(0)))
+				.append(key, 1, key.length()).release();
+		Method m = null;
+		Field f = null;
+		Object prop_val = null, def_val = null;
+		Class<?> prop_cls = null;
+		// 通过反射获取字段值
+		try {
+			m = cls.getMethod(Fmt.concat("get", suffix));
+			prop_val = m.invoke(arg);
+			prop_cls = m.getReturnType();
+			def_val = m.invoke(def);
+		} catch (Exception e) {
+			try {
+				f = cls.getField(key);
+				prop_val = f.get(arg);
+				prop_cls = f.getType();
+				def_val = f.get(def);
+			} catch (Exception e2) {
+				return;
+			}
+		}
+
+		// 如果当前参数的属性与缺省属性不一致, 表明已由post赋值, 忽略url同名参数
+		if (!Langs.isEquals(prop_val, def_val)) return;
+
+		// 用反射对参数进行赋值
+		Object new_val = Strings.valueOf(prop_cls, item.getValue().get(0));
+		try {
+			if (f == null) {
+				m = cls.getMethod(Fmt.concat("set", suffix), prop_cls);
+				m.invoke(arg, new_val);
+			} else {
+				f.set(arg, new_val);
+			}
+		} catch (Exception e) { }
+	}
+	
 	private class MethodInfo {
 		public Object obj;
 		public Method method;
-		public Class<?> arg1Type;
-		public Class<?> arg2Type;
 		public String desc;
+		public Class<?> argType;
 
-		public MethodInfo(Object obj, Method method,
-				Class<?> arg1Type, Class<?> arg2Type, String desc) {
+		public MethodInfo(Object obj, Method method, String desc,
+				Class<?> argType) {
 			this.obj = obj;
 			this.method = method;
-			this.arg1Type = arg1Type;
-			this.arg2Type = arg2Type;
 			this.desc = desc;
+			this.argType = argType;
 		}
 	}
 	

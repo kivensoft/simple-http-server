@@ -45,7 +45,6 @@ final public class ScanPackage {
 	 */
 	public static List<Class<?>> getClasses(String packageName, boolean recursive,
 			Predicate<String> predicate) {
-		
 		// 第一个class类的集合
 		List<Class<?>> classes = new ArrayList<Class<?>>();
 		// 获取包的名字 并进行替换
@@ -60,6 +59,7 @@ final public class ScanPackage {
 
 		// 循环迭代下去
 		while (dirs.hasMoreElements()) {
+			MyLogger.info("more", dirs.hasMoreElements());
 			// 获取下一个元素
 			URL url = dirs.nextElement();
 			// 得到协议的名称

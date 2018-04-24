@@ -151,15 +151,15 @@ public final class Langs {
 				return;
 			StringBuilder sb = value.getFirst();
 			sb.setLength(0);
-			String mname = sb.append('s')
-					.append(name, 1, name.length()).toString();
+			String mname = sb.append('s').append(name, 1, name.length()).toString();
 			sb.setLength(0);
 			String fname = sb.append(Character.toLowerCase(name.charAt(3)))
 					.append(name, 4, name.length()).toString(); 
 			Class<?> cls = value.getSecond();
 			Method m = cls.getMethod(mname, item.getReturnType());
-			if (m != null) m.invoke(dst, item.invoke(src));
-			else {
+			if (m != null) {
+				m.invoke(dst, item.invoke(src));
+			} else {
 				Field f2 = cls.getField(fname);
 				if (f2 != null) f2.set(dst, item.invoke(src));
 			}
@@ -179,8 +179,7 @@ public final class Langs {
 					.append(Character.toUpperCase(name.charAt(0)))
 					.append(name, 1, name.length()).toString();
 				Method m = cls.getMethod(mname, item.getType());
-				if (m != null)
-					m.invoke(dst, item.get(src));
+				if (m != null) m.invoke(dst, item.get(src));
 			}
 			
 		});

@@ -34,9 +34,9 @@ public class Example {
 		
 		// 初始化web api服务器
 		SimpleHttpServer httpServer = new SimpleHttpServer();
-		httpServer.scanPackage(null, "com.kivensoft.http", true);
-		httpServer.start("SimpleHttpServer", 8080, cachedExecutor);
-		MyLogger.info("{} start at {}", "SimpleHttpServer", 8080);
+		httpServer.scanPackage(null, "cn.kivensoft.http", true);
+		httpServer.start("SimpleHttpServer", 3000, cachedExecutor);
+		MyLogger.info("{} start at {}", "SimpleHttpServer", 3000);
 		
 		shell("SimpleHttpServer> ", System.in, System.out);
 		
