@@ -92,6 +92,11 @@ public final class Langs {
 	}
 	
 	@FunctionalInterface
+	public static interface MyConsumer<T> {
+		void accept(T t) throws Exception;
+	}
+	
+	@FunctionalInterface
 	public static interface MyBiConsumer<T, U> {
 		void accept(T t, U u) throws Exception;
 	}
@@ -101,8 +106,22 @@ public final class Langs {
 	 * @param value 循环时用到的变量
 	 * @param consumer 循环回调函数
 	 */
-	public static <T, R> R forEachWithCatch(T[] args, R value,
-			MyBiConsumer<T, R> consumer) {
+	public static <T> void forEachWithCatch(T[] args, MyConsumer<T> consumer) {
+		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
+		for (int i = 0, n = args.length; i < n; ++i) {
+			try {
+				for (; i < n; ++i) consumer.accept(args[i]);
+			}
+			catch (Exception e) {}
+		}
+	}
+	
+	/** 双重嵌套的数组循环函数, 减少性能损失
+	 * @param args 需要循环的数组
+	 * @param value 循环时用到的变量
+	 * @param consumer 循环回调函数
+	 */
+	public static <T, R> R forEachWithCatch(T[] args, R value, MyBiConsumer<T, R> consumer) {
 		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
 		for (int i = 0, n = args.length; i < n; ++i) {
 			try {
@@ -118,8 +137,24 @@ public final class Langs {
 	 * @param value 循环时用到的变量
 	 * @param consumer 循环回调函数
 	 */
-	public static <T, R> R forEachWithCatch(Collection<T> args, R value,
-			MyBiConsumer<T, R> consumer) {
+	public static <T> void forEachWithCatch(Collection<T> args, MyConsumer<T> consumer) {
+		Iterator<T> iter = args.iterator();
+		while (iter.hasNext()) {
+			try {
+				do {
+					consumer.accept(iter.next());
+				} while (iter.hasNext());
+			}
+			catch (Exception e) {}
+		}
+	}
+	
+	/** 双重嵌套的数组循环函数, 减少性能损失
+	 * @param args 需要循环的数组
+	 * @param value 循环时用到的变量
+	 * @param consumer 循环回调函数
+	 */
+	public static <T, R> R forEachWithCatch(Collection<T> args, R value, MyBiConsumer<T, R> consumer) {
 		Iterator<T> iter = args.iterator();
 		while (iter.hasNext()) {
 			try {
