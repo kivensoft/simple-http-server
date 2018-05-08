@@ -13,7 +13,7 @@ import java.util.Map;
 
 import com.esotericsoftware.reflectasm.MethodAccess;
 
-import cn.kivensoft.util.LruCache;
+import cn.kivensoft.util.WeakCache;
 
 /**支持命名参数的SQL解析类
  * @author Kiven Lee
@@ -21,7 +21,7 @@ import cn.kivensoft.util.LruCache;
  *
  */
 public class NamedStatement implements Closeable {
-	private static final LruCache<String, MethodAccess> methodAccessCache = new LruCache<>(32);
+	private static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
 	
 	private final PreparedStatement statement;
 	private final Map<String, List<Integer>> indexMap;
@@ -120,7 +120,8 @@ public class NamedStatement implements Closeable {
 		
 		char[] buf = new char[128];
 		for (Map.Entry<String, List<Integer>> entry : indexMap.entrySet()) {
-			int index = methodAccess.getIndex(fieldNameToGetMethodName(entry.getKey(), buf));
+			String methodName = fieldNameToGetMethodName(entry.getKey(), buf);
+			int index = methodAccess.getIndex(methodName);
 			if (index != -1) {
 				Object value = methodAccess.invoke(arg, index);
 				for (Integer idx : entry.getValue())

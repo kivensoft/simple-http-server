@@ -35,15 +35,10 @@ import cn.kivensoft.util.ScanPackage;
 import cn.kivensoft.util.Strings;
 
 public class SimpleHttpServer implements HttpHandler {
-	private static final String UTF_8 = "UTF-8";
+	private static final String UTF8 = "UTF-8";
 	private static final String DEFAULT_SERVER_NAME = "SimpleHttpServer";
 	private static final String HTTP_VERSION = "1.0";
 	
-	private static enum EError { 
-		系统内部错误, 参数解析失败, 请求的地址不存在;
-		public int code() { return 100000 + ordinal(); }
-	}
-
 	private HttpServer httpServer;
 	private Map<String, MethodInfo> handles = new HashMap<>();
 	private String serverName;
@@ -102,20 +97,23 @@ public class SimpleHttpServer implements HttpHandler {
 
 		// 解析请求路径及请求参数，找到系统对应的处理函数进行调用处理，处理调用结果
 		String path = he.getRequestURI().getPath().toLowerCase();
+		if (path.length() > 1 && path.charAt(path.length() - 1) == '/')
+			path = path.substring(0, path.length() - 1);
+
 		Object ret = null;
 		int httpCode = 200; // http成功代码
 		try {
 			// 查找路径对应的处理函数并解析参数，然后进行调用
 			MethodInfo act = handles.get(path);
-			if (act != null)
+			if (act != null) {
 				ret = invokeMethodInfo(he, act);
-			else {
-				ret = ApiResult.error(EError.请求的地址不存在.code(), EError.请求的地址不存在.name());
+			} else {
+				ret = "请求的地址不存在";
 				httpCode = 404; // http找不到页面错误
 			}
 		} catch (Exception e) {
 			MyLogger.error(e, "process {} has error.", path);
-			ret = ApiResult.error(EError.系统内部错误.code(), EError.系统内部错误.name());
+			ret = "系统内部错误";
 			httpCode = 500; // http 内部错误
 		}
 
@@ -158,6 +156,7 @@ public class SimpleHttpServer implements HttpHandler {
 			String desc = rm.desc();
 			pathAppend(sb, rm.value());
 			String uri = sb.toString();
+			m.setAccessible(true);
 			handles.put(uri, new MethodInfo(ctrl, m, desc, p));
 			logMappingInfo(uri, cls, m, p);
 			sb.setLength(prefix_len);
@@ -233,9 +232,9 @@ public class SimpleHttpServer implements HttpHandler {
 			String key = null;
 			String value = null;
 			try {
-				key = URLDecoder.decode(query.substring(start, pos), UTF_8);
+				key = URLDecoder.decode(query.substring(start, pos), UTF8);
 				value = URLDecoder.decode(query.substring(
-						pos + 1, idx > 0 ? idx : query.length()), UTF_8);
+						pos + 1, idx > 0 ? idx : query.length()), UTF8);
 			} catch (UnsupportedEncodingException e) {
 				continue;
 			}
@@ -280,19 +279,25 @@ public class SimpleHttpServer implements HttpHandler {
 	 * @param result 返回的结果
 	 * @throws IOException
 	 */
-	private void processResult(HttpExchange he, String path, int status,
-			Object result) throws IOException {
+	private void processResult(HttpExchange he, String path, int status, Object result) throws IOException {
 
 		Headers headers = he.getResponseHeaders();
 		headers.add("Server", serverName);
 		OutputStream out = he.getResponseBody();
+		Class<?> retCls = result == null ? null : result.getClass();
 		
-		if (result != null && result.getClass() == BinResult.class) {
+		if (result == null) {
+			he.sendResponseHeaders(status, 0);
+		} else if (retCls == String.class) {
+			headers.add("Content-Type", "text/html; charset=UTF-8");
+			byte[] data = ((String)result).getBytes(UTF8);
+			he.sendResponseHeaders(status, data.length);
+			out.write(data);
+		} else if (retCls == BinResult.class) {
 			BinResult br = (BinResult) result;
 			headers.add("Content-Type", br.getContentType());
 			he.sendResponseHeaders(status, br.getData().length);
 			out.write(br.getData());
-			
 		} else {
 			// 记录返回结果日志
 			if (MyLogger.isDebugEnabled())
@@ -319,7 +324,7 @@ public class SimpleHttpServer implements HttpHandler {
 		PoolItem<char[]> ciItem = charsPool.get();
 		PoolItem<StringBuilder> bItem = bufferPool.get();
 		try {
-			Reader reader = new BufferedReader(new InputStreamReader(inputStream, UTF_8));
+			Reader reader = new BufferedReader(new InputStreamReader(inputStream, UTF8));
 			char[] buf = ciItem.get();
 			StringBuilder sb = bItem.get();
 			int readCount;

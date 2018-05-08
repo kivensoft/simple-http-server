@@ -27,7 +27,7 @@ import cn.kivensoft.util.WeakCache;
  * @author kiven
  *
  */
-public abstract class BaseDao {
+public class BaseDao {
 	@FunctionalInterface
 	public static interface OnQuery<T> {
 		T apply(ResultSet rs) throws SQLException;
@@ -640,6 +640,7 @@ public abstract class BaseDao {
 
 		Fmt fmt = Fmt.get().format("insert into {} (",
 				classToTable(arg.getClass().getSimpleName()));
+		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
 		for (Field f : fs) {
 			// NotField注解的字段和没有SetXXX函数的字段跳过
@@ -651,14 +652,14 @@ public abstract class BaseDao {
 			if (!allowNull && v == null) continue;
 
 			if (first) first = false;
-			else fmt.append(',').append(' ');
-			fmt.append(fieldToColumn(f.getName()));
+			else sb.append(',').append(' ');
+			sb.append(fieldToColumn(f.getName()));
 			args.add(v);
 		}
-		fmt.append(") values (?");
+		sb.append(") values (?");
 		for (int i = 1, n = args.size(); i < n; ++i)
-			fmt.append(',').append(' ').append('?');
-		fmt.append(')');
+			sb.append(',').append(' ').append('?');
+		sb.append(')');
 		String sql = fmt.release();
 		
 		if (args.size() == 0) throw new IllegalArgumentException("arg not field.");
@@ -680,11 +681,9 @@ public abstract class BaseDao {
 		Object id_data = null;
 		List<Object> args = new LinkedList<>();
 		MethodAccess ma = getMethodAccessByCache(arg.getClass());
-		Fmt fmt = Fmt.get();
+		Fmt fmt = Fmt.get().format("update {} set ",
+				classToTable(arg.getClass().getSimpleName()));
 		StringBuilder sb = fmt.getBuffer();
-		sb.append("update ")
-				.append(classToTable(arg.getClass().getSimpleName()))
-				.append(" set ");
 		boolean first = true;
 		for (Field f : fs) {
 			if (id_field == null && f.getAnnotation(IdField.class) != null) {
@@ -713,8 +712,7 @@ public abstract class BaseDao {
 		if (id_field == null)
 			throw new IllegalArgumentException("not id field.");
 		args.add(id_data);
-		sb.append(" where ").append(fieldToColumn(id_field.getName()))
-				.append(" = ?");
+		sb.append(" where ").append(fieldToColumn(id_field.getName())).append(" = ?");
 		
 		return execute(fmt.release(), args.toArray());
 	}
@@ -736,6 +734,7 @@ public abstract class BaseDao {
 		MethodAccess ma = getMethodAccessByCache(arg.getClass());
 		Fmt fmt = Fmt.get().format("select * from {} where ",
 				classToTable(arg.getClass().getSimpleName()));
+		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
 		for (Field f : getFieldsByCache(arg.getClass())) {
 			// NotField注解的字段和没有SetXXX函数的字段跳过
@@ -747,8 +746,8 @@ public abstract class BaseDao {
 			if (v == null) continue;
 
 			if (first) first = false;
-			else fmt.append(" and ");
-			fmt.append(fieldToColumn(f.getName())).append(" = ?");
+			else sb.append(" and ");
+			sb.append(fieldToColumn(f.getName())).append(" = ?");
 			args.add(v);
 		}
 		return (T) queryForObject(fmt.release(), arg.getClass(), args.toArray());
@@ -778,7 +777,9 @@ public abstract class BaseDao {
 	final public int deleteBy(Object arg) throws SQLException {
 		List<Object> args = new LinkedList<>();
 		MethodAccess ma = getMethodAccessByCache(arg.getClass());
-		Fmt fmt = Fmt.get().format("delete from {} where ");
+		Fmt fmt = Fmt.get().format("delete from {} where ",
+				classToTable(arg.getClass().getSimpleName()));
+		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
 		for (Field f : getFieldsByCache(arg.getClass())) {
 			// NotField注解的字段和没有SetXXX函数的字段跳过
@@ -790,8 +791,8 @@ public abstract class BaseDao {
 			if (v == null) continue;
 
 			if (first) first = false;
-			else fmt.append(" and ");
-			fmt.append(fieldToColumn(f.getName())).append(" = ?");
+			else sb.append(" and ");
+			sb.append(fieldToColumn(f.getName())).append(" = ?");
 			args.add(v);
 		}
 		return execute(fmt.release(), args.toArray());
