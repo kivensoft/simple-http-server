@@ -645,7 +645,7 @@ public class BaseDao {
 		for (Field f : fs) {
 			// NotField注解的字段和没有SetXXX函数的字段跳过
 			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			int index = ma.getIndex(fieldToGetMethod(f.getName()));
 			if (index == -1) continue;
 			Object v = ma.invoke(arg, index);
 			// 如果忽略空字段, 则跳过空字段
@@ -688,7 +688,7 @@ public class BaseDao {
 		for (Field f : fs) {
 			if (id_field == null && f.getAnnotation(IdField.class) != null) {
 				id_field = f;
-				int idx = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+				int idx = ma.getIndex(fieldToGetMethod(f.getName()));
 				if (idx == -1)
 					throw new IllegalArgumentException("not id field method.");
 				id_data = ma.invoke(arg, idx);
@@ -698,7 +698,7 @@ public class BaseDao {
 			}
 			// NotField注解的字段和没有SetXXX函数的字段跳过
 			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			int index = ma.getIndex(fieldToGetMethod(f.getName()));
 			if (index == -1) continue;
 			Object v = ma.invoke(arg, index);
 			// 如果忽略空字段, 则跳过空字段
@@ -739,7 +739,7 @@ public class BaseDao {
 		for (Field f : getFieldsByCache(arg.getClass())) {
 			// NotField注解的字段和没有SetXXX函数的字段跳过
 			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			int index = ma.getIndex(fieldToGetMethod(f.getName()));
 			if (index == -1) continue;
 			Object v = ma.invoke(arg, index);
 			// 如果忽略空字段, 则跳过空字段
@@ -784,7 +784,7 @@ public class BaseDao {
 		for (Field f : getFieldsByCache(arg.getClass())) {
 			// NotField注解的字段和没有SetXXX函数的字段跳过
 			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()), f.getType());
+			int index = ma.getIndex(fieldToGetMethod(f.getName()));
 			if (index == -1) continue;
 			Object v = ma.invoke(arg, index);
 			// 跳过空字段
