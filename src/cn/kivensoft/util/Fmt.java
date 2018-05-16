@@ -367,6 +367,12 @@ public final class Fmt implements Appendable, CharSequence {
 		return get().append(iterator, delimiter, null, null, null).release();
 	}
 
+	public static String concatPaths(String root, String...paths) {
+		Fmt f = Fmt.get().append(root);
+		for (String path : paths) f.appendPath(path);
+		return f.release();
+	}
+	
 	/** 转成16进制字符串
 	 * @param value 要转换的字节数组
 	 * @return
