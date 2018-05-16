@@ -1172,8 +1172,35 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
-	private void appendNull() {
+	public Fmt appendNull() {
 		buffer.append('n').append('u').append('l').append('l');
+		return this;
+	}
+	
+	/** 添加路径, 判断尾部反斜杠分隔符与path开头分隔符
+	 * @param path
+	 * @return
+	 */
+	public Fmt appendPath(String path) {
+		if (path != null && path.length() > 0) {
+			if (buffer.length() == 0) {
+				buffer.append(path);
+			} else {
+				char c = buffer.charAt(buffer.length() - 1);
+				if (c == '/' || c == '\\') {
+					c = path.charAt(0);
+					if (c == '/' || c == '\\')
+						buffer.append(path, 1, path.length());
+					else
+						buffer.append(path);
+				} else {
+					c = path.charAt(0);
+					if (c != '/' && c != '\\') buffer.append('/');
+					buffer.append(path);
+				}
+			}
+		}
+		return this;
 	}
 	
 	private final static int [] sizeTable = { 9, 99, 999, 9999, 99999, 999999, 9999999,
