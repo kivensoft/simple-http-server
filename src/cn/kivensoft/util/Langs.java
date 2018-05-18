@@ -174,50 +174,55 @@ public final class Langs {
 	public static <T> T copyProperties(Object src, T dst) {
 		if (src == null || dst == null) return dst;
 
-		//lambda表达式用到的变量
-		Pair3<StringBuilder, Class<?>, Set<String>> p3 = Pair3.of(
-				new StringBuilder(), dst.getClass(), new HashSet<String>());
-
-		forEachWithCatch(src.getClass().getMethods(), p3, (item, value) -> {
-			String name = item.getName();
+		Set<String> names = new HashSet<>();
+		Class<?> dstCls = dst.getClass();
+		StringBuilder sb = new StringBuilder();
+		Method[] methods = src.getClass().getMethods();
+		for (int i = 0, n = methods.length; i < n; ++i) {
+			Method method = methods[i];
+			String name = method.getName();
 			if (name.length() < 4 || name.equals("getClass")
 					|| !name.startsWith("get")
-					|| item.getParameterCount() > 0)
-				return;
-			StringBuilder sb = value.getFirst();
+					|| method.getParameterCount() > 0)
+				continue;
 			sb.setLength(0);
 			String mname = sb.append('s').append(name, 1, name.length()).toString();
 			sb.setLength(0);
 			String fname = sb.append(Character.toLowerCase(name.charAt(3)))
-					.append(name, 4, name.length()).toString(); 
-			Class<?> cls = value.getSecond();
-			Method m = cls.getMethod(mname, item.getReturnType());
-			if (m != null) {
-				m.invoke(dst, item.invoke(src));
-			} else {
-				Field f2 = cls.getField(fname);
-				if (f2 != null) f2.set(dst, item.invoke(src));
+					.append(name, 4, name.length()).toString();
+			try {
+				Method m = dstCls.getMethod(mname, method.getReturnType());
+				m.invoke(dst, method.invoke(src));
+				names.add(fname);
+			} catch (Exception e) {
+				try {
+					Field f2 = dstCls.getField(fname);
+					f2.set(dst, method.invoke(src));
+					names.add(fname);
+				} catch (Exception e2) { }
 			}
-			value.getThree().add(fname);
-		});
+		}
 		
-		forEachWithCatch(src.getClass().getFields(), p3, (item, value) -> {
-			String name = item.getName();
-			if (p3.getThree().contains(name)) return;
-			Class<?> cls = p3.getSecond();
-			Field f2 = cls.getField(name);
-			if (f2 != null) f2.set(dst, item.get(src));
-			else {
-				StringBuilder sb = p3.getFirst();
+		Field[] fields = src.getClass().getFields();
+		for (int i = 0, n = fields.length; i < n; ++i) {
+			Field field = fields[i];
+			String name = field.getName();
+			if (names.contains(name))
+				continue;
+			try {
+				Field f2 = dstCls.getField(name);
+				f2.set(dst, field.get(src));
+			} catch (Exception e) {
 				sb.setLength(0);
 				String mname = sb.append("set")
 					.append(Character.toUpperCase(name.charAt(0)))
 					.append(name, 1, name.length()).toString();
-				Method m = cls.getMethod(mname, item.getType());
-				if (m != null) m.invoke(dst, item.get(src));
+				try {
+					Method m = dstCls.getMethod(mname, field.getType());
+					m.invoke(dst, field.get(src));
+				} catch (Exception e2) {}
 			}
-			
-		});
+		}
 		
 		return dst;
 	}
