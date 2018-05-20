@@ -128,7 +128,11 @@ public class SimpleHttpServer implements HttpHandler {
 			ret.put(item.getKey(), item.getValue().desc);
 		return ret;
 	}
-	
+
+	final public MethodInfo findMethodInfo(String path) {
+		return handles.get(path);
+	}
+
 	/** 映射类cls中的函数到url */
 	final private void mapClass(Class<?> cls, StringBuilder sb) {
 		// 如果类没有RequestMapping注解，则不是控制器
@@ -164,7 +168,7 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** url路径增加子路径，必须开头有斜杠和结尾不能有斜杠 */
-	final private void pathAppend(StringBuilder sb, String path) {
+	final static public void pathAppend(StringBuilder sb, String path) {
 		if (path == null || path.isEmpty()) return;
 		if (path.charAt(0) != '/') sb.append('/');
 		sb.append(path);
@@ -389,7 +393,7 @@ public class SimpleHttpServer implements HttpHandler {
 		} catch (Exception e) { }
 	}
 	
-	private class MethodInfo {
+	public static class MethodInfo {
 		public Object obj;
 		public Method method;
 		public String desc;
