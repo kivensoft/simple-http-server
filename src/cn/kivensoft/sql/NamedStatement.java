@@ -11,8 +11,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
 
+import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.WeakCache;
 
 /**支持命名参数的SQL解析类
@@ -22,6 +24,7 @@ import cn.kivensoft.util.WeakCache;
  */
 public class NamedStatement implements Closeable {
 	private static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
+	private static final WeakCache<String, FieldAccess> fieldAccessCache = new WeakCache<>();
 	
 	private final PreparedStatement statement;
 	private final Map<String, List<Integer>> indexMap;
@@ -117,16 +120,31 @@ public class NamedStatement implements Closeable {
 			methodAccess = MethodAccess.get(cls);
 			methodAccessCache.put(cls.getName(), methodAccess);
 		}
+		FieldAccess fieldAccess = fieldAccessCache.get(cls.getName());
+		if (fieldAccess == null) {
+			fieldAccess = FieldAccess.get(cls);
+			fieldAccessCache.put(cls.getName(), fieldAccess);
+		}
+		
 		
 		char[] buf = new char[128];
 		for (Map.Entry<String, List<Integer>> entry : indexMap.entrySet()) {
 			String methodName = fieldNameToGetMethodName(entry.getKey(), buf);
 			int index = methodAccess.getIndex(methodName);
+			Object value;
 			if (index != -1) {
-				Object value = methodAccess.invoke(arg, index);
-				for (Integer idx : entry.getValue())
-					statement.setObject(idx, value);
+				value = methodAccess.invoke(arg, index);
+			} else {
+				index = fieldAccess.getIndex(entry.getKey());
+				if (index != -1) {
+					value = fieldAccess.get(arg, index);
+				} else {
+					throw new SQLException(Fmt.fmt("parameter {} is undefined.", entry.getKey()));
+				}
 			}
+
+			for (Integer idx : entry.getValue())
+				statement.setObject(idx, value);
 		}
 	}
 	

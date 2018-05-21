@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.TimeZone;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 /** 基于jdk8的实用函数集合
@@ -225,6 +226,39 @@ public final class Langs {
 		}
 		
 		return dst;
+	}
+	
+	public static void forEachFields(Object obj, BiConsumer<String, Object> consumer) {
+		if (obj == null) return;
+
+		StringBuilder sb = new StringBuilder();
+
+		Field[] fields = obj.getClass().getFields();
+		for (int i = 0, n = fields.length; i < n; ++i) {
+			Field field = fields[i];
+			String name = field.getName();
+			try {
+				Object value = field.get(obj);
+				consumer.accept(name, value);
+			} catch (Exception e) { }
+		}
+
+		Method[] methods = obj.getClass().getMethods();
+		for (int i = 0, n = methods.length; i < n; ++i) {
+			Method method = methods[i];
+			String name = method.getName();
+			if (name.length() < 4 || name.equals("getClass")
+					|| !name.startsWith("get")
+					|| method.getParameterCount() > 0)
+				continue;
+			sb.setLength(0);
+			String fname = sb.append(Character.toLowerCase(name.charAt(3)))
+					.append(name, 4, name.length()).toString();
+			try {
+				consumer.accept(fname, method.invoke(obj));
+			} catch (Exception e) {
+			}
+		}
 	}
 	
 	/** 关闭资源，抛弃异常

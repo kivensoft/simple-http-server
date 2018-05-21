@@ -52,7 +52,7 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 		String err = onVerify(req);
 		if (err != null) {
 			onFinally();
-			return error("请求参数无效");
+			return error("请求参数无效: {}", err);
 		}
 
 		try {

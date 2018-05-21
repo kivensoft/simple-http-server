@@ -144,6 +144,7 @@ public class SimpleHttpServer implements HttpHandler {
 		try {
 			ctrl = cls.newInstance();
 		} catch (Exception e) {
+			MyLogger.error(e, "create {} class error", cls.getName());
 			return;
 		}
 
