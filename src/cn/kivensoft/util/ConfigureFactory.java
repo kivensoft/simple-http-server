@@ -22,13 +22,17 @@ public final class ConfigureFactory {
 	private String rootPath;
 	private String[] dirs;
 	
-	public ConfigureFactory(Class<?> mainClass) {
-		this(mainClass, "lib", new String[]{"/conf", "/"});
+	public static ConfigureFactory of(Class<?> mainClass) {
+		return new ConfigureFactory(mainClass, "lib", "/conf", "/");
 	}
 	
-	public ConfigureFactory(Class<?> mainClass, String subPath, String[] dirs) {
+	public static ConfigureFactory of(Class<?> mainClass, String mainClassPath, String... dirs) {
+		return new ConfigureFactory(mainClass, mainClassPath, dirs);
+	}
+
+	private ConfigureFactory(Class<?> mainClass, String mainClassPath, String... dirs) {
 		this.mainClass = mainClass;
-		rootPath = getRootPath(mainClass, subPath);
+		rootPath = getRootPath(mainClass, mainClassPath);
 		this.dirs = dirs;
 	}
 	

@@ -142,6 +142,17 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 	@Override
 	public void run() {
 		if (isDisposed) return;
+
+		PooledConnection pconn;
+
+		// 删除线程池中无效的连接
+		while ((pconn = recycledConnections.poll()) != null) {
+			try {
+			if (skipValid || pconn.getConnection().isValid(3))
+				recycledConnections.offer(pconn);
+			} catch (SQLException e) {}
+		}
+
 		// 如果线程池中可用连接小于最小空闲连接数，则创建
 		try {
 			while(recycledConnections.size() < minIdle) {
@@ -151,9 +162,10 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 		catch(SQLException e) {
 			MyLogger.error(e, "Error when create database connection.");
 		}
+
 		// 如果线程池中可用连接数大于最大空闲连接数，则释放
 		while(recycledConnections.size() > maxIdle) {
-			PooledConnection pconn = recycledConnections.poll();
+			pconn = recycledConnections.poll();
 			if (pconn != null) disposeConnection(pconn);
 			else break;
 		}

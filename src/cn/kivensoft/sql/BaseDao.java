@@ -6,7 +6,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Savepoint;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,9 +13,8 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
 
+import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
 
 import cn.kivensoft.util.Fmt;
@@ -33,40 +31,16 @@ public class BaseDao {
 		T apply(ResultSet rs) throws SQLException;
 	}
 	
-	@FunctionalInterface
-	public static interface OnTransaction<R> {
-		R apply(BaseDao dao) throws SQLException;
-	}
-	
-	@FunctionalInterface
-	public static interface OnConnection {
-		void accept(BaseDao dao) throws Exception;
-	}
-	
 	static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
-	static final WeakCache<String, List<Field>> fieldsCache = new WeakCache<>();
-	protected Connection conn;
-	protected List<Savepoint> savepoints;
+	static final WeakCache<String, FieldAccess> fieldAccessCache = new WeakCache<>();
+	static final WeakCache<String, List<String>> fieldsCache = new WeakCache<>();
 
-	/** 使用连接工厂创建连接
-	 * @param connectionFactory 实现Supplier接口的连接工厂
-	 */
-	public BaseDao(Supplier<Connection> connectionFactory) {
-		if (connectionFactory == null)
-			throw new RuntimeException("connection factory is null.");
-		conn = connectionFactory.get();
-		if (conn == null)
-			throw new RuntimeException("connection is null.");
-	}
-	
-	
-	/** 使用已有的连接创建dao, 通常用于同一个线程且同一个事务中共享连接
-	 * @param conn 已有的连接
-	 */
-	public BaseDao(Connection conn) {
-		if (conn == null)
-			throw new IllegalArgumentException("connection is null.");
-		this.conn = conn;
+	protected BaseDbContext dbContext;
+
+	public BaseDao(BaseDbContext dbContext) {
+		if (dbContext == null)
+			throw new IllegalArgumentException("BaseDao constructor error, dbContext can't be null.");
+		this.dbContext = dbContext;
 	}
 	
 	/** 批量执行SQL，参数批量
@@ -74,8 +48,7 @@ public class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(String...sqls)
-			throws SQLException {
+	final public <T> int[] executeBatch(String... sqls) throws SQLException {
 		return executeBatch(Arrays.asList(sqls));
 	}
 
@@ -84,8 +57,7 @@ public class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(Iterable<String> sqls)
-			throws SQLException {
+	final public <T> int[] executeBatch(Iterable<String> sqls) throws SQLException {
 		return executeBatch(sqls.iterator());
 	}
 
@@ -94,10 +66,9 @@ public class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(Iterator<String> sqls)
-			throws SQLException {
+	final public <T> int[] executeBatch(Iterator<String> sqls) throws SQLException {
 		if (!sqls.hasNext()) return new int[0];
-		checkConnection();
+		Connection conn = dbContext.getConnection();
 		try (Statement stmt = conn.createStatement()) {
 			boolean isDebug = MyLogger.isDebugEnabled();
 			Fmt f = Fmt.get();
@@ -112,6 +83,11 @@ public class BaseDao {
 			int[] result = stmt.executeBatch();
 			MyLogger.debug("SQL执行完成: {}", result);
 			return result;
+		} catch (SQLException e) {
+			logException(e);
+			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
 		}
 	}
 	
@@ -122,8 +98,7 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	@SuppressWarnings("unchecked")
-	final public <T> int[] executeBatch(String sql,
-			T... args) throws SQLException {
+	final public <T> int[] executeBatch(String sql, T... args) throws SQLException {
 		return executeBatch(sql, Arrays.asList(args));
 	}
 	
@@ -133,8 +108,7 @@ public class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(String sql, Iterable<T> iterable)
-			throws SQLException {
+	final public <T> int[] executeBatch(String sql, Iterable<T> iterable) throws SQLException {
 		return executeBatch(sql, iterable.iterator());
 	}
 	
@@ -144,9 +118,8 @@ public class BaseDao {
 	 * @return 执行结果影响记录数数组
 	 * @throws SQLException
 	 */
-	final public <T> int[] executeBatch(String sql, Iterator<T> iterator)
-			throws SQLException {
-		checkConnection();
+	final public <T> int[] executeBatch(String sql, Iterator<T> iterator) throws SQLException {
+		Connection conn = dbContext.getConnection();
 		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			while (iterator.hasNext()) {
 				T arg = iterator.next();
@@ -159,10 +132,11 @@ public class BaseDao {
 			int[] ret = stmt.executeBatch();
 			logExecuteCount(ret);
 			return ret;
-		}
-		catch (SQLException e) {
+		} catch (SQLException e) {
 			logException(e);
 			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
 		}
 	}
 	
@@ -172,7 +146,7 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public int execute(String sql) throws SQLException {
-		checkConnection();
+		Connection conn = dbContext.getConnection();
 		try (Statement stmt = conn.createStatement()) {
 			logSQL(sql, null);
 			int ret = stmt.executeUpdate(sql);
@@ -182,6 +156,8 @@ public class BaseDao {
 		catch (SQLException e) {
 			logException(e);
 			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
 		}
 	}
 
@@ -192,7 +168,7 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public int execute(String sql, Object arg) throws SQLException {
-		checkConnection();
+		Connection conn = dbContext.getConnection();
 		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			if (arg != null) stmt.setParams(arg);
 			logSQL(sql, arg);
@@ -203,6 +179,8 @@ public class BaseDao {
 		catch (SQLException e) {
 			logException(e);
 			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
 		}
 	}
 
@@ -243,7 +221,7 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public int execute(String sql, Object... args) throws SQLException {
-		checkConnection();
+		Connection conn = dbContext.getConnection();
 		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 			for(int i = 0, n = args.length; i < n; ++i)
 				stmt.setObject(i + 1, args[i]);
@@ -255,6 +233,8 @@ public class BaseDao {
 		catch (SQLException e) {
 			logException(e);
 			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
 		}
 	}
 	
@@ -265,7 +245,7 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public <T> T query(String sql, OnQuery<T> func) throws SQLException {
-		checkConnection();
+		Connection conn = dbContext.getConnection();
 		Statement stmt = null;
 		ResultSet rs = null;
 		try {
@@ -281,6 +261,7 @@ public class BaseDao {
 		}
 		finally {
 			closeResource(stmt, rs);
+			dbContext.closeIfNotShared(conn);
         }
 	}
 
@@ -291,9 +272,8 @@ public class BaseDao {
 	 * @return 回调函数的返回值
 	 * @throws SQLException
 	 */
-	final public <T> T query(String sql, Object arg, OnQuery<T> func)
-			throws SQLException {
-		checkConnection();
+	final public <T> T query(String sql, Object arg, OnQuery<T> func) throws SQLException {
+		Connection conn = dbContext.getConnection();
 		NamedStatement stmt = null;
 		ResultSet rs = null;
 		try {
@@ -310,6 +290,7 @@ public class BaseDao {
 		}
 		finally {
 			closeResource(stmt, rs);
+			dbContext.closeIfNotShared(conn);
         }
 	}
 	
@@ -320,9 +301,8 @@ public class BaseDao {
 	 * @return 回调函数的返回值
 	 * @throws SQLException
 	 */
-	final public <T> T query(String sql, OnQuery<T> func, Object...args)
-			throws SQLException {
-		checkConnection();
+	final public <T> T query(String sql, OnQuery<T> func, Object...args) throws SQLException {
+		Connection conn = dbContext.getConnection();
 		PreparedStatement stmt = null;
 		ResultSet rs = null;
 		try {
@@ -340,9 +320,17 @@ public class BaseDao {
 		}
 		finally {
 			closeResource(stmt, rs);
+			dbContext.closeIfNotShared(conn);
         }
 	}
 	
+	final private void checkResultSetOnlyOne(ResultSet rs) throws SQLException {
+		if (rs.next()) {
+			MyLogger.error("查询语句错误，返回结果不具备唯一值.");
+			throw new SQLException("返回结果不具备唯一值");
+		}
+	}
+
 	/** 通用查询语句,返回一个基本对象
 	 * @param sql  SQL语句
 	 * @return 返回的基本对象
@@ -350,7 +338,10 @@ public class BaseDao {
 	 */
 	final public Object queryForSingle(String sql) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getObject(1) : null; });
+			Object result = rs.next() ? rs.getObject(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -359,10 +350,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Object queryForSingle(String sql, Object arg)
-			throws SQLException {
+	final public Object queryForSingle(String sql, Object arg) throws SQLException {
 		return query(sql, arg, rs -> {
-			return rs.next() ? rs.getObject(1) : null; });
+			Object result = rs.next() ? rs.getObject(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -371,10 +364,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Object queryForSingle(String sql, Object... args)
-			throws SQLException {
+	final public Object queryForSingle(String sql, Object... args) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getObject(1) : null; }, args);
+				Object result = rs.next() ? rs.getObject(1) : null;
+				checkResultSetOnlyOne(rs);
+				return result;
+			}, args);
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -384,7 +379,10 @@ public class BaseDao {
 	 */
 	final public Integer queryForInt(String sql) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getInt(1) : null; });
+			Integer result = rs.next() ? rs.getInt(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 
 	/** 通用查询语句,返回一个基本对象
@@ -393,10 +391,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Integer queryForInt(String sql, Object arg)
-			throws SQLException {
+	final public Integer queryForInt(String sql, Object arg) throws SQLException {
 		return query(sql, arg, rs -> {
-			return rs.next() ? rs.getInt(1) : null; });
+			Integer result = rs.next() ? rs.getInt(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 
 	/** 通用查询语句,返回一个基本对象
@@ -405,10 +405,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Integer queryForInt(String sql, Object... args)
-			throws SQLException {
+	final public Integer queryForInt(String sql, Object... args) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getInt(1) : null; }, args);
+			Integer result = rs.next() ? rs.getInt(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		}, args);
 	}
 
 	/** 通用查询语句,返回一个基本对象
@@ -418,7 +420,10 @@ public class BaseDao {
 	 */
 	final public Long queryForLong(String sql) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getLong(1) : null; });
+			Long result = rs.next() ? rs.getLong(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -427,10 +432,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Long queryForLong(String sql, Object arg)
-			throws SQLException {
+	final public Long queryForLong(String sql, Object arg) throws SQLException {
 		return query(sql, arg, rs -> {
-			return rs.next() ? rs.getLong(1) : null; });
+			Long result = rs.next() ? rs.getLong(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -439,10 +446,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Long queryForLong(String sql, Object... args)
-			throws SQLException {
+	final public Long queryForLong(String sql, Object... args) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getLong(1) : null; }, args);
+			Long result = rs.next() ? rs.getLong(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		}, args);
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -452,7 +461,10 @@ public class BaseDao {
 	 */
 	final public String queryForString(String sql) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getString(1) : null; });
+			String result = rs.next() ? rs.getString(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -461,10 +473,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public String queryForString(String sql, Object arg)
-			throws SQLException {
+	final public String queryForString(String sql, Object arg) throws SQLException {
 		return query(sql, arg, rs -> {
-			return rs.next() ? rs.getString(1) : null; });
+			String result = rs.next() ? rs.getString(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -473,10 +487,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public String queryForString(String sql, Object... args)
-			throws SQLException {
+	final public String queryForString(String sql, Object... args) throws SQLException {
 		return query(sql, rs -> {
-			return rs.next() ? rs.getString(1) : null; }, args);
+			String result = rs.next() ? rs.getString(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		}, args);
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -485,7 +501,11 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public Date queryForDate(String sql) throws SQLException {
-		return query(sql, rs -> { return rs.next() ? rs.getDate(1) : null; });
+		return query(sql, rs -> {
+			Date result = rs.next() ? rs.getDate(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -494,9 +514,12 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Date queryForDate(String sql, Object arg)
-			throws SQLException {
-		return query(sql, arg, rs -> { return rs.next() ? rs.getDate(1) : null; });
+	final public Date queryForDate(String sql, Object arg) throws SQLException {
+		return query(sql, arg, rs -> {
+			Date result = rs.next() ? rs.getDate(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 	
 	/** 通用查询语句,返回一个基本对象
@@ -505,25 +528,13 @@ public class BaseDao {
 	 * @return 返回的基本对象
 	 * @throws SQLException
 	 */
-	final public Date queryForDate(String sql, Object... args)
-			throws SQLException {
-		return query(sql, rs -> { return rs.next() ? rs.getDate(1) : null; }, args);
+	final public Date queryForDate(String sql, Object... args) throws SQLException {
+		return query(sql, rs -> {
+			Date result = rs.next() ? rs.getDate(1) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		}, args);
 	}
-	
-	private class Qobj<T> implements OnQuery<T> {
-		private Class<T> cls;
-		public Qobj(Class<T> cls) { this.cls = cls; }
-		@Override
-		public T apply(ResultSet rs) throws SQLException {
-			if (!rs.next()) return null;
-			T ret = mapperObject(rs, cls);
-			if (rs.next()) {
-				MyLogger.error("查询语句错误，返回结果不具备唯一值.");
-				throw new SQLException("返回结果不具备唯一值");
-			}
-			return ret;
-		}
-	};
 	
 	/** 通用查询语句,返回一个记录的对象
 	 * @param sql  SQL语句
@@ -533,7 +544,11 @@ public class BaseDao {
 	 */
 	final public <T> T queryForObject(String sql, Class<T> cls)
 			throws SQLException {
-		return query(sql, new Qobj<T>(cls));
+		return query(sql, rs -> {
+			T result = rs.next() ? mapperObject(rs, cls) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 
 	/** 通用查询语句,返回一个记录的对象
@@ -545,7 +560,11 @@ public class BaseDao {
 	 */
 	final public <T> T queryForObject(String sql, Object arg, Class<T> cls)
 			throws SQLException {
-		return query(sql, arg, new Qobj<T>(cls));
+		return query(sql, arg, rs -> {
+			T result = rs.next() ? mapperObject(rs, cls) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		});
 	}
 
 	/** 通用查询语句,返回一个记录的对象
@@ -557,18 +576,12 @@ public class BaseDao {
 	 */
 	final public <T> T queryForObject(String sql, Class<T> cls,
 			Object... args) throws SQLException {
-		return query(sql, new Qobj<T>(cls), args);
+		return query(sql, rs -> {
+			T result = rs.next() ? mapperObject(rs, cls) : null;
+			checkResultSetOnlyOne(rs);
+			return result;
+		}, args);
 	}
-	
-	private class Qlist<T> implements OnQuery<List<T>> {
-		private Class<T> cls;
-		public Qlist(Class<T> cls) { this.cls = cls; }
-		@Override
-		public List<T> apply(ResultSet rs) throws SQLException {
-			List<T> ret = new ArrayList<>();
-			return mapperList(rs, ret, cls);
-		}
-	};
 	
 	/** 通用查询语句,返回符合条件的列表记录
 	 * @param sql  SQL语句
@@ -578,7 +591,10 @@ public class BaseDao {
 	 */
 	final public <T> List<T> queryForList(String sql, Class<T> cls)
 			throws SQLException {
-		return query(sql, new Qlist<T>(cls));
+		return query(sql, rs -> {
+			List<T> ret = new ArrayList<>();
+			return mapperList(rs, ret, cls);			
+		});
 	}
 	
 	/** 通用查询语句,返回符合条件的列表记录
@@ -590,7 +606,10 @@ public class BaseDao {
 	 */
 	final public <T> List<T> queryForList(String sql, Object arg,
 			Class<T> cls) throws SQLException {
-		return query(sql, arg, new Qlist<T>(cls));
+		return query(sql, arg, rs -> {
+			List<T> ret = new ArrayList<>();
+			return mapperList(rs, ret, cls);
+		});
 	}
 	
 	/** 通用查询语句,返回符合条件的列表记录
@@ -602,7 +621,10 @@ public class BaseDao {
 	 */
 	final public <T> List<T> queryForList(String sql, Class<T> cls,
 			Object...args) throws SQLException {
-		return query(sql, new Qlist<T>(cls), args);
+		return query(sql, rs -> {
+			List<T> ret = new ArrayList<>();
+			return mapperList(rs, ret, cls);
+		}, args);
 	}
 
 	private volatile int dbType = 0;
@@ -611,17 +633,56 @@ public class BaseDao {
 	
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql) throws SQLException {
-		return execute(sql) == 0 ? 0 : insertAfter();
+		Connection conn = dbContext.getConnection();
+		try (Statement stmt = conn.createStatement()) {
+			logSQL(sql, null);
+			int ret = stmt.executeUpdate(sql);
+			logExecuteCount(ret);
+			return ret == 0 ? 0 : insertAfter(conn);
+		}
+		catch (SQLException e) {
+			logException(e);
+			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
+		}
 	}
 
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql, Object arg) throws SQLException {
-		return execute(sql, arg) == 0 ? 0 : insertAfter();
+		Connection conn = dbContext.getConnection();
+		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
+			if (arg != null) stmt.setParams(arg);
+			logSQL(sql, arg);
+			int ret = stmt.executeUpdate();
+			logExecuteCount(ret);
+			return ret == 0 ? 0 : insertAfter(conn);
+		}
+		catch (SQLException e) {
+			logException(e);
+			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
+		}
 	}
 	
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql, Object... args) throws SQLException {
-		return execute(sql, args) == 0 ? 0 : insertAfter();
+		Connection conn = dbContext.getConnection();
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			for(int i = 0, n = args.length; i < n; ++i)
+				stmt.setObject(i + 1, args[i]);
+			logSQL(sql, args);
+			int ret = stmt.executeUpdate();
+			logExecuteCount(ret);
+			return ret == 0 ? 0 : insertAfter(conn);
+		}
+		catch (SQLException e) {
+			logException(e);
+			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
+		}
 	}
 	
 	/** 插入记录, 动态根据对象属性生成sql
@@ -630,40 +691,64 @@ public class BaseDao {
 	 * @return 新纪录的ID
 	 * @throws SQLException
 	 */
-	final public int insertBy(Object arg, boolean allowNull)
-			throws SQLException {
-		List<Field> fs = getFieldsByCache(arg.getClass());
+	final public int insertBy(Object arg) throws SQLException {
+		Class<?> argClass = arg.getClass();
+
+		List<String> fs = getFieldsByCache(argClass);
 		if (fs.size() == 0)
-			throw new IllegalArgumentException("arg not field.");
+			throw new SQLException(Fmt.fmt("{} not field.", argClass.getName()));
+
 		List<Object> args = new LinkedList<>();
-		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+		MethodAccess ma = getMethodAccessByCache(argClass);
+		FieldAccess fa = getFieldAccessByCache(argClass);
 
 		Fmt fmt = Fmt.get().format("insert into {} (",
-				classToTable(arg.getClass().getSimpleName()));
+				classToTable(argClass.getSimpleName()));
 		StringBuilder sb = fmt.getBuffer();
+
 		boolean first = true;
-		for (Field f : fs) {
-			// NotField注解的字段和没有SetXXX函数的字段跳过
-			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()));
-			if (index == -1) continue;
-			Object v = ma.invoke(arg, index);
-			// 如果忽略空字段, 则跳过空字段
-			if (!allowNull && v == null) continue;
+		for (String f : fs) {
+			// 找不到存取方式的跳过
+			Object v = null;
+			int index = ma.getIndex(fieldToGetMethod(f));
+			if (index != -1) {
+				v = ma.invoke(arg, index);
+			} else {
+				index = fa.getIndex(f);
+				if (index != -1) v = fa.get(args, index);
+				else continue;
+			}
 
 			if (first) first = false;
 			else sb.append(',').append(' ');
-			sb.append(fieldToColumn(f.getName()));
+			sb.append(fieldToColumn(f));
 			args.add(v);
 		}
+
 		sb.append(") values (?");
 		for (int i = 1, n = args.size(); i < n; ++i)
 			sb.append(',').append(' ').append('?');
 		sb.append(')');
 		String sql = fmt.release();
 		
-		if (args.size() == 0) throw new IllegalArgumentException("arg not field.");
-		return execute(sql, args.toArray()) == 0 ? 0 : insertAfter();
+		if (args.size() == 0)
+			throw new SQLException("arg not valid field.");
+
+		Connection conn = dbContext.getConnection();
+		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+			for(int i = 0, n = args.size(); i < n; ++i)
+				stmt.setObject(i + 1, args.get(i));
+			logSQL(sql, args);
+			int ret = stmt.executeUpdate();
+			logExecuteCount(ret);
+			return ret == 0 ? 0 : insertAfter(conn);
+		}
+		catch (SQLException e) {
+			logException(e);
+			throw e;
+		} finally {
+			dbContext.closeIfNotShared(conn);
+		}
 	}
 	
 	/** 更新记录, 动态根据对象属性生成sql
@@ -672,82 +757,103 @@ public class BaseDao {
 	 * @return 更新的记录数
 	 * @throws SQLException
 	 */
-	final public int updateById(Object arg, boolean allowNull)
-			throws SQLException {
-		List<Field> fs = getFieldsByCache(arg.getClass());
+	final public int updateById(Object arg) throws SQLException {
+		Class<?> argClass = arg.getClass();
+
+		List<String> fs = getFieldsByCache(argClass);
 		if (fs.size() == 0)
-			throw new IllegalArgumentException("arg not field.");
-		Field id_field = null;
-		Object id_data = null;
+			throw new SQLException(Fmt.fmt("{} not field.", argClass.getName()));
+
 		List<Object> args = new LinkedList<>();
-		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+		MethodAccess ma = getMethodAccessByCache(argClass);
+		FieldAccess fa = getFieldAccessByCache(argClass);
+
+		String id_field = fs.get(0);
+		Object id_data = null;
+		int index = ma.getIndex(fieldToGetMethod(id_field));
+		if (index != -1) {
+			id_data = ma.invoke(args, index);
+		} else {
+			index = fa.getIndex(id_field);
+			if (index != -1)
+				id_data = fa.get(args, index);
+		}
+		if (id_data == null)
+			throw new SQLException(Fmt.fmt("arg property {} can't be null.", id_field));
+
 		Fmt fmt = Fmt.get().format("update {} set ",
-				classToTable(arg.getClass().getSimpleName()));
+				classToTable(argClass.getSimpleName()));
 		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
-		for (Field f : fs) {
-			if (id_field == null && f.getAnnotation(IdField.class) != null) {
-				id_field = f;
-				int idx = ma.getIndex(fieldToGetMethod(f.getName()));
-				if (idx == -1)
-					throw new IllegalArgumentException("not id field method.");
-				id_data = ma.invoke(arg, idx);
-				if (id_data == null)
-					throw new IllegalArgumentException("id field is null.");
-				continue;
+		for (int i = 1, n = fs.size(); i < n; ++i) {
+			String f = fs.get(i);
+			Object v = null;
+			index = ma.getIndex(fieldToGetMethod(f));
+			if (index != -1) {
+				v = ma.invoke(arg, index);
+			} else {
+				index = fa.getIndex(f);
+				if (index != -1) v = fa.get(args, index);
+				else continue;
 			}
-			// NotField注解的字段和没有SetXXX函数的字段跳过
-			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()));
-			if (index == -1) continue;
-			Object v = ma.invoke(arg, index);
 			// 如果忽略空字段, 则跳过空字段
-			if (!allowNull && v == null) continue;
+			if (v == null) continue;
 
 			if (first) first = false;
 			else sb.append(',').append(' ');
-			sb.append(fieldToColumn(f.getName())).append(" = ?");
+			sb.append(fieldToColumn(f)).append(" = ?");
 			args.add(v);
 		}
-		if (id_field == null)
-			throw new IllegalArgumentException("not id field.");
+
+		sb.append(" where ").append(fieldToColumn(id_field)).append(" = ?");
 		args.add(id_data);
-		sb.append(" where ").append(fieldToColumn(id_field.getName())).append(" = ?");
 		
 		return execute(fmt.release(), args.toArray());
 	}
 
 	final public <T> T selectById(Object id, Class<T> cls)
 			throws SQLException {
-		Field id_field = getIdFieldByCache(cls);
-		if (id_field == null)
-			throw new IllegalArgumentException("arg not id field.");
+		List<String> fields = getFieldsByCache(cls);
+		if (fields.size() == 0)
+			throw new SQLException(Fmt.fmt("{} not field.", cls.getName()));
 		String sql = Fmt.fmt("select * from {} where {} = ?",
 				classToTable(cls.getSimpleName()),
-				fieldToColumn(id_field.getName()));
+				fieldToColumn(fields.get(0)));
 		return queryForObject(sql, cls, id);
 	}
 	
 	@SuppressWarnings("unchecked")
 	final public <T> T selectBy(T arg) throws SQLException {
 		List<Object> args = new LinkedList<>();
-		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+
+		Class<?> argClass = arg.getClass();
+		List<String> fs = getFieldsByCache(argClass);
+		if (fs.size() == 0)
+			throw new SQLException(Fmt.fmt("{} not field.", argClass.getName()));
+		MethodAccess ma = getMethodAccessByCache(argClass);
+		FieldAccess fa = getFieldAccessByCache(argClass);
+
 		Fmt fmt = Fmt.get().format("select * from {} where ",
-				classToTable(arg.getClass().getSimpleName()));
+				classToTable(argClass.getSimpleName()));
 		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
-		for (Field f : getFieldsByCache(arg.getClass())) {
-			// NotField注解的字段和没有SetXXX函数的字段跳过
-			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()));
-			if (index == -1) continue;
-			Object v = ma.invoke(arg, index);
+
+		for (String f : fs) {
+			Object v = null;
+			int index = ma.getIndex(fieldToGetMethod(f));
+			if (index != -1) {
+				v = ma.invoke(arg, index);
+			} else {
+				index = fa.getIndex(f);
+				if (index != -1) v = fa.get(arg, index);
+				else continue;
+			}
 			// 如果忽略空字段, 则跳过空字段
 			if (v == null) continue;
 
 			if (first) first = false;
 			else sb.append(" and ");
-			sb.append(fieldToColumn(f.getName())).append(" = ?");
+			sb.append(fieldToColumn(f)).append(" = ?");
 			args.add(v);
 		}
 		return (T) queryForObject(fmt.release(), arg.getClass(), args.toArray());
@@ -760,12 +866,12 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public int deleteById(Object id, Class<?> cls) throws SQLException {
-		Field id_field = getIdFieldByCache(cls);
-		if (id_field == null)
-			throw new IllegalArgumentException("arg not id field.");
+		List<String> fields = getFieldsByCache(cls);
+		if (fields.size() == 0)
+			throw new SQLException(Fmt.fmt("{} not field.", cls.getName()));
 		String sql = Fmt.fmt("delete from {} where {} = ?",
 				classToTable(cls.getSimpleName()),
-				fieldToColumn(id_field.getName()));
+				fieldToColumn(fields.get(0)));
 		return execute(sql, new Object[] {id});
 	}
 	
@@ -776,23 +882,34 @@ public class BaseDao {
 	 */
 	final public int deleteBy(Object arg) throws SQLException {
 		List<Object> args = new LinkedList<>();
-		MethodAccess ma = getMethodAccessByCache(arg.getClass());
+
+		Class<?> argClass = arg.getClass();
+		List<String> fs = getFieldsByCache(argClass);
+		if (fs.size() == 0)
+			throw new SQLException(Fmt.fmt("{} not field.", argClass.getName()));
+		MethodAccess ma = getMethodAccessByCache(argClass);
+		FieldAccess fa = getFieldAccessByCache(argClass);
+
 		Fmt fmt = Fmt.get().format("delete from {} where ",
 				classToTable(arg.getClass().getSimpleName()));
 		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
-		for (Field f : getFieldsByCache(arg.getClass())) {
-			// NotField注解的字段和没有SetXXX函数的字段跳过
-			if (f.getAnnotation(NotField.class) != null) continue;
-			int index = ma.getIndex(fieldToGetMethod(f.getName()));
-			if (index == -1) continue;
-			Object v = ma.invoke(arg, index);
+		for (String f : fs) {
+			Object v = null;
+			int index = ma.getIndex(fieldToGetMethod(f));
+			if (index != -1) {
+				v = ma.invoke(arg, index);
+			} else {
+				index = fa.getIndex(f);
+				if (index != -1) v = fa.get(arg, index);
+				else continue;
+			}
 			// 跳过空字段
 			if (v == null) continue;
 
 			if (first) first = false;
 			else sb.append(" and ");
-			sb.append(fieldToColumn(f.getName())).append(" = ?");
+			sb.append(fieldToColumn(f)).append(" = ?");
 			args.add(v);
 		}
 		return execute(fmt.release(), args.toArray());
@@ -802,7 +919,7 @@ public class BaseDao {
 	 * @return
 	 * @throws SQLException
 	 */
-	final public int insertAfter() throws SQLException {
+	final public int insertAfter(Connection conn) throws SQLException {
 		if (dbType == 0) {
 			try {
 				dbType = Class.forName("com.mysql.jdbc.Connection")
@@ -818,130 +935,39 @@ public class BaseDao {
 		else if (dbType == 2) sql = LAST_INSERT_QUERY_HSQL;
 		else throw new SQLException("unsupport database driver.");
 
-		return query(sql, rs -> { return rs.next() ? rs.getInt(1) : 0; });
-	}
-	
-	/** 判断是否处于事务状态 */
-	final public boolean isTransaction() {
-		if (conn == null) return false;
-		 try {
-			return conn.getAutoCommit() == false;
-		} catch (SQLException e) {
-			return false;
-		}
-	}
-	
-	/**开始一个事务，如果上一次事务尚未提交或回滚，禁止再次开启事务 */
-	final public void beginTransaction() throws SQLException {
-		checkConnection();
+		Statement stmt = null;
+		ResultSet rs = null;
 		try {
-			if (conn.getAutoCommit()) conn.setAutoCommit(false);
-			else {
-				if (savepoints == null) savepoints = new ArrayList<Savepoint>();
-				savepoints.add(conn.setSavepoint(
-						Fmt.fmt("transaction {}", savepoints.size() + 1)));
-			}
+			stmt = conn.createStatement();
+			rs = stmt.executeQuery(sql);
+			return rs.next() ? rs.getInt(1) : 0;
 		}
 		catch (SQLException e) {
-			MyLogger.error(e, "开启数据库事务出错.");
+			logException(e);
 			throw e;
+		} finally {
+			closeResource(stmt, rs);
 		}
-	}
-	
-	/** 提交事务 */
-	final public void commit() throws SQLException {
-		checkConnection();
-		try {
-			if (!conn.getAutoCommit()) {
-				if (savepoints == null || savepoints.isEmpty()) {
-					conn.commit();
-					conn.setAutoCommit(true);
-				}
-				else {
-					conn.releaseSavepoint(savepoints.remove(savepoints.size() - 1));
-				}
-			}
-		}
-		catch (SQLException e) {
-			MyLogger.error(e, "事务提交失败");
-			throw e;
-		}
-	}
-	
-	/** 回滚事务 */
-	final public void rollback() {
-		if (conn == null) return;
-		try {
-			if (!conn.getAutoCommit()) {
-				if (savepoints == null || savepoints.isEmpty()) {
-					conn.rollback();
-					conn.setAutoCommit(true);
-				}
-				else {
-					conn.rollback(savepoints.remove(savepoints.size() - 1));
-				}
-			}
-		}
-		catch(SQLException e) {
-			MyLogger.error(e, "事务回滚失败");
-		}
-	}
-	
-	/** 事务回调处理函数,包装创建事务及提交和回滚事务的方法
-	 * @param transaction 回调函数,发生SQLException时回滚事务
-	 * @param predicate 返回值测试回调函数,返回true则提交事务,false回滚事务
-	 * @return
-	 * @throws SQLException
-	 */
-	final public <T> T transaction(OnTransaction<T> transaction,
-			Predicate<T> predicate) throws SQLException {
-
-		beginTransaction();
-
-		try {
-			T ret = transaction.apply(this);
-			if (predicate.test(ret)) commit();
-			else rollback();
-			return ret;
-		}
-		catch (SQLException e) {
-			rollback();
-			throw e;
-		}
-	}
-	
-	/** 关闭数据库连接 */
-	final public void close() {
-		if (conn != null)
-			try {
-				conn.close();
-				conn = null;
-			} catch(SQLException e) {}
-	}
-	
-	/** 执行指定的函数后关闭连接 */
-	final public void close(OnConnection func) {
-		try {
-			func.accept(this);
-		} catch (Exception e) { }
-		close();
 	}
 	
 	/** 关闭资源 */
 	final protected void closeResource(Statement stmt, ResultSet rs) {
-        if (rs != null) try { rs.close(); } catch(SQLException e) {}
-        if (stmt != null) try { stmt.close(); } catch(SQLException e) {}
+		try {
+			if (rs != null) rs.close();
+			if (stmt != null) stmt.close();
+		} catch (SQLException e) {
+			MyLogger.error(e, "closeResource error, {}", e.getMessage());
+		}
 	}
 
 	/** 关闭资源 */
 	final protected void closeResource(NamedStatement stmt, ResultSet rs) {
-        if (rs != null) try { rs.close(); } catch(SQLException e) {}
+        if (rs != null) try {
+        	rs.close();
+        } catch(SQLException e) {
+			MyLogger.error(e, "closeResource error, {}", e.getMessage());
+        }
         if (stmt != null) stmt.close();
-	}
-	
-	/** 检查连接状态 */
-	final protected void checkConnection() throws SQLException {
-		if (conn == null) throw new SQLException("connection is already close.");
 	}
 	
 	/** 生成指定数量的占位符, 如3个: ?,?,? */
@@ -953,7 +979,7 @@ public class BaseDao {
 	}
 	
 	/** 映射ResultSet到单个Object中 */
-	public static <T> T mapperObject(ResultSet rs, Class<T> cls)
+	final public static <T> T mapperObject(ResultSet rs, Class<T> cls)
 			throws SQLException {
 		T ret = null;
 		try {
@@ -980,7 +1006,7 @@ public class BaseDao {
 	
 	/** 映射ResultSet结果到List中，并返回该list */
 	@SuppressWarnings("unchecked")
-	public static <T> List<T> mapperList(ResultSet rs, List<T> list,
+	final public static <T> List<T> mapperList(ResultSet rs, List<T> list,
 			Class<T> cls) throws SQLException {
 		
 		if (!rs.next()) return list;
@@ -1022,6 +1048,15 @@ public class BaseDao {
 		return list;
 	}
 
+	final protected static FieldAccess getFieldAccessByCache(Class<?> cls) {
+		FieldAccess fieldAccess = fieldAccessCache.get(cls.getName());
+		if (fieldAccess == null) {
+			fieldAccess = FieldAccess.get(cls);
+			fieldAccessCache.put(cls.getName(), fieldAccess);
+		}
+		return fieldAccess;
+	}
+
 	final protected static MethodAccess getMethodAccessByCache(Class<?> cls) {
 		MethodAccess methodAccess = methodAccessCache.get(cls.getName());
 		if (methodAccess == null) {
@@ -1031,19 +1066,19 @@ public class BaseDao {
 		return methodAccess;
 	}
 
-	final protected static String columnToField(String columnName) {
+	final static public String columnToField(String columnName) {
 		Fmt f = Fmt.get();
 		columnNameMap(columnName, f.getBuffer(), false);
 		return f.release();
 	}
 
-	final protected static String columnToSetMethod(String columnName) {
+	final static public String columnToSetMethod(String columnName) {
 		Fmt f = Fmt.get().append('s').append('e').append('t');
 		columnNameMap(columnName, f.getBuffer(), true);
 		return f.release();
 	}
 	
-	final protected static String columnToGetMethod(String columnName) {
+	final static public String columnToGetMethod(String columnName) {
 		Fmt f = Fmt.get().append('g').append('e').append('t');
 		columnNameMap(columnName, f.getBuffer(), true);
 		return f.release();
@@ -1070,24 +1105,23 @@ public class BaseDao {
 		}
 	}
 
-	final protected static Field getIdFieldByCache(Class<?> cls) {
-		for (Field f : getFieldsByCache(cls)) {
-			if (f.getAnnotation(IdField.class) != null)
-				return f;
-		}
-		return null;
-	}
-	
-	final protected static List<Field> getFieldsByCache(Class<?> cls) {
-		List<Field> fs = fieldsCache.get(cls.getName());
+	final protected static List<String> getFieldsByCache(Class<?> cls) {
+		List<String> fs = fieldsCache.get(cls.getName());
 		if (fs == null) {
-			fs = getAllFields(cls);
+			fs = new ArrayList<>();
+			for (Field f : getAllFields(cls)) {
+				if (f.getAnnotation(NotField.class) == null) {
+					if (f.getAnnotation(IdField.class) != null)
+						fs.add(0, f.getName());
+					else fs.add(f.getName());
+				}
+			}
 			fieldsCache.put(cls.getName(), fs);
 		}
 		return fs;
 	}
 	
-	final protected static List<Field> getAllFields(Class<?> cls) {
+	final static public List<Field> getAllFields(Class<?> cls) {
 		List<Field> list = new LinkedList<>();
 		while (cls != Object.class) {
 			Field[] fs = cls.getDeclaredFields();
@@ -1097,32 +1131,32 @@ public class BaseDao {
 		return list;
 	}
 
-	final protected static String fieldToGetMethod(String fieldName) {
+	final static public String fieldToGetMethod(String fieldName) {
 		Fmt f = Fmt.get().append('g').append('e').append('t');
 		fieldToMethod(fieldName, f.getBuffer());
 		return f.release();
 	}
 	
-	final protected static String fieldToSetMethod(String fieldName) {
+	final static public String fieldToSetMethod(String fieldName) {
 		Fmt f = Fmt.get().append('s').append('e').append('t');
 		fieldToMethod(fieldName, f.getBuffer());
 		return f.release();
 	}
 	
-	final protected static void fieldToMethod(String fieldName,
+	final static protected void fieldToMethod(String fieldName,
 			StringBuilder sb) {
 		char c = fieldName.charAt(0);
 		if (c >= 'a' && c <= 'z') c = (char) (c - 0x20);
 		sb.append(c).append(fieldName.substring(1));
 	}
 	
-	final static String fieldToColumn(String fieldName) {
+	final static public String fieldToColumn(String fieldName) {
 		Fmt f = Fmt.get();
 		fieldNameMap(fieldName, f.getBuffer());
 		return f.release();
 	}
 	
-	final protected static String classToTable(String className) {
+	final static public String classToTable(String className) {
 		Fmt f = Fmt.get().append('T');
 		fieldNameMap(className, f.getBuffer());
 		return f.release();
