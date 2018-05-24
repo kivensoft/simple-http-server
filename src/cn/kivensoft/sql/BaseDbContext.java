@@ -67,7 +67,7 @@ public class BaseDbContext {
 			throw new SQLException("getConnection error, connectionFactory.get() is null.");
 		return conn;
 	}
-	
+
 	final public void open() throws SQLException {
 		connection = getConnection();
 	}
