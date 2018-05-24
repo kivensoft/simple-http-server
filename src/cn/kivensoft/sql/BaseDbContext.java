@@ -124,7 +124,7 @@ public class BaseDbContext {
 		if (connection == null) return;
 		try {
 			if (!connection.getAutoCommit()) {
-				if (savepoints != null && !savepoints.isEmpty()) {
+				if (savepoints != null && savepoints.size() > 0) {
 					connection.releaseSavepoint(savepoints.remove(savepoints.size() - 1));
 					return;
 				}
@@ -147,7 +147,7 @@ public class BaseDbContext {
 		if (connection == null) return;
 		try {
 			if (!connection.getAutoCommit()) {
-				if (savepoints != null || !savepoints.isEmpty()) {
+				if (savepoints != null && savepoints.size() > 0) {
 					connection.rollback(savepoints.remove(savepoints.size() - 1));
 					return;
 				}
