@@ -25,7 +25,7 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 	 * @param msg 错误信息
 	 * @return 返回R对象实例
 	 */
-	abstract protected R onError(int code, String msg);
+	abstract protected R onError(String msg);
 	
 	/** 判断返回值是否错误类型
 	 * @param value 返回值
@@ -34,16 +34,16 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 	abstract protected boolean isError(R value);
 	
 	/** 发生异常时调用 */
-	abstract protected void onException(Exception ex);
+	abstract protected R onException(Exception ex);
 	
 	/** 不管是否发生都调用 */
 	abstract protected void onFinally();
 	
 	/** 执行调用失败时调用 */
-	abstract protected void onFail(R value) throws Exception;
+	abstract protected R onFail(R value) throws Exception;
 	
 	/** 执行调用成功时调用 */
-	abstract protected void onSuccess(R value) throws Exception;
+	abstract protected R onSuccess(R value) throws Exception;
 	
 	/** 应用程序调用，处理调用请求函数 */
 	@Override
@@ -57,13 +57,10 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 
 		try {
 			R ret = onExecute(req);
-			if (ret != null && isError(ret)) onFail(ret);
-			else onSuccess(ret);
-			return ret;
+			return (ret != null && isError(ret)) ? onFail(ret) : onSuccess(ret);
 		} catch (Exception e) {
-			onException(e);
-			MyLogger.error(e, "未知错误");
-			return error("未知错误");
+			MyLogger.error(e, "系统发生异常: {}", e.getMessage());
+			return onException(e);
 		} finally {
 			onFinally();
 		}
@@ -72,13 +69,13 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 	final protected R error(String fmt, Object... args) {
 		String msg = args.length == 0 ? fmt : Fmt.fmt(fmt, args);
 		MyLogger.error(msg);
-		return onError(-1, msg);
+		return onError(msg);
 	}
 
 	final protected R error(Throwable e, String fmt, Object... args) {
 		String msg = args.length == 0 ? fmt : Fmt.fmt(fmt, args);
 		MyLogger.error(e, msg);
-		return onError(-1, msg);
+		return onError(msg);
 	}
 	
 }

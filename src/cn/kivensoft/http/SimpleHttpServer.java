@@ -259,7 +259,7 @@ public class SimpleHttpServer implements HttpHandler {
 	/** 记录映射api的条目 */
 	private void logMappingInfo(String uri, Class<?> cls, Method method, Class<?> argType) {
 		if (!MyLogger.isDebugEnabled()) return;
-		String paramsDefine = argType == null ? "" : argType.getName();
+		String paramsDefine = argType == null ? "" : argType.getSimpleName();
 		MyLogger.info("Mapping api url: {}  ->  {}.{}({})",
 				uri, cls.getSimpleName(), method.getName(), paramsDefine);
 	}
