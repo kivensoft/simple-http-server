@@ -59,7 +59,6 @@ final public class ScanPackage {
 
 		// 循环迭代下去
 		while (dirs.hasMoreElements()) {
-			MyLogger.info("more", dirs.hasMoreElements());
 			// 获取下一个元素
 			URL url = dirs.nextElement();
 			// 得到协议的名称

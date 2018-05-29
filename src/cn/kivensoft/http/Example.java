@@ -10,11 +10,14 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import cn.kivensoft.util.MyLogger;
+import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class Example {
 
 	public static void main(String[] args) throws Exception {
+		Logger logger = LoggerFactory.getLogger(Example.class);
 		ExecutorService cachedExecutor = Executors.newCachedThreadPool();
 
 		//加载日志配置文件
@@ -24,25 +27,19 @@ public class Example {
 		props.put("log4j.appender.console.layout", "org.apache.log4j.PatternLayout");
 		props.put("log4j.appender.console.layout.ConversionPattern",
 				"[%-d{MM-dd HH:mm:ss.SSS}] [%-5p] [%C{1}:%L] %m%n");
-		try {
-			Class.forName("org.apache.log4j.PropertyConfigurator")
-				.getMethod("configure", Properties.class)
-				.invoke(null, props);
-		} catch (Exception e) {
-			MyLogger.error(e, e.getMessage());
-		}
+		PropertyConfigurator.configure(props);
 		
 		// 初始化web api服务器
 		SimpleHttpServer httpServer = new SimpleHttpServer();
 		httpServer.scanPackage(null, "cn.kivensoft.http", true);
 		httpServer.start("SimpleHttpServer", 3000, cachedExecutor);
-		MyLogger.info("{} start at {}", "SimpleHttpServer", 3000);
+		logger.info("{} start at {}", "SimpleHttpServer", 3000);
 		
 		shell("SimpleHttpServer> ", System.in, System.out);
 		
 		httpServer.stop();
 		cachedExecutor.shutdown();
-		MyLogger.info("SimpleHttpServer stop!");
+		logger.info("SimpleHttpServer stop!");
 	}
 
 	public static void shell(String prompt, InputStream is, OutputStream os) throws IOException {

@@ -14,11 +14,13 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
 
 import cn.kivensoft.util.Fmt;
-import cn.kivensoft.util.MyLogger;
 import cn.kivensoft.util.WeakCache;
 
 /** 简单的DAO基类
@@ -35,6 +37,7 @@ public class BaseDao {
 	static final WeakCache<String, FieldAccess> fieldAccessCache = new WeakCache<>();
 	static final WeakCache<String, List<String>> fieldsCache = new WeakCache<>();
 
+	protected Logger logger = LoggerFactory.getLogger(getClass());
 	protected BaseDbContext dbContext;
 
 	public BaseDao(BaseDbContext dbContext) {
@@ -70,7 +73,7 @@ public class BaseDao {
 		if (!sqls.hasNext()) return new int[0];
 		Connection conn = dbContext.getConnection();
 		try (Statement stmt = conn.createStatement()) {
-			boolean isDebug = MyLogger.isDebugEnabled();
+			boolean isDebug = logger.isDebugEnabled();
 			Fmt f = Fmt.get();
 			if (isDebug) f.append("批量执行SQL:");
 			else f.release();
@@ -79,9 +82,9 @@ public class BaseDao {
 				if (isDebug) f.append('\n').append('\t').append(sql);
 				stmt.addBatch(sql);
 			}
-			if (isDebug) MyLogger.debug(f.release());
+			if (isDebug) logger.debug(f.release());
 			int[] result = stmt.executeBatch();
-			MyLogger.debug("SQL执行完成: {}", result);
+			logger.debug("SQL执行完成: {}", result);
 			return result;
 		} catch (SQLException e) {
 			logException(e);
@@ -128,9 +131,9 @@ public class BaseDao {
 					stmt.addBatch();
 				}
 			}
-			logSQL(sql, iterator);
+			if (logger.isDebugEnabled()) logSQL(sql, iterator);
 			int[] ret = stmt.executeBatch();
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret;
 		} catch (SQLException e) {
 			logException(e);
@@ -148,9 +151,9 @@ public class BaseDao {
 	final public int execute(String sql) throws SQLException {
 		Connection conn = dbContext.getConnection();
 		try (Statement stmt = conn.createStatement()) {
-			logSQL(sql, null);
+			if (logger.isDebugEnabled()) logSQL(sql, null);
 			int ret = stmt.executeUpdate(sql);
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret;
 		}
 		catch (SQLException e) {
@@ -171,9 +174,9 @@ public class BaseDao {
 		Connection conn = dbContext.getConnection();
 		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			if (arg != null) stmt.setParams(arg);
-			logSQL(sql, arg);
+			if (logger.isDebugEnabled()) logSQL(sql, arg);
 			int ret = stmt.executeUpdate();
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret;
 		}
 		catch (SQLException e) {
@@ -225,9 +228,9 @@ public class BaseDao {
 		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 			for(int i = 0, n = args.length; i < n; ++i)
 				stmt.setObject(i + 1, args[i]);
-			logSQL(sql, args);
+			if (logger.isDebugEnabled()) logSQL(sql, args);
 			int ret = stmt.executeUpdate();
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret;
 		}
 		catch (SQLException e) {
@@ -250,9 +253,9 @@ public class BaseDao {
 		ResultSet rs = null;
 		try {
 			stmt = conn.createStatement();
-			logSQL(sql, null);
+			if (logger.isDebugEnabled()) logSQL(sql, null);
 			rs = stmt.executeQuery(sql);
-			logExecuteCount(null);
+			if (logger.isDebugEnabled()) logExecuteCount(null);
 			return func.apply(rs);
 		}
 		catch (SQLException e) {
@@ -279,9 +282,9 @@ public class BaseDao {
 		try {
 			stmt = new NamedStatement(conn, sql);
 			stmt.setParams(arg);
-			logSQL(sql, arg);
+			if (logger.isDebugEnabled()) logSQL(sql, arg);
 			rs = stmt.executeQuery();
-			logExecuteCount(null);
+			if (logger.isDebugEnabled()) logExecuteCount(null);
 			return func.apply(rs);
 		}
 		catch (SQLException e) {
@@ -309,9 +312,9 @@ public class BaseDao {
 			stmt = conn.prepareStatement(sql);
 			for(int i = 0, n = args.length; i < n; ++i)
 				stmt.setObject(i + 1, args[i]);
-			logSQL(sql, args);
+			if (logger.isDebugEnabled()) logSQL(sql, args);
 			rs = stmt.executeQuery();
-			logExecuteCount(null);
+			if (logger.isDebugEnabled()) logExecuteCount(null);
 			return func.apply(rs);
 		}
 		catch (SQLException e) {
@@ -326,7 +329,7 @@ public class BaseDao {
 	
 	final private void checkResultSetOnlyOne(ResultSet rs) throws SQLException {
 		if (rs.next()) {
-			MyLogger.error("查询语句错误，返回结果不具备唯一值.");
+			logger.error("查询语句错误，返回结果不具备唯一值.");
 			throw new SQLException("返回结果不具备唯一值");
 		}
 	}
@@ -627,17 +630,13 @@ public class BaseDao {
 		}, args);
 	}
 
-	private volatile int dbType = 0;
-	private final String LAST_INSERT_QUERY_MYSQL = "select LAST_INSERT_ID()";
-	private final String LAST_INSERT_QUERY_HSQL = "call identity()";
-	
 	/** 具备自增ID的记录插入函数，返回自增ID值 */
 	final public int insert(String sql) throws SQLException {
 		Connection conn = dbContext.getConnection();
 		try (Statement stmt = conn.createStatement()) {
-			logSQL(sql, null);
+			if (logger.isDebugEnabled()) logSQL(sql, null);
 			int ret = stmt.executeUpdate(sql);
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret == 0 ? 0 : insertAfter(conn);
 		}
 		catch (SQLException e) {
@@ -653,9 +652,9 @@ public class BaseDao {
 		Connection conn = dbContext.getConnection();
 		try (NamedStatement stmt = new NamedStatement(conn, sql)) {
 			if (arg != null) stmt.setParams(arg);
-			logSQL(sql, arg);
+			if (logger.isDebugEnabled()) logSQL(sql, arg);
 			int ret = stmt.executeUpdate();
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret == 0 ? 0 : insertAfter(conn);
 		}
 		catch (SQLException e) {
@@ -672,9 +671,9 @@ public class BaseDao {
 		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 			for(int i = 0, n = args.length; i < n; ++i)
 				stmt.setObject(i + 1, args[i]);
-			logSQL(sql, args);
+			if (logger.isDebugEnabled()) logSQL(sql, args);
 			int ret = stmt.executeUpdate();
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret == 0 ? 0 : insertAfter(conn);
 		}
 		catch (SQLException e) {
@@ -738,9 +737,9 @@ public class BaseDao {
 		try (PreparedStatement stmt = conn.prepareStatement(sql)) {
 			for(int i = 0, n = args.size(); i < n; ++i)
 				stmt.setObject(i + 1, args.get(i));
-			logSQL(sql, args);
+			if (logger.isDebugEnabled()) logSQL(sql, args);
 			int ret = stmt.executeUpdate();
-			logExecuteCount(ret);
+			if (logger.isDebugEnabled()) logExecuteCount(ret);
 			return ret == 0 ? 0 : insertAfter(conn);
 		}
 		catch (SQLException e) {
@@ -915,20 +914,26 @@ public class BaseDao {
 		return execute(fmt.release(), args.toArray());
 	}
 	
+	private volatile int dbType = 0;
+	private final String LAST_INSERT_QUERY_MYSQL = "select LAST_INSERT_ID()";
+	private final String LAST_INSERT_QUERY_HSQL = "call identity()";
+	
 	/** 插入记录后获取该记录的自增ID值
 	 * @return
 	 * @throws SQLException
 	 */
 	final public int insertAfter(Connection conn) throws SQLException {
+		/*
 		if (dbType == 0) {
 			try {
 				dbType = Class.forName("com.mysql.jdbc.Connection")
 						.isAssignableFrom(conn.getClass()) ? 1 : 2;
 			} catch (ClassNotFoundException e) {
-				MyLogger.error(e, e.getMessage());
+				logger.error(e);
 				throw new SQLException(e);
 			}
 		}
+		*/
 
 		String sql = null;
 		if (dbType == 1) sql = LAST_INSERT_QUERY_MYSQL;
@@ -956,7 +961,7 @@ public class BaseDao {
 			if (rs != null) rs.close();
 			if (stmt != null) stmt.close();
 		} catch (SQLException e) {
-			MyLogger.error(e, "closeResource error, {}", e.getMessage());
+			logger.error(Fmt.fmt("closeResource error, {}", e.getMessage()), e);
 		}
 	}
 
@@ -965,7 +970,7 @@ public class BaseDao {
         if (rs != null) try {
         	rs.close();
         } catch(SQLException e) {
-			MyLogger.error(e, "closeResource error, {}", e.getMessage());
+			logger.error(Fmt.fmt("closeResource error, {}", e.getMessage()), e);
         }
         if (stmt != null) stmt.close();
 	}
@@ -1173,16 +1178,16 @@ public class BaseDao {
 	}
 	
 	final protected void logSQL(String sql, Object arg) {
-		MyLogger.debug("执行SQL: {}", sql);
-		if (arg != null) MyLogger.debugJson("SQL参数: {}", arg);
+		logger.debug("执行SQL: {}", sql);
+		if (arg != null) logger.debug(Fmt.fmtJson("SQL参数: {}", arg));
 	}
 	
 	final protected void logExecuteCount(Object count) {
-		if (count == null) MyLogger.debug("执行SQL完成.");
-		else MyLogger.debugJson("执行SQL完成，影响记录数: {}", count);
+		if (count == null) logger.debug("执行SQL完成.");
+		else logger.debug(Fmt.fmtJson("执行SQL完成，影响记录数: {}", count));
 	}
 	
 	final protected void logException(SQLException e) {
-		MyLogger.error(e, "执行SQL出错");
+		logger.error(Fmt.fmt("执行SQL出错: {}", e.getMessage()), e);
 	}
 }

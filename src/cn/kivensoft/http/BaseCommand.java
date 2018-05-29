@@ -2,8 +2,9 @@ package cn.kivensoft.http;
 
 import java.util.function.Function;
 
+import org.slf4j.LoggerFactory;
+
 import cn.kivensoft.util.Fmt;
-import cn.kivensoft.util.MyLogger;
 
 abstract public class BaseCommand<T, R> implements Function<T, R> {
 	
@@ -59,7 +60,8 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 			R ret = onExecute(req);
 			return (ret != null && isError(ret)) ? onFail(ret) : onSuccess(ret);
 		} catch (Exception e) {
-			MyLogger.error(e, "系统发生异常: {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"{}.apply error: {}", getClass().getSimpleName(), e.getMessage()), e);
 			return onException(e);
 		} finally {
 			onFinally();
@@ -68,13 +70,13 @@ abstract public class BaseCommand<T, R> implements Function<T, R> {
 	
 	final protected R error(String fmt, Object... args) {
 		String msg = args.length == 0 ? fmt : Fmt.fmt(fmt, args);
-		MyLogger.error(msg);
+		LoggerFactory.getLogger(getClass()).error(msg);
 		return onError(msg);
 	}
 
 	final protected R error(Throwable e, String fmt, Object... args) {
 		String msg = args.length == 0 ? fmt : Fmt.fmt(fmt, args);
-		MyLogger.error(e, msg);
+		LoggerFactory.getLogger(getClass()).error(msg, e);
 		return onError(msg);
 	}
 	

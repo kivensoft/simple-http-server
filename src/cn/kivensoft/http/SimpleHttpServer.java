@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.sun.net.httpserver.Headers;
@@ -28,7 +31,6 @@ import com.sun.net.httpserver.HttpServer;
 
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
-import cn.kivensoft.util.MyLogger;
 import cn.kivensoft.util.ObjectPool;
 import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
@@ -39,6 +41,7 @@ public class SimpleHttpServer implements HttpHandler {
 	private static final String DEFAULT_SERVER_NAME = "SimpleHttpServer";
 	private static final String HTTP_VERSION = "1.0";
 	
+	private Logger logger = LoggerFactory.getLogger(getClass());
 	private HttpServer httpServer;
 	private Map<String, MethodInfo> handles = new HashMap<>();
 	private String serverName;
@@ -112,7 +115,7 @@ public class SimpleHttpServer implements HttpHandler {
 				httpCode = 404; // http找不到页面错误
 			}
 		} catch (Exception e) {
-			MyLogger.error(e, "process {} has error.", path);
+			logger.error(Fmt.fmt("process {} has error: {}", path, e.getMessage()), e);
 			ret = "系统内部错误";
 			httpCode = 500; // http 内部错误
 		}
@@ -144,7 +147,7 @@ public class SimpleHttpServer implements HttpHandler {
 		try {
 			ctrl = cls.newInstance();
 		} catch (Exception e) {
-			MyLogger.error(e, "create {} class error", cls.getName());
+			logger.error(Fmt.fmt("create {} class error: {}", cls.getName(), e.getMessage()), e);
 			return;
 		}
 
@@ -204,22 +207,22 @@ public class SimpleHttpServer implements HttpHandler {
 	final private Object parseBody(HttpExchange he, Class<?> cls) {
 		try {
 			String body = readStringFromInputStream(he.getRequestBody());
-			MyLogger.debug("request body: {}", body);
+			logger.debug("request body: {}", body);
 			Object ret = body == null || body.isEmpty()
 					? cls.newInstance() : JSON.parseObject(body, cls);
-			if (MyLogger.isDebugEnabled())
-				MyLogger.debug("parseBody result: {}", JSON.toJSONString(ret,
+			if (logger.isDebugEnabled())
+				logger.debug("parseBody result: {}", JSON.toJSONString(ret,
 					SerializerFeature.WriteDateUseDateFormat,
 					SerializerFeature.DisableCircularReferenceDetect));
 			return ret;
 		} catch (Exception e) {
-			MyLogger.error(e, "parseBody error.");
+			logger.error(Fmt.fmt("parseBody error: {}", e.getMessage()), e);
 			return null;
 		}
 	}
 	
 	/** 解析url地址带的参数成hashmap类型返回值 */
-	final static private HashMap<String, List<String>> parseQuery(String query) {
+	final private HashMap<String, List<String>> parseQuery(String query) {
 		if (query == null || query.isEmpty()) return null;
 
 		HashMap<String, List<String>> ret = new HashMap<>();
@@ -231,7 +234,7 @@ public class SimpleHttpServer implements HttpHandler {
 			idx = query.indexOf('&', start);
 			int pos = query.indexOf('=', start);
 			if (pos <= start || pos >= idx && idx > 0) {
-				MyLogger.debug("parseQuery warning, query string can't parse");
+				logger.debug("parseQuery warning, query string can't parse");
 				continue;
 			}
 			String key = null;
@@ -258,9 +261,9 @@ public class SimpleHttpServer implements HttpHandler {
 	
 	/** 记录映射api的条目 */
 	private void logMappingInfo(String uri, Class<?> cls, Method method, Class<?> argType) {
-		if (!MyLogger.isDebugEnabled()) return;
+		if (!logger.isDebugEnabled()) return;
 		String paramsDefine = argType == null ? "" : argType.getSimpleName();
-		MyLogger.info("Mapping api url: {}  ->  {}.{}({})",
+		logger.info("Mapping api url: {}  ->  {}.{}({})",
 				uri, cls.getSimpleName(), method.getName(), paramsDefine);
 	}
 
@@ -268,12 +271,12 @@ public class SimpleHttpServer implements HttpHandler {
 	private void logRequestInfo(HttpExchange he) {
 		URI uri = he.getRequestURI();
 		// 显示请求日志
-		if (MyLogger.isDebugEnabled()) {
+		if (logger.isDebugEnabled()) {
 			String query = uri.getQuery();
 			if (query == null || query.isEmpty())
-				MyLogger.debug("{} {}", he.getRequestMethod(), uri.getPath());
+				logger.debug("{} {}", he.getRequestMethod(), uri.getPath());
 			else
-				MyLogger.debug("{} {}?{}", he.getRequestMethod(), uri.getPath(), query);
+				logger.debug("{} {}?{}", he.getRequestMethod(), uri.getPath(), query);
 		}
 	}
 	
@@ -305,8 +308,8 @@ public class SimpleHttpServer implements HttpHandler {
 			out.write(br.getData());
 		} else {
 			// 记录返回结果日志
-			if (MyLogger.isDebugEnabled())
-				MyLogger.debug("{} result: {}", path, Fmt.toJson(result));
+			if (logger.isDebugEnabled())
+				logger.debug("{} result: {}", path, Fmt.toJson(result));
 			// 返回结果使用json方式传输
 			byte[] jsonBytes = JSON.toJSONBytes(result,
 					SerializerFeature.WriteDateUseDateFormat,
@@ -340,7 +343,7 @@ public class SimpleHttpServer implements HttpHandler {
 			ret = sb.toString();
 		}
 		catch(IOException e) {
-			MyLogger.error(e, "读取网络输入流时错误.");
+			logger.error(Fmt.fmt("readStringFromInputStream error: {}", e.getMessage()), e);
 		}
 		finally {
 			ciItem.recycle();

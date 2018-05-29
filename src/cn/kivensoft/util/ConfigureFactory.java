@@ -2,7 +2,6 @@ package cn.kivensoft.util;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -13,10 +12,17 @@ import java.util.Map;
 import java.util.Properties;
 
 import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.joran.JoranConfigurator;
+import ch.qos.logback.core.joran.spi.JoranException;
 
 public final class ConfigureFactory {
 	private static final String UTF8 = "UTF-8";
 	private static final String LOG4J = "log4j.properties";
+	private static final String LOGBACK = "logback.xml";
 
 	private Class<?> mainClass;
 	private String rootPath;
@@ -36,9 +42,21 @@ public final class ConfigureFactory {
 		this.dirs = dirs;
 	}
 	
+	public ConfigureFactory initLog4j() {
+		return initLog4j(LOG4J);
+	}
+	
 	public ConfigureFactory initLog4j(String log4jFileName) {
-		if (log4jFileName == null) log4jFileName = LOG4J;
 		initLog4j(log4jFileName, mainClass, rootPath, dirs);
+		return this;
+	}
+	
+	public ConfigureFactory initLogback() {
+		return initLogback(LOGBACK);
+	}
+	
+	public ConfigureFactory initLogback(String logbackFileName) {
+		initLogback(logbackFileName, mainClass, rootPath, dirs);
 		return this;
 	}
 	
@@ -80,7 +98,8 @@ public final class ConfigureFactory {
 						m.invoke(config, obj_args);
 					}
 					catch (Exception e) {
-						MyLogger.warn(e, "invoke method error.");
+						LoggerFactory.getLogger(getClass()).warn(
+								Fmt.fmt("读取配置文件错误: {}", e.getMessage()), e);
 					}
 				}
 			}
@@ -89,29 +108,28 @@ public final class ConfigureFactory {
 	}
 	
 	/** 加载配置文件, 优先以普通文件方式加载, 找不到则尝试以资源文件方式加载
-	 * @param fileName 文件名
+	 * @param filename 文件名
 	 * @param mainClass 应用程序main函数入库所在的类
 	 * @param rootPath 根目录
 	 * @param dirs 尝试加载的子目录数组, 按顺序优先
 	 * @return 配置文件内容, 为null表示加载失败
 	 */
-	public static Properties load(String fileName, Class<?> mainClass,
+	public static Properties load(String filename, Class<?> mainClass,
 			String rootPath, String[] dirs) {
-		InputStream is = getResourceAsStream(fileName, mainClass, rootPath, dirs);
-		if (is == null) return null;
+		InputStream is = getResourceAsStream(filename, mainClass, rootPath, dirs);
 		InputStreamReader reader = null;
 		try {
 			reader = new InputStreamReader(is, UTF8);
 			Properties props = new Properties();
 			props.load(reader);
 			return props;
-		} catch (IOException e) {
-			MyLogger.error(e);
-		}
-		finally {
+		} catch(IOException e) {
+			LoggerFactory.getLogger(ConfigureFactory.class).error(
+					Fmt.fmt("load property file {} error: {}", filename, e.getMessage()), e);
+			return null;
+		} finally {
 			Langs.close(reader, is);
 		}
-		return null;
 	}
 	
 	/** 获取程序路径，主要是要区分部署与开发之间的路径区别 
@@ -139,77 +157,99 @@ public final class ConfigureFactory {
 	}
 
 	/** 初始化自定义的日志文件配置，在应用的根目录查找  */
-	public static void initLog4j(String fileName, Class<?> mainClass,
+	public static void initLog4j(String filename, Class<?> mainClass,
 			String rootPath, String[] dirs) {
+		Logger logger = LoggerFactory.getLogger(ConfigureFactory.class);
 		//加载日志配置文件
-		Properties props = load(fileName, mainClass, rootPath, dirs);
-		if (props == null) return;
-		/*
-		Class.forName("org.apache.log4j.PropertyConfigurator")
-			.getMethod("configure", Properties.class)
-			.invoke(null, props);
-		*/
+		Properties props = load(filename, mainClass, rootPath, dirs);
+		if (props == null) {
+			logger.warn("init log4j configure file {} error, can't read.",
+					findResource(filename, mainClass, rootPath, dirs));
+			return;
+		}
+
 		PropertyConfigurator.configure(props);
-		MyLogger.info("加载日志配置文件: {}",
-				findResource(fileName, mainClass, rootPath, dirs));
+		logger.info("init log4j configure: {}",
+				findResource(filename, mainClass, rootPath, dirs));
+	}
+	
+	public static void initLogback(String filename, Class<?> mainClass,
+			String rootPath, String[] dirs) {
+		InputStream is = getResourceAsStream(filename, mainClass, rootPath, dirs);
+		if (is == null) {
+			LoggerFactory.getLogger(ConfigureFactory.class).warn(
+					"init logback configure file {} error, can't read.",
+					findResource(filename, mainClass, rootPath, dirs));
+			return;
+		}
+		LoggerContext loggerContext = (LoggerContext)LoggerFactory.getILoggerFactory();
+		loggerContext.reset();
+		JoranConfigurator joranConfigurator = new JoranConfigurator();
+		joranConfigurator.setContext(loggerContext);
+		try {
+			joranConfigurator.doConfigure(is);
+		} catch (JoranException e) {
+			LoggerFactory.getLogger(ConfigureFactory.class).error(
+					Fmt.fmt("init logback configure file error: {}", e.getMessage()), e);
+		}
 	}
 	
 	/** 加载资源文件, 优先以普通文件方式加载, 找不到则尝试以资源文件方式加载
-	 * @param fileName 文件名
+	 * @param filename 文件名
 	 * @param mainClass 应用程序main函数入库所在的类
 	 * @param rootPath 根目录
 	 * @param dirs 尝试加载的子目录数组, 按顺序优先
 	 * @return 文件的输入流, 为null则加载失败
 	 */
-	public static InputStream getResourceAsStream(String fileName,
+	public static InputStream getResourceAsStream(String filename,
 			Class<?> mainClass, String rootPath, String[] dirs) {
+		Logger logger = LoggerFactory.getLogger(ConfigureFactory.class);
 		File f = null;
 		int len = dirs.length;
 		// 优先加载磁盘路径下的文件
 		for (int i = 0; i < len; ++i) {
-			f = new File(joinPath(rootPath, dirs[i], fileName));
+			f = new File(joinPath(rootPath, dirs[i], filename));
 			if (f.exists()) {
 				try {
 					FileInputStream fs = new FileInputStream(f);
-					MyLogger.debug("load resource: {}", f.getAbsolutePath());
 					return fs;
-				} catch (FileNotFoundException e) {
-					MyLogger.error(e, "can't open resource {}: {}",
-							f.getAbsolutePath(), e.getMessage());
+				} catch (IOException e) {
+					logger.error(Fmt.fmt("load resource {} error: {}",
+							f.getAbsolutePath()), e);
+					return null;
 				}
 			}
 		}
 		// 尝试以加载资源的方式加载文件
 		for (int i = 0; i < len; ++i) {
-			String p = joinPath("/", dirs[i], fileName);
+			String p = joinPath("/", dirs[i], filename);
 			InputStream is = mainClass.getResourceAsStream(p);
-			if (is != null) {
-				MyLogger.debug("load resource: ", p);
-				return is;
-			}
+			if (is != null) return is;
 		}
+		
+		logger.error("load resource error, can't find {} in {}", Fmt.concat(dirs));
 		return null;
 	}
 	
 	/** 查找资源文件, 优先查找普通文件方式, 找不到则尝试查找资源文件
-	 * @param fileName 文件名
+	 * @param filename 文件名
 	 * @param mainClass 应用程序main函数入库所在的类
 	 * @param rootPath 根目录
 	 * @param dirs 尝试查找的子目录数组, 按顺序优先
 	 * @return 找到的文件全路径名, '/'开头表示是资源文件, 为null则查找失败
 	 */
-	public static String findResource(String fileName,
+	public static String findResource(String filename,
 			Class<?> mainClass, String rootPath, String[] dirs) {
 		File f = null;
 		int len = dirs.length;
 		// 查找磁盘路径下的文件
 		for (int i = 0; i < len; ++i) {
-			f = new File(joinPath(rootPath, dirs[i], fileName));
+			f = new File(joinPath(rootPath, dirs[i], filename));
 			if (f.exists()) return f.getAbsolutePath();
 		}
 		// 查找资源文件
 		for (int i = 0; i < len; ++i) {
-			String path = joinPath("/", dirs[i], fileName);
+			String path = joinPath("/", dirs[i], filename);
 			InputStream is = mainClass.getResourceAsStream(path);
 			if (is != null) {
 				Langs.close(is);

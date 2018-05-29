@@ -16,7 +16,9 @@ import javax.sql.ConnectionPoolDataSource;
 import javax.sql.PooledConnection;
 import javax.xml.ws.WebServiceException;
 
-import cn.kivensoft.util.MyLogger;
+import org.slf4j.LoggerFactory;
+
+import cn.kivensoft.util.Fmt;
 
 /** 轻量级连接池类
  * @author kiven lee
@@ -73,7 +75,8 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 		schedule.scheduleWithFixedDelay(this, DELAY_SECONDS,
 				DELAY_SECONDS, TimeUnit.SECONDS);
 		
-		MyLogger.info("初始化数据库连接池，url={}, live={}, minIdle={}, maxIdle={}",
+		LoggerFactory.getLogger(getClass()).info(
+				"初始化数据库连接池，url={}, live={}, minIdle={}, maxIdle={}",
 				url, recycledConnections.size(), minIdle, maxIdle);
 	}
 	
@@ -135,7 +138,8 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 			pconn.close();
 		}
 		catch (SQLException e) {
-			MyLogger.warn(e, "Error while closing database connection: {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).warn(Fmt.fmt(
+					"Error while closing database connection: {}", e.getMessage()), e);
 		}
 	}
 
@@ -160,7 +164,8 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 			}
 		}
 		catch(SQLException e) {
-			MyLogger.error(e, "Error when create database connection.");
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"Error when create database connection: {}", e.getMessage()), e);
 		}
 
 		// 如果线程池中可用连接数大于最大空闲连接数，则释放
@@ -213,7 +218,8 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 			return getConnection();
 		}
 		catch (SQLException e) {
-			MyLogger.error(e, "获取数据库连接出错.");
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"获取数据库连接出错: {}", e.getMessage()), e);
 			return null;
 		}
 	}

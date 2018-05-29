@@ -11,8 +11,9 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import org.slf4j.LoggerFactory;
+
 import cn.kivensoft.util.Fmt;
-import cn.kivensoft.util.MyLogger;
 
 public class BaseDbContext {
 
@@ -48,16 +49,20 @@ public class BaseDbContext {
 			result = constructor.newInstance(this);
 			daos.put(clsName, result);
 		} catch (NoSuchMethodException e) {
-			MyLogger.error(e, "class {} constructor(BaseDbContext dbContext) not found.", clsName);
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"class {} constructor(BaseDbContext dbContext) not found: {}",
+					clsName, e.getMessage()), e);
 			throw new SQLException(e);
 		} catch (Exception e) {
-			MyLogger.error(e, "class {} constructor(BaseDbContext dbContext) call fail.", clsName);
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"class {} constructor(BaseDbContext dbContext) call fail: {}",
+					clsName, e.getMessage()), e);
 			throw new SQLException(e);
 		}
 
 		return result;
 	}
-	
+
 	final public BaseDao getDao() throws SQLException {
 		return getDao(BaseDao.class);
 	}
@@ -82,7 +87,8 @@ public class BaseDbContext {
 				connection.close();
 				connection = null;
 			} catch(SQLException e) {
-				MyLogger.error(e, "connection close error, {}", e.getMessage());
+				LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+						"connection close error: {}", e.getMessage()), e);
 			}
 		}
 	}
@@ -95,11 +101,12 @@ public class BaseDbContext {
 		 try {
 			return connection.getAutoCommit() == false;
 		} catch (SQLException e) {
-			MyLogger.error(e, "isTransaction error, {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"isTransaction error: {}", e.getMessage()), e);
 			return false;
 		}
 	}
-	
+
 	/**开始一个事务，如果上一次事务尚未提交或回滚，禁止再次开启事务 */
 	final public void beginTransaction() throws SQLException {
 		try {
@@ -118,11 +125,12 @@ public class BaseDbContext {
 			}
 		}
 		catch (SQLException e) {
-			MyLogger.error(e, "beginTransaction error, {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"beginTransaction error: {}", e.getMessage()), e);
 			throw e;
 		}
 	}
-	
+
 	/** 提交事务 */
 	final public void commit() throws SQLException {
 		if (connection == null) return;
@@ -141,11 +149,12 @@ public class BaseDbContext {
 			connection = null;
 		}
 		catch (SQLException e) {
-			MyLogger.error(e, "commit error, {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"commit error: {}", e.getMessage()), e);
 			throw e;
 		}
 	}
-	
+
 	/** 回滚事务 */
 	final public void rollback() {
 		if (connection == null) return;
@@ -164,10 +173,11 @@ public class BaseDbContext {
 			connection = null;
 		}
 		catch(SQLException e) {
-			MyLogger.error(e, "rollback error, {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"rollback error: {}", e.getMessage()), e);
 		}
 	}
-	
+
 	/** 事务回调处理函数,包装创建事务及提交和回滚事务的方法
 	 * @param transaction 回调函数,发生SQLException时回滚事务
 	 * @param predicate 返回值测试回调函数,返回true则提交事务,false回滚事务
@@ -185,12 +195,13 @@ public class BaseDbContext {
 			return ret;
 		}
 		catch (SQLException e) {
-			MyLogger.error(e, "transaction error, {}", e.getMessage());
+			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+					"transaction error: {}", e.getMessage()), e);
 			rollback();
 			throw e;
 		}
 	}
-	
+
 	/** 关闭数据库连接 */
 	final public void closeIfNotShared(Connection conn) {
 		if (conn != connection && conn != null) {
@@ -198,7 +209,8 @@ public class BaseDbContext {
 				conn.close();
 				conn = null;
 			} catch(SQLException e) {
-				MyLogger.error(e, "connection close error, {}", e.getMessage());
+				LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
+						"connection close error: {}", e.getMessage()), e);
 			}
 		}
 	}
@@ -218,4 +230,5 @@ public class BaseDbContext {
 
 		return result;
 	}
+
 }

@@ -10,12 +10,14 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
-import cn.kivensoft.util.MyLogger;
 
 public class HttpClient {
 	private static final String UTF8 = "UTF-8";
@@ -38,6 +40,7 @@ public class HttpClient {
 	 */
 	@SuppressWarnings("unchecked")
 	public static String get(String url, Object param) throws IOException {
+		Logger logger = LoggerFactory.getLogger(HttpClient.class);
 		// 编码请求参数
 		String req = null;
 		if (param != null) {
@@ -56,7 +59,7 @@ public class HttpClient {
 		}
 		url = f.release();
 		
-		MyLogger.debug("请求服务地址: {}", url);
+		logger.debug("请求服务地址: {}", url);
 		URL _url = new URL(url);
 		HttpURLConnection conn = (HttpURLConnection)_url.openConnection();
 		conn.setRequestProperty("Accept", "*/*");
@@ -73,7 +76,7 @@ public class HttpClient {
 			int count;
 			while ((count = in.read(buf)) != -1) f.append(buf, 0, count);
 			String response = f.release();
-			MyLogger.debug("返回结果: {}", response);
+			logger.debug("返回结果: {}", response);
 			return response;
 		} finally {
 			if (in != null) Langs.close(in);
@@ -96,14 +99,15 @@ public class HttpClient {
 	 * @return
 	 */
 	public static String post(String url, Object param) throws IOException {
+		Logger logger = LoggerFactory.getLogger(HttpClient.class);
 		// 编码请求参数
 		String req = null;
 		if (param != null)
 			req = param.getClass() == String.class ? (String)param
 					: JSON.toJSONString(param, SerializerFeature.WriteDateUseDateFormat,
 							SerializerFeature.DisableCircularReferenceDetect);
-		MyLogger.debug("请求服务地址: {}", url);
-		MyLogger.debug("请求内容: {}", req);
+		logger.debug("请求服务地址: {}", url);
+		logger.debug("请求内容: {}", req);
 
 		byte[] req_bytes = req == null ? new byte[0] : req.getBytes(UTF8);
 		OutputStream out = null;
@@ -131,7 +135,7 @@ public class HttpClient {
 			int count;
 			while ((count = in.read(buf)) != -1) f.append(buf, 0, count);
 			String response = f.release();
-			MyLogger.debug("返回结果: {}", response);
+			logger.debug("返回结果: {}", response);
 			return response;
 		} finally {
 			if (out != null) Langs.close(out);
@@ -146,6 +150,7 @@ public class HttpClient {
 	 */
 	@SuppressWarnings("unchecked")
 	public static String postFormData(String url, Object param) throws IOException {
+		Logger logger = LoggerFactory.getLogger(HttpClient.class);
 		// 编码请求参数
 		String req = null;
 		if (param != null) {
@@ -156,8 +161,8 @@ public class HttpClient {
 			else
 				req = encodeParam(param);
 		}
-		MyLogger.debug("请求服务地址: {}", url);
-		MyLogger.debug("请求内容: {}", req);
+		logger.debug("请求服务地址: {}", url);
+		logger.debug("请求内容: {}", req);
 
 		byte[] req_bytes = req == null ? new byte[0] : req.getBytes(UTF8);
 		URL _url = new URL(url);
@@ -185,7 +190,7 @@ public class HttpClient {
 			int count;
 			while ((count = in.read(buf)) != -1) f.append(buf, 0, count);
 			String response = f.release();
-			MyLogger.debug("返回结果: {}", response);
+			logger.debug("返回结果: {}", response);
 			return response;
 		} finally {
 			if (out != null) Langs.close(out);
@@ -202,7 +207,9 @@ public class HttpClient {
 			try {
 				f.append(URLEncoder.encode(v, UTF8)).append('&');
 			} catch (UnsupportedEncodingException e) {
-				MyLogger.error(e, "不支持{}编码.", UTF8);
+				LoggerFactory.getLogger(HttpClient.class).error(Fmt.fmt(
+						"unsupport {} character encode: {}",
+						UTF8, e.getMessage()), e);
 			}
 		});
 
@@ -221,7 +228,9 @@ public class HttpClient {
 			if (f.length() > 0) f.setLength(f.length() - 1);
 		}
 		catch (UnsupportedEncodingException e) {
-			MyLogger.error(e, "不支持{}编码.", UTF8);
+			LoggerFactory.getLogger(HttpClient.class).error(Fmt.fmt(
+					"unsupport {} character encode: {}",
+					UTF8, e.getMessage()), e);
 		}
 		return f.release();
 	}
