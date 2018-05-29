@@ -57,6 +57,10 @@ public class BaseDbContext {
 
 		return result;
 	}
+	
+	final public BaseDao getDao() throws SQLException {
+		return getDao(BaseDao.class);
+	}
 
 	final public Connection getConnection() throws SQLException {
 		if (connection != null)
