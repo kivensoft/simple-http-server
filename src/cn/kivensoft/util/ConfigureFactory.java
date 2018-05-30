@@ -11,13 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
 
-import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.LoggerContext;
-import ch.qos.logback.classic.joran.JoranConfigurator;
-import ch.qos.logback.core.joran.spi.JoranException;
 
 public final class ConfigureFactory {
 	private static final String UTF8 = "UTF-8";
@@ -168,9 +163,16 @@ public final class ConfigureFactory {
 			return;
 		}
 
-		PropertyConfigurator.configure(props);
-		logger.info("init log4j configure: {}",
-				findResource(filename, mainClass, rootPath, dirs));
+		try {
+			Class.forName("org.apache.log4j.PropertyConfigurator")
+				.getMethod("configure", Properties.class)
+				.invoke(null, props);
+			logger.info("init log4j configure {} success",
+					findResource(filename, mainClass, rootPath, dirs));
+		} catch (Exception e) {
+			logger.error(Fmt.fmt("init log4j configure {} error: {}",
+					filename, e.getMessage()), e);
+		}
 	}
 	
 	public static void initLogback(String filename, Class<?> mainClass,
@@ -182,15 +184,28 @@ public final class ConfigureFactory {
 					findResource(filename, mainClass, rootPath, dirs));
 			return;
 		}
-		LoggerContext loggerContext = (LoggerContext)LoggerFactory.getILoggerFactory();
-		loggerContext.reset();
-		JoranConfigurator joranConfigurator = new JoranConfigurator();
-		joranConfigurator.setContext(loggerContext);
 		try {
-			joranConfigurator.doConfigure(is);
-		} catch (JoranException e) {
+			Class<?> ctx_cls = Class.forName("ch.qos.logback.classic.LoggerContext");
+			Object loggerContext = LoggerFactory.getILoggerFactory();
+			ctx_cls.getMethod("reset").invoke(loggerContext);
+			//LoggerContext loggerContext = (LoggerContext)LoggerFactory.getILoggerFactory();
+			//loggerContext.reset();
+			Class<?> conf_cls = Class.forName("ch.qos.logback.classic.joran.JoranConfigurator");
+			Object joranConfigurator = conf_cls.newInstance();
+			conf_cls.getMethod("setContext", ctx_cls)
+					.invoke(joranConfigurator, loggerContext);
+			conf_cls.getMethod("doConfigure", InputStream.class)
+					.invoke(joranConfigurator, is);
+			LoggerFactory.getLogger(ConfigureFactory.class).info(
+					"init logback configure {} success",
+					findResource(filename, mainClass, rootPath, dirs));
+			//JoranConfigurator joranConfigurator = new JoranConfigurator();
+			//joranConfigurator.setContext(loggerContext);
+			//joranConfigurator.doConfigure(is);
+		} catch (Exception e) {
 			LoggerFactory.getLogger(ConfigureFactory.class).error(
-					Fmt.fmt("init logback configure file error: {}", e.getMessage()), e);
+					Fmt.fmt("init logback configure {} error: {}",
+							filename, e.getMessage()), e);
 		}
 	}
 	

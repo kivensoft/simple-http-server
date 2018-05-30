@@ -10,7 +10,6 @@ import java.util.Properties;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.apache.log4j.PropertyConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,7 +26,9 @@ public class Example {
 		props.put("log4j.appender.console.layout", "org.apache.log4j.PatternLayout");
 		props.put("log4j.appender.console.layout.ConversionPattern",
 				"[%-d{MM-dd HH:mm:ss.SSS}] [%-5p] [%C{1}:%L] %m%n");
-		PropertyConfigurator.configure(props);
+		Class.forName("org.apache.log4j.PropertyConfigurator")
+			.getMethod("", Properties.class)
+			.invoke(null, props);
 		
 		// 初始化web api服务器
 		SimpleHttpServer httpServer = new SimpleHttpServer();

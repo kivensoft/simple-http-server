@@ -914,7 +914,7 @@ public class BaseDao {
 		return execute(fmt.release(), args.toArray());
 	}
 	
-	private volatile int dbType = 0;
+	private volatile int dbType = 1;
 	private final String LAST_INSERT_QUERY_MYSQL = "select LAST_INSERT_ID()";
 	private final String LAST_INSERT_QUERY_HSQL = "call identity()";
 	
