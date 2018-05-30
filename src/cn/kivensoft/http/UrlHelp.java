@@ -56,8 +56,11 @@ final public class UrlHelp {
 			for (Desc desc : field.getAnnotationsByType(Desc.class)) {
 				if (!path.matches(desc.path()))
 					continue;
+				String type = desc.type();
+				if (type.isEmpty())
+					type = field.getType().getSimpleName();
 				ApiParamDesc apd = new ApiParamDesc(field.getName(),
-						desc.type(), desc.required(), desc.desc());
+						type, desc.required(), desc.desc());
 				result.add(apd);
 				if (desc.ref() != void.class)
 					apd.params = getApiParamDescs(path, desc.ref());

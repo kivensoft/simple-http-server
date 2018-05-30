@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 @Repeatable(Descs.class)
 public @interface Desc {
 	String path();
-	String type();
+	String type() default "";
 	boolean required() default false;
 	String desc();
 	Class<?> ref() default void.class;
