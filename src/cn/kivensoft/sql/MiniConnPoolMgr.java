@@ -16,6 +16,7 @@ import javax.sql.ConnectionPoolDataSource;
 import javax.sql.PooledConnection;
 import javax.xml.ws.WebServiceException;
 
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import cn.kivensoft.util.Fmt;
@@ -27,8 +28,9 @@ import cn.kivensoft.util.Fmt;
  */
 public final class MiniConnPoolMgr implements Supplier<Connection>,
 		Runnable, Closeable {
+	private static final boolean debug = false;
 	// 定时回收多余连接的间隔时间
-	private final int DELAY_SECONDS = 120;
+	private final int DELAY_SECONDS = 180;
 	
 	private final Queue<PooledConnection> recycledConnections =
 			new LinkedBlockingDeque<>();
@@ -71,12 +73,10 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 		
 		//创建ConnectionPoolDataSource
 		dataSource = createDataSource();
-		run();
 		schedule.scheduleWithFixedDelay(this, DELAY_SECONDS,
 				DELAY_SECONDS, TimeUnit.SECONDS);
 		
-		LoggerFactory.getLogger(getClass()).info(
-				"初始化数据库连接池，url={}, live={}, minIdle={}, maxIdle={}",
+		getLogger().info("初始化数据库连接池，url={}, live={}, minIdle={}, maxIdle={}",
 				url, recycledConnections.size(), minIdle, maxIdle);
 	}
 	
@@ -138,42 +138,65 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 			pconn.close();
 		}
 		catch (SQLException e) {
-			LoggerFactory.getLogger(getClass()).warn(Fmt.fmt(
-					"Error while closing database connection: {}", e.getMessage()), e);
+			getLogger().warn(Fmt.fmt("Error while closing database connection: {}",
+					e.getMessage()), e);
 		}
 	}
 
 	@Override
 	public void run() {
 		if (isDisposed) return;
-
-		PooledConnection pconn;
+		if (debug) getLogger().debug("start recycle database pool connection...");
 
 		// 删除线程池中无效的连接
-		while ((pconn = recycledConnections.poll()) != null) {
+		PooledConnection pconn = recycledConnections.poll(); 
+		PooledConnection first_pconn = pconn;
+		while (pconn != null) {
+			boolean valid = false;
 			try {
-			if (skipValid || pconn.getConnection().isValid(3))
-				recycledConnections.offer(pconn);
+				if (skipValid || pconn.getConnection().isValid(3)) valid = true;
 			} catch (SQLException e) {}
+			
+			if (valid) {
+				recycledConnections.offer(pconn);
+			} else {
+				if (debug) getLogger().debug("recycle invalid connection.");
+				try {
+					pconn.close();
+				} catch (SQLException e) { }
+			}
+			
+			pconn = recycledConnections.poll();
+			if (first_pconn == pconn) {
+				recycledConnections.offer(pconn);
+				break;
+			}
 		}
 
 		// 如果线程池中可用连接小于最小空闲连接数，则创建
 		try {
 			while(recycledConnections.size() < minIdle) {
 				recycledConnections.offer(dataSource.getPooledConnection());
+				if (debug)
+					getLogger().debug("new connection to database pool connection");
 			}
 		}
 		catch(SQLException e) {
-			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
-					"Error when create database connection: {}", e.getMessage()), e);
+			getLogger().error(Fmt.fmt("Error when create database connection: {}",
+					e.getMessage()), e);
 		}
 
 		// 如果线程池中可用连接数大于最大空闲连接数，则释放
 		while(recycledConnections.size() > maxIdle) {
 			pconn = recycledConnections.poll();
-			if (pconn != null) disposeConnection(pconn);
+			if (pconn != null) {
+				disposeConnection(pconn);
+				if (debug)
+					getLogger().debug("recycle connection from database pool connection.");
+			}
 			else break;
 		}
+		if (debug) getLogger().debug("recycle database pool connection end.");
 	}
 	
 	public int getRecycledConnections() {
@@ -218,8 +241,7 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 			return getConnection();
 		}
 		catch (SQLException e) {
-			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
-					"获取数据库连接出错: {}", e.getMessage()), e);
+			getLogger().error(Fmt.fmt("获取数据库连接出错: {}", e.getMessage()), e);
 			return null;
 		}
 	}
@@ -233,4 +255,7 @@ public final class MiniConnPoolMgr implements Supplier<Connection>,
 			disposeConnection(pconn);
 	}
 
+	private Logger getLogger() {
+		return LoggerFactory.getLogger(getClass());
+	}
 }

@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.function.BiConsumer;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,7 @@ import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
 
 import cn.kivensoft.util.Fmt;
+import cn.kivensoft.util.Pair;
 import cn.kivensoft.util.WeakCache;
 
 /** 简单的DAO基类
@@ -758,15 +760,14 @@ public class BaseDao {
 	 */
 	final public int updateById(Object arg) throws SQLException {
 		Class<?> argClass = arg.getClass();
-
 		List<String> fs = getFieldsByCache(argClass);
 		if (fs.size() == 0)
 			throw new SQLException(Fmt.fmt("{} not field.", argClass.getName()));
 
-		List<Object> args = new LinkedList<>();
 		MethodAccess ma = getMethodAccessByCache(argClass);
 		FieldAccess fa = getFieldAccessByCache(argClass);
 
+		List<Object> args = new LinkedList<>();
 		String id_field = fs.get(0);
 		Object id_data = null;
 		int index = ma.getIndex(fieldToGetMethod(id_field));
@@ -823,39 +824,46 @@ public class BaseDao {
 	
 	@SuppressWarnings("unchecked")
 	final public <T> T selectBy(T arg) throws SQLException {
+		final String and = " and ";
 		List<Object> args = new LinkedList<>();
 
-		Class<?> argClass = arg.getClass();
-		List<String> fs = getFieldsByCache(argClass);
-		if (fs.size() == 0)
-			throw new SQLException(Fmt.fmt("{} not field.", argClass.getName()));
-		MethodAccess ma = getMethodAccessByCache(argClass);
-		FieldAccess fa = getFieldAccessByCache(argClass);
-
-		Fmt fmt = Fmt.get().format("select * from {} where ",
-				classToTable(argClass.getSimpleName()));
-		StringBuilder sb = fmt.getBuffer();
-		boolean first = true;
-
-		for (String f : fs) {
-			Object v = null;
-			int index = ma.getIndex(fieldToGetMethod(f));
-			if (index != -1) {
-				v = ma.invoke(arg, index);
-			} else {
-				index = fa.getIndex(f);
-				if (index != -1) v = fa.get(arg, index);
-				else continue;
+		Fmt whereFmt = Fmt.get();
+		forEachField(arg, (name, value) -> {
+			if (value != null) {
+				whereFmt.append(and).append(fieldToColumn(name)).append(" = ?");
+				args.add(value);
 			}
-			// 如果忽略空字段, 则跳过空字段
-			if (v == null) continue;
+		});
 
-			if (first) first = false;
-			else sb.append(" and ");
-			sb.append(fieldToColumn(f)).append(" = ?");
-			args.add(v);
+		Fmt sqlFmt = Fmt.get().append("select * from ")
+				.append(classToTable(arg.getClass().getSimpleName()));
+		if (whereFmt.length() > and.length())
+			sqlFmt.append(" where ").append(whereFmt.subSequence(and.length()));
+		return (T) queryForObject(sqlFmt.release(), arg.getClass(), args.toArray());
+	}
+	
+	final public <T> T selectBy(String select, DynParams arg, Class<T> cls) throws SQLException {
+		return selectBy(select, arg, cls, null, null);
+	}
+	
+	final public <T> T selectBy(String select, DynParams arg, Class<T> cls,
+			String appendWhere, String endSql) throws SQLException {
+		Fmt f = Fmt.get().append(select);
+		int minSize = f.length();
+		if (arg != null && !arg.isEmpty()) {
+			f.append(" where ");
+			for (String column : arg.getColumns()) {
+				f.append(column).append(" = ? and ");
+			}
 		}
-		return (T) queryForObject(fmt.release(), arg.getClass(), args.toArray());
+		if (f.length() > minSize) f.deleteLastChar(5);
+		if (appendWhere != null) {
+			if (f.length() == minSize) f.append(" where ");
+			else f.append(" and ");
+			f.append(appendWhere);
+		}
+		if (endSql != null) f.append(' ').append(endSql);
+		return queryForObject(f.release(), cls, arg.getValues().toArray());
 	}
 	
 	/** 根据ID删除记录, 动态生成sql
@@ -953,6 +961,64 @@ public class BaseDao {
 		} finally {
 			closeResource(stmt, rs);
 		}
+	}
+
+	final public void forEachField(Object arg, BiConsumer<String, Object> consumer) {
+		Class<?> argClass = arg.getClass();
+		List<String> fs = getFieldsByCache(argClass);
+		if (fs.size() == 0) return;
+		MethodAccess ma = getMethodAccessByCache(argClass);
+		FieldAccess fa = getFieldAccessByCache(argClass);
+
+		for (String f : fs) {
+			Object v = null;
+			int index = ma.getIndex(fieldToGetMethod(f));
+			if (index != -1) {
+				v = ma.invoke(arg, index);
+			} else {
+				index = fa.getIndex(f);
+				if (index != -1) v = fa.get(arg, index);
+				else continue;
+			}
+			consumer.accept(f, v);
+		}
+	}
+	
+	final public Pair<String, List<Object>> DynamicWhere(Object arg) {
+		return DynamicWhere(null, arg);
+	}
+	
+	final public Pair<String, List<Object>> DynamicWhere(String alias, Object arg) {
+		List<Object> params = new LinkedList<>();
+		Fmt dynFmt = Fmt.get();
+		forEachField(arg, (name, value) -> {
+			if (value != null) {
+				if (alias != null) dynFmt.append(alias).append('.');
+				dynFmt.append(fieldToColumn(name)).append(" = ? and ");
+				params.add(value);
+			}
+		});
+		if (dynFmt.length() > 4) dynFmt.deleteLastChar(4);
+
+		return Pair.of(dynFmt.release(), params);
+	}
+	
+	@SafeVarargs
+	final public Pair<String, List<Object>> DynamicWhere(Pair<String, Object>... args) {
+		List<Object> params = new LinkedList<>();
+		Fmt dynFmt = Fmt.get();
+		for(Pair<String, Object> pair : args) {
+			forEachField(pair.getSecond(), (name, value) -> {
+				if (value != null) {
+					if (pair.getFirst() != null) dynFmt.append(pair.getFirst()).append('.');
+					dynFmt.append(fieldToColumn(name)).append(" = ? and ");
+					params.add(value);
+				}
+			});
+		}
+		if (dynFmt.length() > 4) dynFmt.deleteLastChar(4);
+
+		return Pair.of(dynFmt.release(), params);
 	}
 	
 	/** 关闭资源 */

@@ -28,7 +28,7 @@ public class HttpClient {
 	 * @param ResultClass 返回结果声明类
 	 * @return
 	 */
-	public static <T> T get(String url, Map<String, String> param,
+	public static <T> T get(String url, Object param,
 			Class<T> ResultClass) throws IOException {
 		return JSON.parseObject(get(url, param), ResultClass);
 	}
