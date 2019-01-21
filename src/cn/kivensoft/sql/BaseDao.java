@@ -30,6 +30,12 @@ import cn.kivensoft.util.WeakCache;
  *
  */
 public class BaseDao {
+	public static final int MYSQL = 1;
+	public static final int HSQL = 2;
+
+	private final String LAST_INSERT_QUERY_MYSQL = "select LAST_INSERT_ID()";
+	private final String LAST_INSERT_QUERY_HSQL = "call identity()";
+	
 	@FunctionalInterface
 	public static interface OnQuery<T> {
 		T apply(ResultSet rs) throws SQLException;
@@ -41,11 +47,17 @@ public class BaseDao {
 
 	protected Logger logger = LoggerFactory.getLogger(getClass());
 	protected BaseDbContext dbContext;
+	protected int dbType = MYSQL;
 
-	public BaseDao(BaseDbContext dbContext) {
+	public BaseDao(BaseDbContext dbContext, int dbType) {
 		if (dbContext == null)
 			throw new IllegalArgumentException("BaseDao constructor error, dbContext can't be null.");
 		this.dbContext = dbContext;
+		this.dbType = dbType;
+	}
+	
+	public BaseDao(BaseDbContext dbContext) {
+		this(dbContext, MYSQL);
 	}
 	
 	/** 批量执行SQL，参数批量
@@ -919,10 +931,6 @@ public class BaseDao {
 		return execute(fmt.release(), args.toArray());
 	}
 	
-	private volatile int dbType = 1;
-	private final String LAST_INSERT_QUERY_MYSQL = "select LAST_INSERT_ID()";
-	private final String LAST_INSERT_QUERY_HSQL = "call identity()";
-	
 	/** 插入记录后获取该记录的自增ID值
 	 * @return
 	 * @throws SQLException
@@ -941,9 +949,16 @@ public class BaseDao {
 		*/
 
 		String sql = null;
-		if (dbType == 1) sql = LAST_INSERT_QUERY_MYSQL;
-		else if (dbType == 2) sql = LAST_INSERT_QUERY_HSQL;
-		else throw new SQLException("unsupport database driver.");
+		switch (dbType) {
+			case MYSQL:
+				sql = LAST_INSERT_QUERY_MYSQL;
+				break;
+			case HSQL:
+				sql = LAST_INSERT_QUERY_HSQL;
+				break;
+			default:
+				throw new SQLException("unsupport database driver.");
+		}
 
 		Statement stmt = null;
 		ResultSet rs = null;
