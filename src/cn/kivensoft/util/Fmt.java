@@ -18,10 +18,9 @@ import java.util.Formatter;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.ObjIntConsumer;
@@ -43,28 +42,55 @@ public final class Fmt implements Appendable, CharSequence {
 	//private static final int MAX_CACHE_COUNT = 10;
 	
 	// 全局无锁非阻塞堆栈头部指针
-	//private static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
-	//private WeakReference<Fmt> self, next;
+	private static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
+	private final WeakReference<Fmt> self;
+	private WeakReference<Fmt> next;
 	
-	// 存放缓存Fmt对象的无阻塞队列
-	public static final Queue<WeakReference<Fmt>> queue = new LinkedBlockingQueue<>();
 	// UTF8字符集对象
 	public static final Charset utf8Charset = Charset.forName(UTF8);
 	public static final String newLine = System.getProperty("line.separator");
 	
-	private WeakReference<Fmt> ref;
 	//private StringBuilder buffer;
 	private TextBuilder buffer;
 	private Calendar calendar;
 	private Formatter formatter;
 	
+	// 无锁非阻塞弹出栈顶元素
+	private static Fmt pop() {
+		WeakReference<Fmt> old_head, new_head;
+		Fmt item;
+		do {
+			old_head = head.get();
+			if (old_head == null) return null;
+			item = old_head.get();
+			if (item == null) {
+				head.compareAndSet(old_head, null);
+				return null;
+			}
+			new_head = item.next;
+		} while (!head.compareAndSet(old_head, new_head));
+		item.next = null;
+		return item;
+	}
+
+	// 无锁非阻塞元素压入栈顶
+	private static void push(Fmt value) {
+		if (value.next != null) return;
+		WeakReference<Fmt> old_head;
+		do {
+			old_head = head.get();
+			if (old_head != null && old_head.get() != null)
+				value.next = old_head;
+		} while (!head.compareAndSet(old_head, value.self));
+	}
+
 	/** 构造函数
 	 * @param capacity 初始化容量大小
 	 */
 	private Fmt(int capacity) {
 		//buffer = new StringBuilder(capacity);
 		buffer = new TextBuilder();
-		ref = new WeakReference<>(this);
+		self = new WeakReference<>(this);
 	}
 
 
@@ -72,18 +98,14 @@ public final class Fmt implements Appendable, CharSequence {
 
 	/** 获取缓存中的Fmt实例 */
 	public static Fmt get() {
-		WeakReference<Fmt> ref;
-		while ((ref = queue.poll()) != null) {
-			Fmt f = ref.get();
-			if (f != null) return f;
-		}
-		return new Fmt(DEF_BUF_SIZE);
+		Fmt f = pop();
+		return f != null ? f : new Fmt(DEF_BUF_SIZE);
 	}
 	
 	//回收对象
 	public void recycle() {
 		buffer.setLength(0);
-		queue.offer(ref);
+		push(this);
 	}
 	
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出

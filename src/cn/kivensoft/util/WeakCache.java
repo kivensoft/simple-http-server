@@ -33,7 +33,7 @@ public class WeakCache<K, V> {
 		if (lock != null) lock.lock();
 		try {
 			WeakReference<V> ref = map.get(key);
-			return ref == null ? false : ref.get() == null;
+			return ref != null && ref.get() == null;
 		} finally {
 			if (lock != null) lock.unlock();
 		}
@@ -105,9 +105,9 @@ public class WeakCache<K, V> {
 	public static void main(String[] args) {
 		WeakCache<Integer, Long> cache = new WeakCache<>();
 		for (int i = 0; i < 10; i++)
-			cache.put(new Integer(i + 1000), new Long(i + 2000));
-		System.out.printf("key = %d, value = %d", cache.get(1005));
+			cache.put(i + 1000, (long)(i + 2000));
+		System.out.printf("key = %d, value = %d", 1005, cache.get(1005));
 		System.gc();
-		System.out.printf("key = %d, value = %d", cache.get(1005));
+		System.out.printf("key = %d, value = %d", 1005, cache.get(1005));
 	}
 }

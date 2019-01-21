@@ -7,6 +7,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import cn.kivensoft.util.ObjectPool;
+import cn.kivensoft.util.PoolItem;
 
 public class ObjectPoolTest {
 	
@@ -25,25 +26,24 @@ public class ObjectPoolTest {
 
 	@Test
 	public void test() {
-		for (int i = 0; i < 3; ++i) ints.recycle(new Integer(i));
-		
-		Integer[] vals = new Integer[3];
+		@SuppressWarnings("unchecked")
+		PoolItem<Integer>[] vals = new PoolItem[3];
 		for (int i = 0; i < 3; ++i) {
 			vals[i] = ints.get();
-			assertEquals(i, vals[i].intValue());
+			assertEquals(1000 + i, vals[i].get().intValue());
 		}
-		assertEquals(initValue, ints.get().intValue());
+		assertEquals(initValue, ints.get().get().intValue());
 		
 		for (int i = 0; i < 3; ++i) {
-			ints.recycle(vals[i]);
+			vals[i].recycle();;
 			vals[i] = null;
 		}
 		
 		for (int i = 0; i < 3; ++i) {
 			vals[i] = ints.get();
-			assertEquals(i, vals[i].intValue());
+			assertEquals(i, vals[i].get().intValue());
 		}
-		assertEquals(initValue, ints.get().intValue());
+		assertEquals(initValue, ints.get().get().intValue());
 	}
 }
 

@@ -33,6 +33,7 @@ import cn.kivensoft.httpserver.HttpServer;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
 import cn.kivensoft.util.ObjectPool;
+import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
 import cn.kivensoft.util.Strings;
 
@@ -338,8 +339,10 @@ public class SimpleHttpServer implements HttpHandler {
 	 */
 	private final String readStringFromInputStream(InputStream inputStream) {
 		String ret = null;
-		char[] buf = charsPool.get();
-		StringBuilder sb = bufferPool.get();
+		PoolItem<char[]> bufItem = charsPool.get();
+		PoolItem<StringBuilder> sbItem = bufferPool.get();
+		char[] buf = bufItem.get();
+		StringBuilder sb = sbItem.get();
 		try {
 			Reader reader = new BufferedReader(new InputStreamReader(inputStream, UTF8));
 			int readCount;
@@ -353,10 +356,10 @@ public class SimpleHttpServer implements HttpHandler {
 			logger.error(Fmt.fmt("readStringFromInputStream error: {}", e.getMessage()), e);
 		}
 		finally {
-			charsPool.recycle(buf);
-			bufferPool.recycle(sb);
+			bufItem.recycle();
+			sbItem.recycle();
 		}
-		
+	
 		return ret;
 	}
 	
