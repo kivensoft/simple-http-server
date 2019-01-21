@@ -37,43 +37,42 @@ public class NamedStatement implements Closeable {
 
 	private static final String parse(String query, Map<String, List<Integer>> paramMap) {
 		int len = query.length();
-		char[] src = query.toCharArray();
 		char[] sql = new char[len];
-		char[] name = new char[128];
+		char[] name = new char[256];
 		int sqlIdx = -1, mapIdx = 0, nameIdx;
 
 		for (int i = 0; i < len; ++i) {
-			char c = src[i];
+			char c = query.charAt(i);
 			switch (c) {
 				case '\'': //往前走知道下一个单引号
 					sql[++sqlIdx] = c;
 					for (++i; i < len; ++i) {
-						c = src[i];
-						if (c == '\'') break;
-						else sql[++sqlIdx] = c;
+						c = query.charAt(i);
+						sql[++sqlIdx] = c;
+						if (c == '\'' && query.charAt(i - 1) != '\\') break;
 					}
 					break;
 				case '"': //往前走直到下一个双引号
 					sql[++sqlIdx] = c;
 					for (++i; i < len; ++i) {
-						c = src[i];
-						if (c == '"') break;
-						else sql[++sqlIdx] = c;
+						c = query.charAt(i);
+						sql[++sqlIdx] = c;
+						if (c == '"' && query.charAt(i - 1) != '\\') break;
 					}
 					break;
 				case ':': //往前走直到标识符结束
 					sql[++sqlIdx] = '?';
 					for (nameIdx = -1, ++i; i < len; ++i) {
-						c = src[i];
+						c = query.charAt(i);
 						if (c < 0x30 || c > 0x39 && c < 0x41
 								|| c > 0x5A && c < 0x5F
-								|| c > 0x5F && c < 0x61 || c > 0x7A) {
+								|| c > 0x5F && c < 0x61) {
 							sql[++sqlIdx] = c;
 							break;
 						}
 						else name[++nameIdx] = c;
 					}
-					String str = String.valueOf(name, 0, nameIdx + 1);
+					String str = new String(name, 0, nameIdx + 1);
 					List<Integer> indexList = paramMap.get(str);
 					if (indexList == null) {
 						indexList = new ArrayList<Integer>();

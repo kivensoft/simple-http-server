@@ -7,8 +7,8 @@ package cn.kivensoft.util;
  * @param <V>
  */
 final public class Pair <K, V> {
-	private K first;
-	private V second;
+	public K first;
+	public V second;
 	
 	public Pair() { super(); }
 	

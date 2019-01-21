@@ -499,9 +499,14 @@ public final class Langs {
 		date.setTime((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
 	}
 	
-	/** 转换为GMT时间 */
-	public static Date gmtTime(Date date) {
+	/** GMT转换为本地时间 */
+	public static Date fromGmt(Date date) {
 		return new Date(date.getTime() + tzOffset);
+	}
+	
+	/** 本地时间转换为GMT */
+	public static Date toGmt(Date date) {
+		return new Date(date.getTime() - tzOffset);
 	}
 	
 	/** 合并两个int成long */

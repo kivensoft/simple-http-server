@@ -118,7 +118,7 @@ public class StringsTest {
 		List<String> ret3 = new ArrayList<>();
 
 		assertEquals(ret, Strings.split(" a bb  ccc   dddd  ", ' '));
-		assertEquals(ret, Strings.split(" a bb,ccc   dddd  ,,", ' ', ','));
+		assertEquals(ret, Strings.split(" a bb ,ccc   dddd  ,,", ' ', ','));
 		assertEquals(ret, Strings.split(" a.bb,ccc   dddd  ,,", " ,."));
 		assertEquals(ret2, Strings.split(" aa  ", ' '));
 		assertEquals(ret3, Strings.split("  ,,,    ,, ", " ,"));
@@ -126,8 +126,8 @@ public class StringsTest {
 	
 	@Test
 	public void testParseCmdLine() {
-		List<String> ret = Arrays.asList("/a1", "-b", "\\cd", "ff ff");
-		assertEquals(ret, Strings.parseCmdLine(" /a1  -b  \\cd \"ff ff\" "));
+		List<String> ret = Arrays.asList("/a1", "\\cd", "f f\\ \"ff", "'xx\"", "x\" ");
+		assertEquals(ret, Strings.parseCmdLine(" /a1  \\cd \"f f\\ \\\"ff\"  'xx\\\" \"x\\\" \"  "));
 	}
 }
 

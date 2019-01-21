@@ -18,9 +18,10 @@ import java.util.Formatter;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import java.util.TimeZone;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.ObjIntConsumer;
@@ -36,62 +37,34 @@ import java.util.stream.Stream;
  */
 public final class Fmt implements Appendable, CharSequence {
 	private static final String UTF8 = "UTF-8";
-	//允许回收的StringBuilder的最大长度，超过该长度的不进行回收
+	// 创建StringBuilder的缺省长度
 	private static final int DEF_BUF_SIZE = 256;
 	//缓冲对象的数量，超过的丢弃
 	//private static final int MAX_CACHE_COUNT = 10;
 	
 	// 全局无锁非阻塞堆栈头部指针
-	private static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
-	private WeakReference<Fmt> self, next;
+	//private static AtomicReference<WeakReference<Fmt>> head = new AtomicReference<>();
+	//private WeakReference<Fmt> self, next;
 	
-	public static Charset utf8Charset = Charset.forName(UTF8);
+	// 存放缓存Fmt对象的无阻塞队列
+	public static final Queue<WeakReference<Fmt>> queue = new LinkedBlockingQueue<>();
+	// UTF8字符集对象
+	public static final Charset utf8Charset = Charset.forName(UTF8);
+	public static final String newLine = System.getProperty("line.separator");
 	
-	// 无锁非阻塞弹出栈顶元素
-	public static Fmt pop() {
-		WeakReference<Fmt> _old_head, _new_head;
-		Fmt _item;
-		do {
-			_old_head = head.get();
-			if (_old_head == null) return null;
-			_item = _old_head.get();
-			if (_item == null) {
-				head.compareAndSet(_old_head, null);
-				return null;
-			}
-			_new_head = _item.next;
-		} while (!head.compareAndSet(_old_head, _new_head));
-		_item.next = null;
-		return _item;
-	}
-	
-	// 无锁非阻塞元素压入栈顶
-	public static void push(Fmt value) {
-		if (value.next != null) return;
-		WeakReference<Fmt> _old_head;
-		do {
-			_old_head = head.get();
-			if (_old_head != null && _old_head.get() != null)
-				value.next = _old_head;
-		} while (!head.compareAndSet(_old_head, value.self));
-	}
-	
-	private StringBuilder buffer;
+	private WeakReference<Fmt> ref;
+	//private StringBuilder buffer;
+	private TextBuilder buffer;
 	private Calendar calendar;
 	private Formatter formatter;
-	private String newline;
 	
-	/** 缺省构造函数 */
-	public Fmt() {
-		this(DEF_BUF_SIZE);
-	}
-
 	/** 构造函数
 	 * @param capacity 初始化容量大小
 	 */
-	public Fmt(int capacity) {
-		buffer = new StringBuilder(capacity);
-		self = new WeakReference<Fmt>(this);
+	private Fmt(int capacity) {
+		//buffer = new StringBuilder(capacity);
+		buffer = new TextBuilder();
+		ref = new WeakReference<>(this);
 	}
 
 
@@ -99,14 +72,26 @@ public final class Fmt implements Appendable, CharSequence {
 
 	/** 获取缓存中的Fmt实例 */
 	public static Fmt get() {
-		Fmt f = pop();
-		return f != null ? f : new Fmt();
+		WeakReference<Fmt> ref;
+		while ((ref = queue.poll()) != null) {
+			Fmt f = ref.get();
+			if (f != null) return f;
+		}
+		return new Fmt(DEF_BUF_SIZE);
 	}
 	
 	//回收对象
 	public void recycle() {
-		clear();
-		push(this);
+		buffer.setLength(0);
+		queue.offer(ref);
+	}
+	
+	/** 以{}为格式化标识符进行快速格式化，类似日志输出
+	 * @param arg 格式化参数
+	 * @return
+	 */
+	public static String fmt(Object arg) {
+		return get().append(arg).release();
 	}
 	
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
@@ -166,6 +151,21 @@ public final class Fmt implements Appendable, CharSequence {
 		return get().format(format, func).release();
 	}
 	
+	/** 以{}为格式化标识符进行快速格式化, null的对象跳过而不是格式化为"null"
+	 * @param format 格式化字符串
+	 * @param args 格式化参数
+	 * @return
+	 */
+	public static String fmtString(String format, Object... args) {
+		int len = args.length;
+		Object[] newArgs = new Object[len];
+		for (int i = 0; i < len; ++i) {
+			Object obj = args[i];
+			newArgs[i] = obj == null ? "" : obj;
+		}
+		return fmt(format, newArgs);
+	}
+	
 	/** C样式的格式化输出
 	 * @param format C样式的格式化字符串
 	 * @param args 格式化参数
@@ -180,7 +180,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param args 格式化参数
 	 */
 	public static void pl(String format, Object... args) {
-		get().format(format, args).toStream(System.out);;
+		get().format(format, args).nl().toStream(System.out);;
 	}
 
 	/** 输出到控制台
@@ -188,7 +188,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @param func 返回格式化参数的lambda表达式
 	 */
 	public static void pl(String format, IntFunction<Object> func) {
-		get().format(format, func).toStream(System.out);;
+		get().format(format, func).nl().toStream(System.out);;
 	}
 	
 	/** 输出到流
@@ -437,21 +437,9 @@ public final class Fmt implements Appendable, CharSequence {
 		System.out.println(Fmt.fmtJson(fmt, args));
 	}
 
-	/** 获取缓存对象数量 */
-	public static int getCacheCount() {
-		WeakReference<Fmt> h = head.get();
-		int count = 0;
-		while (h != null) {
-			Fmt f = h.get();
-			if (f == null) break;
-			h = f.next;
-			++count;
-		}
-		return count;
-	}
-	
 	/** 获取格式化对象依赖的Buffer属性 */
-	public StringBuilder getBuffer() {
+	public TextBuilder getBuffer() {
+	//public StringBuilder getBuffer() {
 		return buffer;
 	}
 
@@ -678,8 +666,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return 回车换行符
 	 */
 	public String NL() {
-		if (newline == null) newline = System.getProperty("line.separator");
-		return newline;
+		return newLine;
 	}
 	
 	/** 添加回车换行,与系统平台相关 */
@@ -1563,8 +1550,15 @@ public final class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 	
-	private final static char[] BASE64_DIGEST = 
-		"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toCharArray();
+	private final static char[] BASE64_DIGEST = {
+			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+			'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+			'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+			'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+			'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+			'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+			'w', 'x', 'y', 'z', '0', '1', '2', '3',
+			'4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
 
 	/** base64编码
@@ -1646,7 +1640,8 @@ public final class Fmt implements Appendable, CharSequence {
 
 	/** 删除指定位置的字符 */
 	public Fmt deleteCharAt(int index) {
-		buffer.deleteCharAt(index);
+		//buffer.deleteCharAt(index);
+		buffer.delete(index, index + 1);
 		return this;
 	}
 
@@ -1710,24 +1705,25 @@ public final class Fmt implements Appendable, CharSequence {
 		if(value == null) appendNull();
 		else if(value.length() == 0) buffer.append('"').append('"');
 		else {
-			StringBuilder buffer = this.buffer;
-			buffer.append('"');
+			//StringBuilder buffer = this.buffer;
+			TextBuilder buf = buffer;
+			buf.append('"');
 			for (int i = 0, len = value.length(); i < len; ++i) {
 				char c = value.charAt(i);
 				switch (c) {
-					case '\b': buffer.append('\\').append('b'); break;
-					case '\t': buffer.append('\\').append('t'); break;
-					case '\f': buffer.append('\\').append('f'); break;
-					case '\n': buffer.append('\\').append('n'); break;
-					case '\r': buffer.append('\\').append('r'); break;
+					case '\b': buf.append('\\').append('b'); break;
+					case '\t': buf.append('\\').append('t'); break;
+					case '\f': buf.append('\\').append('f'); break;
+					case '\n': buf.append('\\').append('n'); break;
+					case '\r': buf.append('\\').append('r'); break;
 					case '"': case '\'': case '/': case '\\':
-						buffer.append('\\').append(c);
+						buf.append('\\').append(c);
 						break;
 					default:
-						buffer.append(c);
+						buf.append(c);
 				}
 			}
-			buffer.append('"');
+			buf.append('"');
 		}
 	}
 	

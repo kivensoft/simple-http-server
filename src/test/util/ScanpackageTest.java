@@ -28,9 +28,8 @@ public class ScanpackageTest {
 		
 		names = ScanPackage.getClasses("cn", true,
 				v -> v.startsWith("cn.kivensoft.util.") && v.indexOf('$') == -1);
-		for (int i = 0; i < names.size(); ++i)
-			System.out.printf("names[%d] = %s\n", i, names.get(i));
 		assertEquals(16, names.size());
 	}
+	
 }
 

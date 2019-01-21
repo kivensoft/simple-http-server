@@ -27,7 +27,7 @@ public class Example {
 		props.put("log4j.appender.console.layout.ConversionPattern",
 				"[%-d{MM-dd HH:mm:ss.SSS}] [%-5p] [%C{1}:%L] %m%n");
 		Class.forName("org.apache.log4j.PropertyConfigurator")
-			.getMethod("", Properties.class)
+			.getMethod("configure", Properties.class)
 			.invoke(null, props);
 		
 		// 初始化web api服务器

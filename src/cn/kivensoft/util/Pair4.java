@@ -5,10 +5,10 @@ package cn.kivensoft.util;
  *
  */
 final public class Pair4 <T1, T2, T3, T4> {
-	private T1 first;
-	private T2 second;
-	private T3 three;
-	private T4 four;
+	public T1 first;
+	public T2 second;
+	public T3 three;
+	public T4 four;
 	
 	public Pair4() { super(); }
 	

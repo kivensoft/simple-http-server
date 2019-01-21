@@ -5,9 +5,9 @@ package cn.kivensoft.util;
  *
  */
 final public class Pair3 <T1, T2, T3> {
-	private T1 first;
-	private T2 second;
-	private T3 three;
+	public T1 first;
+	public T2 second;
+	public T3 three;
 	
 	public Pair3() { super(); }
 	

@@ -24,7 +24,8 @@ import javax.crypto.spec.SecretKeySpec;
 
 public abstract class Strings {
 	private final static String UTF8 = "UTF-8";
-	private final static char[] HEX_DIGEST = "0123456789abcdef".toCharArray();
+	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4',
+			'5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 	private final static char[] BASE64_DIGEST = {
 			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -32,15 +33,16 @@ public abstract class Strings {
 			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
-	private final static int[] INV = new int[128];
+	
+	private static int[] INV = null;
 
-	static {
-		Arrays.fill(INV, -1);
-		for (int i = 0, n = BASE64_DIGEST.length; i < n; ++i)
-			INV[BASE64_DIGEST[i]] = i;
-		INV[PAD] = 0;
-	}
+	private static DateFormat dfDate = null;
+	private static DateFormat dfDateTime = null;
+	private static DateFormat dfTime = null;
+	private static DateFormat dfGmtDateTime = null;
 
+	private static Calendar calendar = null;
+	private static Calendar gmt_calendar = null;
 	
 	/** 字符串空值转成空字符串
 	 * @param string
@@ -168,17 +170,17 @@ public abstract class Strings {
 	}
 
 	/** 字节数组转字符串 */
-	public static String ba2s(byte[] bytes) {
-		return ba2s(bytes, 0, bytes.length);
+	public static String fromBytes(byte[] bytes) {
+		return fromBytes(bytes, 0, bytes.length);
 	}
 	
 	/** 字节数组转字符串 */
-	public static String ba2s(byte[] bytes, int offset) {
-		return ba2s(bytes, 0, bytes.length - offset);
+	public static String fromBytes(byte[] bytes, int offset) {
+		return fromBytes(bytes, 0, bytes.length - offset);
 	}
 
 	/** 字节数组转字符串 */
-	public static String ba2s(byte[] bytes, int offset, int length) {
+	public static String fromBytes(byte[] bytes, int offset, int length) {
 		try {
 			return new String(bytes, offset, length, UTF8);
 		} catch (UnsupportedEncodingException e) {
@@ -187,7 +189,7 @@ public abstract class Strings {
 	}
 	
 	/** 字符串转字节数组 */
-	public static byte[] s2ba(String string) {
+	public static byte[] toBytes(String string) {
 		try {
 			return string.getBytes(UTF8);
 		} catch (UnsupportedEncodingException e) {
@@ -376,6 +378,18 @@ public abstract class Strings {
 
 	/** base64简单解码，处理自动换行 */
 	public static byte[] fromBase64(final String base64) {
+		if (INV == null) {
+			synchronized (Strings.class) {
+				if (INV == null) {
+					INV = new int[128];
+					Arrays.fill(INV, -1);
+					for (int i = 0, n = BASE64_DIGEST.length; i < n; ++i)
+						INV[BASE64_DIGEST[i]] = i;
+					INV[PAD] = 0;
+				}
+			}
+		}
+
 		byte[] bb = base64.getBytes();
 		// 计算"="等号数量
 		int padc = 0, nl = 0, i = bb.length;
@@ -450,19 +464,21 @@ public abstract class Strings {
 		return Pattern.matches("-?[0-9]+(\\.[0-9][0-9]?)?", text);
 	}
 	
-	private static DateFormat dfDate = null;
-	private static DateFormat dfDateTime = null;
-	private static DateFormat dfTime = null;
-	private static DateFormat dfGmtDateTime = null;
-
 	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
 	public static String formatDateTime(Date date) {
 		if (date == null) return "";
-		if (dfDateTime == null)
-			dfDateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		
+		if (dfDateTime == null) {
+			synchronized (Strings.class) {
+				if (dfDateTime == null) {
+					dfDateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+				}
+			}
+		}
+		
 		synchronized (dfDateTime) {
 			return dfDateTime.format(date);
 		}
@@ -474,10 +490,14 @@ public abstract class Strings {
 	 */
 	public static String formatDate(Date date) {
 		if (date == null) return "";
-		synchronized (calendar) {
-			calendar.setTime(date);
+		
+		if (dfDate == null) {
+			synchronized (Strings.class) {
+				if (dfDate == null)
+					dfDate = new SimpleDateFormat("yyyy-MM-dd");
+			}
 		}
-		if (dfDate == null) dfDate = new SimpleDateFormat("yyyy-MM-dd");
+		
 		synchronized (dfDate) {
 			return dfDate.format(date);
 		}
@@ -489,7 +509,14 @@ public abstract class Strings {
 	 */
 	public static String formatTime(Date date) {
 		if (date == null) return "";
-		if (dfTime == null) dfTime = new SimpleDateFormat("HH:mm:ss");
+
+		if (dfTime == null) {
+			synchronized (Strings.class) {
+				if (dfTime == null)
+					dfTime = new SimpleDateFormat("HH:mm:ss");
+			}
+		}
+
 		synchronized (dfTime) {
 			return dfTime.format(date);
 		}
@@ -501,10 +528,16 @@ public abstract class Strings {
 	 */
 	public static String formatGmtDateTime(Date date) {
 		if (date == null) return "";
+		
 		if (dfGmtDateTime == null) {
-			dfGmtDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-			dfGmtDateTime.setTimeZone(TimeZone.getTimeZone("GMT"));
+			synchronized (Strings.class) {
+				if (dfGmtDateTime == null) {
+					dfGmtDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+					dfGmtDateTime.setTimeZone(TimeZone.getTimeZone("GMT"));
+				}
+			}
 		}
+
 		synchronized (dfGmtDateTime) {
 			return dfGmtDateTime.format(date);
 		}
@@ -543,6 +576,11 @@ public abstract class Strings {
 		}
 		return result;
 	}
+    
+	/** 解析由逗号或空格分隔的数字字符串成整数数组 */
+    public static List<Integer> splitInt(String value) {
+    	return splitInt(value, new ArrayList<Integer>(), (i, v, r) -> r.add(v));
+    }
 	
 	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
 	public static int[] splitDate (String value) {
@@ -551,9 +589,6 @@ public abstract class Strings {
 		});
 	}
 	
-	private static Calendar calendar = null;
-	private static Calendar gmt_calendar = null;
-
 	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text) {
 		if (text == null || text.isEmpty()) return null;
@@ -563,12 +598,21 @@ public abstract class Strings {
 		Date ret = null;
 		Calendar cal;
 		if (isGmt) {
-			if (gmt_calendar == null)
-				gmt_calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+			if (gmt_calendar == null) {
+				synchronized (Strings.class) {
+					if (gmt_calendar == null) 
+						gmt_calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+				}
+			}
 			cal = gmt_calendar;
 		}
 		else {
-			if (calendar == null) calendar = Calendar.getInstance();
+			if (calendar == null) {
+				synchronized (Strings.class) {
+					if (calendar == null)
+						calendar = Calendar.getInstance();
+				}
+			}
 			cal = calendar;
 		}
 
@@ -577,6 +621,7 @@ public abstract class Strings {
 			cal.set(Calendar.MILLISECOND, vs[6]);
 			ret = cal.getTime();
 		}
+
 		return ret;
 	}
 	
@@ -613,16 +658,11 @@ public abstract class Strings {
 		if (line == null || line.isEmpty()) return args;
 
 		StringBuilder sb = new StringBuilder();
-		boolean inWord = false, isQuota = false, isEscape = false;
+		boolean inWord = false, isQuota = false;
 		// 处理用户输入的命令, 分割成标准的命令行参数
 		for (int pos = 0, len = line.length(); pos < len; pos++) {
 			char c = line.charAt(pos);
 			// 上一个是转义字符, 直接写入本字符
-			if (isEscape) {
-				sb.append(c);
-				isEscape = false;
-				continue;
-			}
 			switch (c) {
 				// 双引号内的空格不做处理, 否则生成一个命令或参数
 				case ' ':
@@ -653,14 +693,11 @@ public abstract class Strings {
 					break;
 				// 转义字符, 标记
 				case '\\':
-					if (inWord) {
-						if (isQuota) isEscape = true;
-						else sb.append(c);
+					if (pos + 1 < len && line.charAt(pos + 1) == '"') {
+						sb.append('"');
+						++pos;
 					}
-					else {
-						sb.append(c);
-						inWord = true;
-					}
+					else sb.append(c);
 					break;
 				
 				default:
@@ -751,13 +788,12 @@ public abstract class Strings {
 	public static <R> R split(String text, char[] separators, R result,
 			SplitConsumer<R> consumer) {
 		if (text == null || text.isEmpty()) return result;
-		int len = separators.length;
-		int index = -1;
+		int slen = separators.length, index = -1;
 		for (int i = 0, n = text.length(); i < n; ++i) {
 			char c = text.charAt(i);
 			int j = 0;
-			while (j < len && c != separators[j]) ++j;
-			if (j < len) {
+			while (j < slen && c != separators[j]) ++j;
+			if (j < slen) {
 				if (index != -1) {
 					consumer.accept(index, i, result);
 					index = -1;

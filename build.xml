@@ -58,6 +58,7 @@
 	<!-- 打包编译好的class文件进jar包，源文件打包到src目录下 -->
 	<target name="jar" depends="compiler">
 		<delete dir="${output}" includes="${ant.project.name}-${version}.jar" />
+		<!--
 		<pathconvert property="mf.classpath" pathsep=" ">
 			<path refid="${project.name}.classpath" />
 			<mapper>
@@ -67,6 +68,7 @@
 				</chainedmapper>
 			</mapper>
 		</pathconvert>
+		-->
 		<jar destfile="${jarfile}" filesetmanifest="mergewithoutmain">
 			<!-- 修改缺省主类 -->
 			<manifest>
@@ -74,7 +76,7 @@
 				<attribute name="Built-By" value="Kiven Lee" />
 				<attribute name="Build-Jdk" value="${java.version}" />
 				<attribute name="Main-Class" value="${MainClass}" />
-				<attribute name="Class-Path" value="${mf.classpath}" />
+				<!--attribute name="Class-Path" value="${mf.classpath}" /-->
 				<attribute name="Implementation-Title" value="${ant.project.name}" />
 				<attribute name="Implementation-Version" value="${version}" />
 				<attribute name="Implementation-Time" value="${build.time}" />

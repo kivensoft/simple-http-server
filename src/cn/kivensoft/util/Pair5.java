@@ -5,11 +5,11 @@ package cn.kivensoft.util;
  *
  */
 final public class Pair5 <T1, T2, T3, T4, T5> {
-	private T1 first;
-	private T2 second;
-	private T3 three;
-	private T4 four;
-	private T5 five;
+	public T1 first;
+	public T2 second;
+	public T3 three;
+	public T4 four;
+	public T5 five;
 	
 	public Pair5() { super(); }
 	

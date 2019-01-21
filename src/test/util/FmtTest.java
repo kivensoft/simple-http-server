@@ -66,27 +66,6 @@ public class FmtTest {
 	}
 
 	@Test
-	public void testCache() throws Exception {
-		Fmt f1 = Fmt.get();
-		Fmt f2 = Fmt.get();
-		Fmt f3 = Fmt.get();
-		assertEquals(0, Fmt.getCacheCount());
-		f3.recycle();
-		assertEquals(1, Fmt.getCacheCount());
-		f2.recycle();
-		assertEquals(2, Fmt.getCacheCount());
-		f2 = Fmt.get();
-		assertEquals(1, Fmt.getCacheCount());
-		f1.recycle();
-		f2.recycle();
-		assertEquals(3, Fmt.getCacheCount());
-		f1 = null; f2 = null; f3 = null;
-		System.gc();
-		Thread.sleep(1);
-		assertEquals(0, Fmt.getCacheCount());
-	}
-	
-	@Test
 	public void testFormat() {
 		Date d = Strings.parseDate("2004-1-3 4:5:6");
 		int[] ints = {3, 5, 9};
@@ -141,16 +120,18 @@ public class FmtTest {
 				Fmt.fmt("0x{}, {}, {}", (f, i) -> {
 			switch (i) {
 				case 0: f.appendHex(0xF2345678); break;
-				case 1: f.appendBase64(Strings.s2ba("口令1"), false); break;
+				case 1: f.appendBase64(Strings.toBytes("口令1"), false); break;
 				case 2: f.repeat("-", 8, '=', '0'); break;
 			}
 		}));
+		
+		assertEquals(Fmt.fmt("0123456").substring(1, 4), "123");
 	}
 
 	@Test
 	public void testAppendUtf8() {
 		String s = "ab中文";
-		byte[] bs = Strings.s2ba(s);
+		byte[] bs = Strings.toBytes(s);
 		byte[] b1 = new byte[3];
 		byte[] b2 = new byte[bs.length - 3];
 		System.arraycopy(bs, 0, b1, 0, 3);

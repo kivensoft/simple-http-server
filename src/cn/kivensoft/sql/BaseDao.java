@@ -705,7 +705,6 @@ public class BaseDao {
 
 		Fmt fmt = Fmt.get().format("insert into {} (",
 				classToTable(argClass.getSimpleName()));
-		StringBuilder sb = fmt.getBuffer();
 
 		boolean first = true;
 		for (String f : fs) {
@@ -721,15 +720,15 @@ public class BaseDao {
 			}
 
 			if (first) first = false;
-			else sb.append(',').append(' ');
-			sb.append(fieldToColumn(f));
+			else fmt.append(',').append(' ');
+			fmt.append(fieldToColumn(f));
 			args.add(v);
 		}
 
-		sb.append(") values (?");
+		fmt.append(") values (?");
 		for (int i = 1, n = args.size(); i < n; ++i)
-			sb.append(',').append(' ').append('?');
-		sb.append(')');
+			fmt.append(',').append(' ').append('?');
+		fmt.append(')');
 		String sql = fmt.release();
 		
 		if (args.size() == 0)
@@ -783,7 +782,6 @@ public class BaseDao {
 
 		Fmt fmt = Fmt.get().format("update {} set ",
 				classToTable(argClass.getSimpleName()));
-		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
 		for (int i = 1, n = fs.size(); i < n; ++i) {
 			String f = fs.get(i);
@@ -800,12 +798,12 @@ public class BaseDao {
 			if (v == null) continue;
 
 			if (first) first = false;
-			else sb.append(',').append(' ');
-			sb.append(fieldToColumn(f)).append(" = ?");
+			else fmt.append(',').append(' ');
+			fmt.append(fieldToColumn(f)).append(" = ?");
 			args.add(v);
 		}
 
-		sb.append(" where ").append(fieldToColumn(id_field)).append(" = ?");
+		fmt.append(" where ").append(fieldToColumn(id_field)).append(" = ?");
 		args.add(id_data);
 		
 		return execute(fmt.release(), args.toArray());
@@ -899,7 +897,6 @@ public class BaseDao {
 
 		Fmt fmt = Fmt.get().format("delete from {} where ",
 				classToTable(arg.getClass().getSimpleName()));
-		StringBuilder sb = fmt.getBuffer();
 		boolean first = true;
 		for (String f : fs) {
 			Object v = null;
@@ -915,8 +912,8 @@ public class BaseDao {
 			if (v == null) continue;
 
 			if (first) first = false;
-			else sb.append(" and ");
-			sb.append(fieldToColumn(f)).append(" = ?");
+			else fmt.append(" and ");
+			fmt.append(fieldToColumn(f)).append(" = ?");
 			args.add(v);
 		}
 		return execute(fmt.release(), args.toArray());
@@ -1139,24 +1136,24 @@ public class BaseDao {
 
 	final static public String columnToField(String columnName) {
 		Fmt f = Fmt.get();
-		columnNameMap(columnName, f.getBuffer(), false);
+		columnNameMap(columnName, f, false);
 		return f.release();
 	}
 
 	final static public String columnToSetMethod(String columnName) {
 		Fmt f = Fmt.get().append('s').append('e').append('t');
-		columnNameMap(columnName, f.getBuffer(), true);
+		columnNameMap(columnName, f, true);
 		return f.release();
 	}
 	
 	final static public String columnToGetMethod(String columnName) {
 		Fmt f = Fmt.get().append('g').append('e').append('t');
-		columnNameMap(columnName, f.getBuffer(), true);
+		columnNameMap(columnName, f, true);
 		return f.release();
 	}
 	
 	final protected static void columnNameMap(String columnName,
-			StringBuilder sb, boolean firstUpper) {
+			Fmt fmt, boolean firstUpper) {
 		for (int i = 0, n = columnName.length(); i < n; ++i) {
 			char c = columnName.charAt(i);
 			if (c == '_') firstUpper = true;
@@ -1164,13 +1161,13 @@ public class BaseDao {
 				if (firstUpper) {
 					if (c >= 'a' && c <= 'z' && firstUpper)
 						c = (char)(c - 0x20);
-					sb.append(c);
+					fmt.append(c);
 					firstUpper = false;
 				}
 				else {
 					if (c >= 'A' && c <= 'Z' && !firstUpper)
 						c = (char)(c + 0x20);
-					sb.append(c);
+					fmt.append(c);
 				}
 			}
 		}
@@ -1204,42 +1201,42 @@ public class BaseDao {
 
 	final static public String fieldToGetMethod(String fieldName) {
 		Fmt f = Fmt.get().append('g').append('e').append('t');
-		fieldToMethod(fieldName, f.getBuffer());
+		fieldToMethod(fieldName, f);
 		return f.release();
 	}
 	
 	final static public String fieldToSetMethod(String fieldName) {
 		Fmt f = Fmt.get().append('s').append('e').append('t');
-		fieldToMethod(fieldName, f.getBuffer());
+		fieldToMethod(fieldName, f);
 		return f.release();
 	}
 	
 	final static protected void fieldToMethod(String fieldName,
-			StringBuilder sb) {
+			Fmt fmt) {
 		char c = fieldName.charAt(0);
 		if (c >= 'a' && c <= 'z') c = (char) (c - 0x20);
-		sb.append(c).append(fieldName.substring(1));
+		fmt.append(c).append(fieldName.substring(1));
 	}
 	
 	final static public String fieldToColumn(String fieldName) {
 		Fmt f = Fmt.get();
-		fieldNameMap(fieldName, f.getBuffer());
+		fieldNameMap(fieldName, f);
 		return f.release();
 	}
 	
 	final static public String classToTable(String className) {
 		Fmt f = Fmt.get().append('T');
-		fieldNameMap(className, f.getBuffer());
+		fieldNameMap(className, f);
 		return f.release();
 	}
 
-	final protected static void fieldNameMap(String fieldName,
-			StringBuilder sb) {
+	final public static void fieldNameMap(String fieldName,
+			Fmt fmt) {
 		for (int i = 0, n = fieldName.length(); i < n; ++i) {
 			char c = fieldName.charAt(i);
-			if (c >= 'A' && c <= 'Z') sb.append('_');
+			if (c >= 'A' && c <= 'Z') fmt.append('_');
 			else if (c >= 'a' && c <= 'z') c = (char) (c - 0x20);
-			sb.append(c);
+			fmt.append(c);
 		}
 	}
 	

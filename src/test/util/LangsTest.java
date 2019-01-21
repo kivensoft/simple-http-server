@@ -126,6 +126,10 @@ public class LangsTest {
 		ldt = LocalDateTime.now();
 		d = Langs.toDate(ldt);
 		assertEquals(ldt.plusHours(23), Langs.toLocalDateTime(Langs.addTime(d, 23, 0, 0)));
+		
+		d = new Date();
+		assertEquals(Langs.toGmt(d).getTime(), d.getTime() - 8 * 60 * 60 * 1000);
+		assertEquals(Langs.fromGmt(d).getTime(), d.getTime() + 8 * 60 * 60 * 1000);
 	}
 	
 	@Test

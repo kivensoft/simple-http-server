@@ -18,21 +18,21 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
+import java.util.function.BiPredicate;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
-import com.sun.net.httpserver.Headers;
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
-import com.sun.net.httpserver.HttpServer;
 
+import cn.kivensoft.httpserver.Headers;
+import cn.kivensoft.httpserver.HttpExchange;
+import cn.kivensoft.httpserver.HttpHandler;
+import cn.kivensoft.httpserver.HttpServer;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
 import cn.kivensoft.util.ObjectPool;
-import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
 import cn.kivensoft.util.Strings;
 
@@ -43,6 +43,7 @@ public class SimpleHttpServer implements HttpHandler {
 	
 	private Logger logger = LoggerFactory.getLogger(getClass());
 	private HttpServer httpServer;
+	private BiPredicate<String, Map<String, List<String>>> preHandle;
 	private Map<String, MethodInfo> handles = new HashMap<>();
 	private String serverName;
 
@@ -65,6 +66,10 @@ public class SimpleHttpServer implements HttpHandler {
 		httpServer.stop(0);
 	}
 
+	public void setAuthHandle(BiPredicate<String, Map<String, List<String>>> predicate) {
+		this.preHandle = predicate;
+	}
+	
 	/** 映射类的公共静态函数到api地址
 	 * @param prefix 地址前缀
 	 * @param cls 要映射的类
@@ -109,7 +114,9 @@ public class SimpleHttpServer implements HttpHandler {
 			// 查找路径对应的处理函数并解析参数，然后进行调用
 			MethodInfo act = handles.get(path);
 			if (act != null) {
-				ret = invokeMethodInfo(he, act);
+				Map<String, List<String>> query = parseQuery(he.getRequestURI().getRawQuery());
+				if (preHandle == null || preHandle.test(path, query))
+					ret = invokeMethodInfo(he, query, act);
 			} else {
 				ret = "请求的地址不存在";
 				httpCode = 404; // http找不到页面错误
@@ -180,26 +187,28 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** 根据MethodInfo的参数个数进行相应的函数处理 */
-	final private Object invokeMethodInfo(HttpExchange he, MethodInfo act) throws Exception {
+	final private Object invokeMethodInfo(HttpExchange he,
+			Map<String, List<String>> query, MethodInfo act) throws Exception {
 		// 0个参数
 		if (act.argType == null) return act.method.invoke(act.obj);
 		
 		// 读取并设置post参数
 		Object arg = null;
-		if ("post".equalsIgnoreCase(he.getRequestMethod())) {
+		if ("post".equalsIgnoreCase(he.getRequestMethod())
+				&& he.getRequestHeaders().getFirst("Content-Type").startsWith("application/json")) {
 			arg = parseBody(he, act.argType);
 		} else {
 			arg = act.argType.newInstance();
 		}
 		
 		// 读取并设置url中的参数
-		Map<String, List<String>> values = parseQuery(he.getRequestURI().getRawQuery());
-		if (values != null && values.size() > 0) {
+		if (query != null && query.size() > 0) {
 			Object def_arg = act.argType.newInstance();
-			for (Map.Entry<String, List<String>> item : values.entrySet())
+			for (Map.Entry<String, List<String>> item : query.entrySet())
 				setObjectProperty(act.argType, arg, def_arg, item);
 		}
 		
+		logger.debug("params: {}", Fmt.toJson(arg));
 		return act.method.invoke(act.obj, arg);
 	}
 
@@ -329,12 +338,10 @@ public class SimpleHttpServer implements HttpHandler {
 	 */
 	private final String readStringFromInputStream(InputStream inputStream) {
 		String ret = null;
-		PoolItem<char[]> ciItem = charsPool.get();
-		PoolItem<StringBuilder> bItem = bufferPool.get();
+		char[] buf = charsPool.get();
+		StringBuilder sb = bufferPool.get();
 		try {
 			Reader reader = new BufferedReader(new InputStreamReader(inputStream, UTF8));
-			char[] buf = ciItem.get();
-			StringBuilder sb = bItem.get();
 			int readCount;
 
 			while ((readCount = reader.read(buf)) != -1)
@@ -346,8 +353,8 @@ public class SimpleHttpServer implements HttpHandler {
 			logger.error(Fmt.fmt("readStringFromInputStream error: {}", e.getMessage()), e);
 		}
 		finally {
-			ciItem.recycle();
-			bItem.recycle();
+			charsPool.recycle(buf);
+			bufferPool.recycle(sb);
 		}
 		
 		return ret;
@@ -413,9 +420,9 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** char数组对象池 */
-	private ObjectPool<char[]> charsPool = new ObjectPool<>(() -> new char[512]); 
+	private ObjectPool<char[]> charsPool = new ObjectPool<>(16, () -> new char[512]); 
 	
 	/** StringBuilder对象池 */
-	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(
+	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(16,
 			() -> new StringBuilder(), v -> v.setLength(0)); 
 }

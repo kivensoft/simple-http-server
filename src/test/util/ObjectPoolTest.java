@@ -7,15 +7,16 @@ import org.junit.Before;
 import org.junit.Test;
 
 import cn.kivensoft.util.ObjectPool;
-import cn.kivensoft.util.PoolItem;
 
 public class ObjectPoolTest {
 	
 	int initValue;
-	ObjectPool<Integer> ints = new ObjectPool<>(() -> new Integer(initValue++));
+	ObjectPool<Integer> ints;
 	
 	@Before
 	public void setUp() throws Exception {
+		initValue = 1000;
+		ints = new ObjectPool<>(32, () -> new Integer(initValue++));
 	}
 
 	@After
@@ -24,38 +25,25 @@ public class ObjectPoolTest {
 
 	@Test
 	public void test() {
-		assertEquals(0, ints.size());
+		for (int i = 0; i < 3; ++i) ints.recycle(new Integer(i));
 		
-		initValue = 1000;
-		@SuppressWarnings("unchecked")
-		PoolItem<Integer>[] vals = new PoolItem[3];
-		for (int i = 0; i < 3; ++i) {
-			int iv = initValue;
-			vals[i] = ints.get();
-			assertEquals(iv, vals[i].get().intValue());
-		}
-		for (int i = 2; i >= 0; i--) vals[i].recycle();
-		assertEquals(3, ints.size());
-		
+		Integer[] vals = new Integer[3];
 		for (int i = 0; i < 3; ++i) {
 			vals[i] = ints.get();
-			assertEquals(i + 1000, vals[i].get().intValue());
+			assertEquals(i, vals[i].intValue());
+		}
+		assertEquals(initValue, ints.get().intValue());
+		
+		for (int i = 0; i < 3; ++i) {
+			ints.recycle(vals[i]);
+			vals[i] = null;
 		}
 		
-		PoolItem<Integer> v = ints.get();
-		assertEquals(1003, v.get().intValue());
-		v.recycle();
-		assertEquals(1, ints.size());
-		v = ints.get();
-		assertEquals(1003, v.get().intValue());
-		
-		ints.clear();
-		assertEquals(0, ints.size());
-		
-		PoolItem<Integer> v2 = ints.get();
-		assertEquals(1004, v2.get().intValue());
-		v2.recycle();
-		assertEquals(1, ints.size());
+		for (int i = 0; i < 3; ++i) {
+			vals[i] = ints.get();
+			assertEquals(i, vals[i].intValue());
+		}
+		assertEquals(initValue, ints.get().intValue());
 	}
 }
 

@@ -1,7 +1,9 @@
 package cn.kivensoft.util;
 
 import java.lang.ref.WeakReference;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Queue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -17,108 +19,48 @@ import java.util.function.Supplier;
  */
 final public class ObjectPool<T> {
 	
-	private class Item implements PoolItem<T> {
-		private T value;
-		private WeakReference<Item> _self, _next;
-		private Item(T value) {
-			this.value = value;
-			_self = new WeakReference<>(this);
-		}
-		@Override public T get() { return value; }
-		@Override public void recycle() { ObjectPool.this.push(this); }
-	}
-
-	// 全局无锁非阻塞堆栈头部指针
-	private AtomicReference<WeakReference<Item>> head = new AtomicReference<>();
+	// 无阻塞弱引用队列, 存放缓存对象
+	private final Queue<WeakReference<T>> queue;
 	// 对象生产工厂
-	private Supplier<T> objFactory;
-	// 对象清除工厂
-	private Consumer<T> objClear;
+	private final Supplier<T> objFactory;
+	private final Consumer<T> recycleFunc;
+	private AtomicInteger count;
 	
-	public ObjectPool(Supplier<T> objFactory) {
+	public ObjectPool(int capacity, Supplier<T> objFactory) {
+		this(capacity, objFactory, null);
+	}
+	
+	public ObjectPool(int capacity, Supplier<T> objFactory, Consumer<T> recycleFunc) {
 		super();
+		queue = new LinkedBlockingQueue<>(capacity);
 		this.objFactory = objFactory;
+		this.recycleFunc = recycleFunc;
+		count = new AtomicInteger(0);
 	}
 
-	public ObjectPool(Supplier<T> objFactory, Consumer<T> objClear) {
-		this(objFactory);
-		this.objClear = objClear;
-	}
-
-	// 无锁非阻塞弹出栈顶元素
-	private PoolItem<T> pop() {
-		WeakReference<Item> old_head, new_head;
-		Item item;
-		do {
-			old_head = head.get();
-			if (old_head == null) return null;
-			item = old_head.get();
-			if (item == null) {
-				head.compareAndSet(old_head, null);
-				return null;
+	/** 获取缓存中的对象实例, 缓存没有则新建一个实例返回 */
+	public T get() {
+		WeakReference<T> ref;
+		while ((ref = queue.poll()) != null) {
+			T value = ref.get();
+			if (value != null) {
+				count.incrementAndGet();
+				return value;
 			}
-			new_head = item._next;
-		} while (!head.compareAndSet(old_head, new_head));
-		item._next = null;
-		return item;
-	}
-		
-	// 无锁非阻塞元素压入栈顶
-	private void push(Item value) {
-		if (value._next != null) return;
-		if (objClear != null) objClear.accept(value.get());
-		WeakReference<Item> old_head;
-		do {
-			old_head = head.get();
-			if (old_head != null && old_head.get() != null)
-				value._next = old_head;
-		} while (!head.compareAndSet(old_head, value._self));
-	}
-		
-	/** 获取缓存中的PoolItem实例, 缓存没有则新建一个实例返回 */
-	public PoolItem<T> get() {
-		PoolItem<T> value = pop();
-		if (value == null) {
-			try {
-				value = new Item(objFactory.get());
-			} catch (Exception e) { }
 		}
-		return value;
+		return objFactory.get();
 	}
 	
-	/** 获取缓存中的PoolItem实例数组, 缓存没有则新建 */
-	public PoolItem<T>[] get(int count) {
-		@SuppressWarnings("unchecked")
-		PoolItem<T>[] values = (PoolItem<T>[])(new Object[count]);
-		for (int i = 0; i < count; ++i)
-			values[i] = get();
-		return values;
+	public void recycle(T value) {
+		if (recycleFunc != null) recycleFunc.accept(value);
+		if (queue.offer(new WeakReference<T>(value)))
+			count.decrementAndGet();
 	}
-
+	
 	/** 清除缓存中的所有实例 */
 	public void clear() {
-		WeakReference<Item> old_head = head.getAndSet(null);
-		while (old_head != null) {
-			Item item = old_head.get();
-			if (item == null) break;
-			old_head = item._next;
-			item.value = null;
-			item._self = null;
-			item._next = null;
-		}
+		while (queue.poll() != null)
+			count.decrementAndGet();
 	}
 	
-	/** 获取当前缓存的对象数量 */
-	public int size() {
-		int count = 0;
-		WeakReference<Item> old_head = head.get();
-		while (old_head != null) {
-			Item item = old_head.get();
-			if (item == null) break;
-			old_head = item._next;
-			++count;
-		}
-		return count;
-	}
-
 }
