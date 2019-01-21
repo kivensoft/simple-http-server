@@ -158,23 +158,23 @@ public class SimpleHttpServer implements HttpHandler {
 			return;
 		}
 
-		int prefix_len = sb.length();
+		int prefixLen = sb.length();
 		Method[] ms = cls.getMethods();
 		for (int i = 0, n = ms.length; i < n; ++i) {
-			Method m = ms[i];
+			Method method = ms[i];
 			// 函数必须具备RequestMapping注解, 具备0个或1个参数
-			RequestMapping rm = m.getAnnotation(RequestMapping.class);
-			if (rm == null) continue;
-			Class<?>[] ps = m.getParameterTypes();
-			if (ps.length > 1) continue;
-			Class<?> p = ps.length == 0 ? null : ps[0];
-			String desc = rm.desc();
-			pathAppend(sb, rm.value());
-			String uri = sb.toString();
-			m.setAccessible(true);
-			handles.put(uri, new MethodInfo(ctrl, m, desc, p));
-			logMappingInfo(uri, cls, m, p);
-			sb.setLength(prefix_len);
+			RequestMapping reqMapping = method.getAnnotation(RequestMapping.class);
+			if (reqMapping == null) continue;
+			Class<?>[] paramTypes = method.getParameterTypes();
+			if (paramTypes.length > 1) continue;
+			Class<?> paramType = paramTypes.length == 0 ? null : paramTypes[0];
+			String desc = reqMapping.desc();
+			pathAppend(sb, reqMapping.value());
+			String uri = sb.toString().toLowerCase();
+			method.setAccessible(true);
+			handles.put(uri, new MethodInfo(ctrl, method, desc, paramType));
+			logMappingInfo(uri, cls, method, paramType);
+			sb.setLength(prefixLen);
 		}
 	}
 	
