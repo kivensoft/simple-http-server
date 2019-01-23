@@ -23,7 +23,14 @@ final public class UrlHelp {
 			return ApiResult.error("url无效");
 
 		ApiDesc data = new ApiDesc(req.getUrl(), methodInfo.desc);
-		if (methodInfo.argType != null) {
+		Class<?> argType;
+		if (methodInfo.authParamIndex != 0 && methodInfo.argType1 != HttpRaw.class)
+			argType = methodInfo.argType1;
+		else if (methodInfo.authParamIndex != 1 && methodInfo.argType2 != HttpRaw.class)
+			argType = methodInfo.argType2;
+		else argType = null;
+		
+		if (argType != null) {
 			// 计算api的相对路径path
 			StringBuilder sb = new StringBuilder();
 			RequestMapping cls_rm = methodInfo.obj.getClass()
@@ -35,7 +42,7 @@ final public class UrlHelp {
 			if (method_rm != null && method_rm.value() != null)
 				SimpleHttpServer.pathAppend(sb, method_rm.value());
 			String path = sb.toString();
-			data.apiParams = getApiParamDescs(path, methodInfo.argType);
+			data.apiParams = getApiParamDescs(path, argType);
 		}
 		
 		return ApiResult.success(data);

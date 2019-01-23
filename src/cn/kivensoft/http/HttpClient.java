@@ -2,12 +2,14 @@ package cn.kivensoft.http;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -22,83 +24,126 @@ import cn.kivensoft.util.Langs;
 public class HttpClient {
 	private static final String UTF8 = "UTF-8";
 
+	@FunctionalInterface
+	public static interface OnRead {
+		void accept(InputStream in) throws IOException;
+	}
+	
+	@FunctionalInterface
+	public static interface OnWrite {
+		void accept(OutputStream out) throws IOException;
+	}
+	
 	/** get请求访问http的api函数
 	 * @param url 访问地址
-	 * @param param 参数，采用post json方式提交
+	 * @param param URL参数
+	 * @param headers 请求头部定制内容
 	 * @param ResultClass 返回结果声明类
 	 * @return
 	 */
-	public static <T> T get(String url, Object param,
-			Class<T> ResultClass) throws IOException {
-		return JSON.parseObject(get(url, param), ResultClass);
+	public static <T> T get(String url, Map<String, Object> param,
+			Map<String, String> headers, Class<T> ResultClass) throws IOException {
+		return JSON.parseObject(get(url, param, headers), ResultClass);
 	}
 
 	/** get请求访问http的api函数
 	 * @param url 访问地址
-	 * @param param 参数，采用post json方式提交
+	 * @param param URL参数
+	 * @param headers 请求头部定制内容
+	 * @param ResultClass 返回结果声明类
+	 * @return
+	 */
+	public static <T> T get(String url, Object param, Map<String, String> headers,
+			Class<T> ResultClass) throws IOException {
+		return JSON.parseObject(get(makeUrl(url, param), headers), ResultClass);
+	}
+
+	/** get请求访问http的api函数
+	 * @param url 访问地址
+	 * @param param URL参数
+	 * @param headers 请求头部定制内容
+	 * @return 返回的文本
+	 * @throws IOException
+	 */
+	public static String get(String url, Map<String, Object> param, Map<String, String> headers) throws IOException {
+		return get(makeUrl(url, param), headers);
+	}
+
+	/** get请求访问http的api函数
+	 * @param url 访问地址
+	 * @param param URL参数
+	 * @param headers 请求头部定制内容
+	 * @return 返回的文本
+	 * @throws IOException
+	 */
+	public static String get(String url, Object param, Map<String, String> headers) throws IOException {
+		return get(makeUrl(url, param), headers);
+	}
+
+	/** get请求访问http的api函数
+	 * @param url 访问地址
+	 * @param headers 请求头部内容
 	 * @return 请求结果文本内容
 	 */
-	@SuppressWarnings("unchecked")
-	public static String get(String url, Object param) throws IOException {
-		Logger logger = LoggerFactory.getLogger(HttpClient.class);
-		// 编码请求参数
-		String req = null;
-		if (param != null) {
-			if (param.getClass() == String.class)
-				req = (String)param;
-			else if (param instanceof Map<?, ?>)
-				req = encodeParam((Map<String, Object>)param);
-			else
-				req = encodeParam(param);
-		}
-
-		Fmt f = Fmt.get().append(url);
-		if (req != null && !req.isEmpty()) {
-			if (req.charAt(0) != '?') f.append('?');
-			f.append(req);
-		}
-		url = f.release();
-		
-		logger.debug("请求服务地址: {}", url);
-		URL _url = new URL(url);
-		HttpURLConnection conn = (HttpURLConnection)_url.openConnection();
-		conn.setRequestProperty("Accept", "*/*");
-		conn.setRequestProperty("Content-Type", "application/json;charset=UTF-8");
-
-		BufferedReader in = null;
-		try {
-			// 定义BufferedReader输入流来读取URL的响应
-			in = new BufferedReader(new InputStreamReader(
-					conn.getInputStream(), UTF8));
-
+	public static String get(String url, Map<String, String> headers) throws IOException {
+		Fmt f = Fmt.get();
+		get(url, headers, in -> {
 			char[] buf = new char[1024];
-			f = Fmt.get();
 			int count;
-			while ((count = in.read(buf)) != -1) f.append(buf, 0, count);
-			String response = f.release();
-			logger.debug("返回结果: {}", response);
-			return response;
-		} finally {
-			if (in != null) Langs.close(in);
-		}
+			try (BufferedReader bin = new BufferedReader(new InputStreamReader(in, UTF8))) {
+				while ((count = bin.read(buf)) != -1) f.append(buf, 0, count);
+			} catch (IOException ex) {
+				throw ex;
+			}
+			
+		});
+		String response = f.release();
+		LoggerFactory.getLogger(HttpClient.class).debug("返回结果: {}", response);
+		return response;
 	}
-
-	/** post请求访问http的api函数
+	
+	/** get请求访问http的api函数
 	 * @param url 访问地址
-	 * @param param 参数，采用post json方式提交
-	 * @param ResultClass 返回结果声明类
-	 * @return
+	 * @param headers 请求头部内容
+	 * @param onRead 返回内容的回调函数
+	 * @return 请求结果文本内容
 	 */
-	public static <T> T post(String url, Object param, Class<T> ResultClass) throws IOException {
-		return JSON.parseObject(post(url, param), ResultClass);
+	public static void get(String url, Map<String, String> headers, OnRead onRead) throws IOException {
+		LoggerFactory.getLogger(HttpClient.class).debug("请求服务地址: {}", url);
+		URL urlObj = new URL(url);
+		HttpURLConnection conn = (HttpURLConnection)urlObj.openConnection();
+		conn.setRequestProperty("Accept", "*/*");
+		if (headers != null) {
+			headers.forEach((k, v) -> conn.setRequestProperty(k, v));
+		}
+
+		try (InputStream in = conn.getInputStream()) {
+			onRead.accept(in);
+		} catch (IOException ex) {
+			throw ex;
+		}
 	}
 	
 	/** post请求访问http的api函数
 	 * @param url 访问地址
 	 * @param param 参数，采用post json方式提交
+	 * @param headers 请求头部定制内容
+	 * @param ResultClass 返回结果声明类
 	 * @return
 	 */
-	public static String post(String url, Object param) throws IOException {
+	public static <T> T post(String url, Object param,
+			Map<String, String> headers, Class<T> ResultClass) throws IOException {
+		return JSON.parseObject(post(url, param, headers), ResultClass);
+	}
+	
+	/** post请求访问http的api函数
+	 * @param url 访问地址
+	 * @param param 提交的内容对象
+	 * @param headers 请求头部定制内容
+	 * @return
+	 */
+	public static String post(String url, Object param,
+			Map<String, String> headers) throws IOException {
 		Logger logger = LoggerFactory.getLogger(HttpClient.class);
 		// 编码请求参数
 		String req = null;
@@ -109,34 +154,62 @@ public class HttpClient {
 		logger.debug("请求服务地址: {}", url);
 		logger.debug("请求内容: {}", req);
 
-		byte[] req_bytes = req == null ? new byte[0] : req.getBytes(UTF8);
-		OutputStream out = null;
-		BufferedReader in = null;
+		byte[] reqBytes = req == null ? new byte[0] : req.getBytes(UTF8);
+		Fmt f = Fmt.get();
 		
-		URL _url = new URL(url);
-		HttpURLConnection conn = (HttpURLConnection)_url.openConnection();
+		post(url, out -> {
+			out.write(reqBytes);
+		}, reqBytes.length, headers, in -> {
+			char[] buf = new char[1024];
+			int count;
+			try (BufferedReader bin = new BufferedReader(new InputStreamReader(in, UTF8))) {
+				while ((count = bin.read(buf)) != -1) f.append(buf, 0, count);
+			} catch (IOException ex) {
+				throw ex;
+			}
+		});
+		String response = f.release();
+		logger.debug("返回结果: {}", response);
+		return response;
+	}
+
+	/** post请求访问http的api函数
+	 * @param url 访问地址
+	 * @param onWrite 要提交的内容写入回调函数
+	 * @param writeLen 提交内容的字节长度
+	 * @param headers 请求头部定制内容
+	 * @param onRead 返回内容的读取回调函数
+	 */
+	public static void post(String url, OnWrite onWrite, int writeLen,
+			Map<String, String> headers, OnRead onRead) throws IOException {
+		Logger logger = LoggerFactory.getLogger(HttpClient.class);
+		logger.debug("请求服务地址: {}", url);
+
+		OutputStream out = null;
+		InputStream in = null;
+		
+		URL urlObj = new URL(url);
+		HttpURLConnection conn = (HttpURLConnection)urlObj.openConnection();
 		conn.setRequestMethod("POST");
 		conn.setRequestProperty("Accept", "*/*");
 		conn.setRequestProperty("Content-Type", "application/json;charset=UTF-8");
-		conn.setRequestProperty("Content-Length", String.valueOf(req_bytes.length));
+		conn.setRequestProperty("Content-Length", String.valueOf(writeLen));
+		if (headers != null) {
+			headers.forEach((k, v) -> conn.setRequestProperty(k, v));
+		}
+
 		// 发送POST请求必须设置如下两行
 		conn.setDoOutput(true);
 		conn.setDoInput(true);
 		try {
 			// 获取URLConnection对象对应的输出流
 			out = conn.getOutputStream();
-			out.write(req_bytes);
+			onWrite.accept(out);
 			out.flush();
 			// 定义BufferedReader输入流来读取URL的响应
-			in = new BufferedReader(new InputStreamReader(conn.getInputStream(), UTF8));
+			in = conn.getInputStream();
+			onRead.accept(in);
 
-			char[] buf = new char[1024];
-			Fmt f = Fmt.get();
-			int count;
-			while ((count = in.read(buf)) != -1) f.append(buf, 0, count);
-			String response = f.release();
-			logger.debug("返回结果: {}", response);
-			return response;
 		} finally {
 			if (out != null) Langs.close(out);
 			if (in != null) Langs.close(in);
@@ -149,7 +222,7 @@ public class HttpClient {
 	 * @return
 	 */
 	@SuppressWarnings("unchecked")
-	public static String postFormData(String url, Object param) throws IOException {
+	public static String postFormData(String url, Object param, Map<String, String> headers) throws IOException {
 		Logger logger = LoggerFactory.getLogger(HttpClient.class);
 		// 编码请求参数
 		String req = null;
@@ -164,41 +237,42 @@ public class HttpClient {
 		logger.debug("请求服务地址: {}", url);
 		logger.debug("请求内容: {}", req);
 
-		byte[] req_bytes = req == null ? new byte[0] : req.getBytes(UTF8);
-		URL _url = new URL(url);
-		HttpURLConnection conn = (HttpURLConnection)_url.openConnection();
-		conn.setRequestMethod("POST");
-		conn.setRequestProperty("Accept", "*/*");
-		conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
-		conn.setRequestProperty("Content-Length", String.valueOf(req_bytes.length));
-		// 发送POST请求必须设置如下两行
-		conn.setDoOutput(true);
-		conn.setDoInput(true);
+		HashMap<String, String> newHeaders = new HashMap<>(headers);
+		newHeaders.put("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
+		byte[] reqBytes = req == null ? new byte[0] : req.getBytes(UTF8);
+		Fmt f = Fmt.get();
 		
-		OutputStream out = null;
-		BufferedReader in = null;
-		try {
-			// 获取URLConnection对象对应的输出流
-			out = conn.getOutputStream();
-			out.write(req_bytes);
-			out.flush();
-			// 定义BufferedReader输入流来读取URL的响应
-			in = new BufferedReader(new InputStreamReader(conn.getInputStream(), UTF8));
-
+		post(url, out -> {
+			out.write(reqBytes);
+		}, reqBytes.length, newHeaders, in -> {
 			char[] buf = new char[1024];
-			Fmt f = Fmt.get();
 			int count;
-			while ((count = in.read(buf)) != -1) f.append(buf, 0, count);
-			String response = f.release();
-			logger.debug("返回结果: {}", response);
-			return response;
-		} finally {
-			if (out != null) Langs.close(out);
-			if (in != null) Langs.close(in);
-		}
+			try (BufferedReader bin = new BufferedReader(new InputStreamReader(in, UTF8))) {
+				while ((count = bin.read(buf)) != -1) f.append(buf, 0, count);
+			} catch (IOException ex) {
+				throw ex;
+			}
+		});
+
+		String response = f.release();
+		logger.debug("返回结果: {}", response);
+		return response;
 	}
 	
-	private static String encodeParam(Object param) {
+	public static String makeUrl(String url, Object param) {
+		// 编码请求参数
+		String req = param == null ? null : encodeParam(param);
+		return req == null ? url : Fmt.concat(url, "?", req);
+	}
+	
+	public static String makeUrl(String url, Map<String, Object> param) {
+		// 编码请求参数
+		String req = param == null ? null : encodeParam(param);
+		return req == null ? url : Fmt.concat(url, "?", req);
+	}
+	
+	public static String encodeParam(Object param) {
+		if (param == null) return null;
 		Fmt f = Fmt.get();
 
 		Langs.forEachFields(param, (name, value) -> {
@@ -214,10 +288,11 @@ public class HttpClient {
 		});
 
 		if (f.length() > 0) f.setLength(f.length() - 1);
-		return f.release();
+		return f.length() == 0 ? null : f.release();
 	}
 	
-	private static String encodeParam(Map<String, Object> param) {
+	public static String encodeParam(Map<String, Object> param) {
+		if (param == null) return null;
 		Fmt f = Fmt.get();
 		try {
 			for (Map.Entry<String, Object> entry : param.entrySet()) {
@@ -232,6 +307,7 @@ public class HttpClient {
 					"unsupport {} character encode: {}",
 					UTF8, e.getMessage()), e);
 		}
-		return f.release();
+		return f.length() == 0 ? null : f.release();
 	}
+
 }

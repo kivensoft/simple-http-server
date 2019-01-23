@@ -8,18 +8,13 @@
  */
 package cn.kivensoft.util;
 
+import java.io.IOException;
 import java.io.Serializable;
+import java.nio.CharBuffer;
 
 /**
  * <p> An {@link Appendable} text whose capacity expands gently without incurring expensive 
  *     resize/copy operations ever.</p>
- *     
- * <p> This class is not intended for large documents manipulations which should be performed with the {@link Text}
- *     class directly (<code>O(Log(n))</code> {@link Text#insert insertion} and 
- *     {@link Text#delete deletion} capabilities).</p>
- *     
- * <p> The textual format of any appended object is retrieved 
- *     from the current {@link TextContext}.</p>
  *     
  * @author  <a href="mailto:jean-marie@dautelle.com">Jean-Marie Dautelle</a>
  * @version 5.3, January 20, 2008
@@ -204,6 +199,18 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
         return new String(chars);
     }
 
+    public final void toAppendable(Appendable append) throws IOException {
+    	for (int i = 0, n = _length; i < n;) {
+            char[] chars0 = _high[i >> B1];
+            int i0 = i & M1;
+            int x = C1 - i0, y = n - i;
+            int length = x < y ? x : y;
+            CharBuffer cb = CharBuffer.wrap(chars0);
+            append.append(cb, i0, i0 + length);
+            i += length;
+        }
+    }
+    
     /**
      * Appends the specified character.
      *

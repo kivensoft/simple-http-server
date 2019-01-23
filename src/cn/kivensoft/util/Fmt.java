@@ -400,16 +400,24 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String toHex(final byte[] value) {
-		return get().appendHex(value).release();
+		return get().appendHex(value, 0, value.length, '\0').release();
 	}
 	
+	public static String toHex(final byte[] value, int start, int len) {
+		return get().appendHex(value, start, len, '\0').release();
+	}
+
 	/** 转成16进制字符串
 	 * @param value 要转换的字节数组
 	 * @param delimiter 分隔符
 	 * @return
 	 */
 	public static String toHex(final byte[] value, final char delimiter) {
-		return get().appendHex(value, delimiter).release();
+		return get().appendHex(value, 0, value.length, delimiter).release();
+	}
+	
+	public static String toHex(final byte[] value, int start, int len, final char delimiter) {
+		return get().appendHex(value, start, len, delimiter).release();
 	}
 	
 	/** 转成16进制字符串 */
@@ -1492,24 +1500,31 @@ public final class Fmt implements Appendable, CharSequence {
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes) {
-		return appendHex(bytes, '\0');
+		return appendHex(bytes, 0, bytes.length, '\0');
 	}
 	
-	/** 转换成16进制 */
+	public Fmt appendHex(final byte[] bytes, int start, int len) {
+		return appendHex(bytes, start, len, '\0');
+	}
+	
 	public Fmt appendHex(final byte[] bytes, char delimiter) {
+        return appendHex(bytes, 0, bytes.length, delimiter);
+	}
+
+	/** 转换成16进制 */
+	public Fmt appendHex(final byte[] bytes, int start, int len, char delimiter) {
 		if(bytes == null) {
 			appendNull();
 			return this;
 		}
-		int len = bytes.length;
-		
+
 		if (len > 0) {
-			int b = bytes[0];
+			int b = bytes[start];
 			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
 				.append(HEX_DIGEST[b & 0xF]); //取低4位
 		}
 		
-		for(int i = 1; i < len; ++i) {
+		for(int i = start + 1, n = start + len; i < n; ++i) {
 			int b = bytes[i];
 			if (delimiter != '\0') buffer.append(delimiter);
 			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位

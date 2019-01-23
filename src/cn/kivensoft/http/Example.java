@@ -32,6 +32,7 @@ public class Example {
 		
 		// 初始化web api服务器
 		SimpleHttpServer httpServer = new SimpleHttpServer();
+		httpServer.setAuthHandle((uri, token) -> token == null ? "" : token);
 		httpServer.scanPackage(null, "cn.kivensoft.http", true);
 		httpServer.start("SimpleHttpServer", 3000, cachedExecutor);
 		logger.info("{} start at {}", "SimpleHttpServer", 3000);
