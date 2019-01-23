@@ -1073,6 +1073,7 @@ public class BaseDao {
 		}
 
 		MethodAccess methodAccess = getMethodAccessByCache(cls);
+		FieldAccess fieldAccess = getFieldAccessByCache(cls);
 
 		ResultSetMetaData rsmd = rs.getMetaData();
 		String fieldName;
@@ -1081,6 +1082,10 @@ public class BaseDao {
 			//如果对象的属性存在，则进行赋值
 			if ((index = methodAccess.getIndex(fieldName)) != -1) {
 				methodAccess.invoke(ret, index, rs.getObject(i));
+			} else {
+				fieldName = columnToField(rsmd.getColumnLabel(i));
+				if ((index = fieldAccess.getIndex(fieldName)) != -1)
+					fieldAccess.set(ret, index, rs.getObject(i));
 			}
 		}
 
@@ -1105,14 +1110,16 @@ public class BaseDao {
 		
 		// 复杂对象处理
 		MethodAccess methodAccess = getMethodAccessByCache(cls);
+		FieldAccess fieldAccess = getFieldAccessByCache(cls);
 		
 		ResultSetMetaData rsmd = rs.getMetaData();
 		int columnCount = rsmd.getColumnCount();
+		int[] methodsIndex = new int[columnCount];
 		int[] fieldsIndex = new int[columnCount];
-		String fieldName;
 		for(int i = 0; i < columnCount; ++i) {
-			fieldName = columnToSetMethod(rsmd.getColumnLabel(i + 1));
-			fieldsIndex[i] = methodAccess.getIndex(fieldName);
+			methodsIndex[i] = methodAccess.getIndex(columnToSetMethod(rsmd.getColumnLabel(i + 1)));
+			if (methodsIndex[i] == -1)
+				fieldsIndex[i] = fieldAccess.getIndex(columnToField(rsmd.getColumnLabel(i + 1)));
 		}
 	
 		try {
@@ -1120,8 +1127,10 @@ public class BaseDao {
 				T obj = (T) cls.newInstance();
 				for (int i = 0, index; i < columnCount; ++i)
 					// 如果前面找到该对象具备该属性，则赋值
-					if ((index = fieldsIndex[i]) != -1)
+					if ((index = methodsIndex[i]) != -1)
 						methodAccess.invoke(obj, index, rs.getObject(i + 1));
+					else if ((index = fieldsIndex[i]) != -1)
+						fieldAccess.set(obj, index, rs.getObject(i + 1));
 				list.add(obj);
 			} while (rs.next());
 		} catch (Exception e) {
