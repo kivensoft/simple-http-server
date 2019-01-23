@@ -119,11 +119,7 @@ public class SimpleHttpServer implements HttpHandler {
 				Map<String, List<String>> query = parseQuery(he.getRequestURI().getRawQuery());
 				if (preHandle != null) {
 					Object authRet = preHandle.apply(path, parseJwtToken(he, query));
-					if (authRet == null) {
-						ret = "权限校验出错";
-						httpCode = 500;
-					}
-					else if (authRet.getClass() == Boolean.class) {
+					if (authRet != null && authRet.getClass() == Boolean.class) {
 						if (((Boolean)authRet).booleanValue()) {
 							ret = "未授权的访问";
 							httpCode = 403;
