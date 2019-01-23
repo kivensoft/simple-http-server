@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
@@ -78,26 +79,30 @@ public final class ConfigureFactory {
 		if (props == null) return config;
 		Class<?> cls = config.getClass();
 		Map<String, Class<?>> ms = findSetMethods(cls);
-		Class<?>[] cls_args = new Class<?>[1];
-		Object[] obj_args = new Object[1];
 		for (Map.Entry<Object, Object> entry : props.entrySet()) {
 			String value = (String) entry.getValue();
-			if ((value != null) && (!value.isEmpty())) {
-				String name = key2Method((String) entry.getKey());
-				Class<?> argType = (Class<?>) ms.get(name);
-				if (argType != null) {
-					try {
-						cls_args[0] = argType;
-						Method m = cls.getMethod(name, cls_args);
-						obj_args[0] = Strings.valueOf(argType, value);
-						m.invoke(config, obj_args);
-					}
-					catch (Exception e) {
-						LoggerFactory.getLogger(getClass()).warn(
-								Fmt.fmt("读取配置文件错误: {}", e.getMessage()), e);
-					}
-				}
+			
+			// 尝试写入到公共字段, 写入成功直接进入下一循环
+			try {
+				Field field = cls.getField((String)entry.getKey());
+				Object obj_arg = Strings.valueOf(field.getType(), value);
+				field.set(config, obj_arg);
+				continue;
+			} catch (Exception e) { }
+			
+			// 尝试写入到set函数中, 写入成功直接进入下一循环
+			String name = key2Method((String)entry.getKey());
+			Class<?> argType = (Class<?>) ms.get(name);
+			// 找不到set函数, 进入下一次循环
+			if (argType == null) continue;
+			try {
+				Class<?> cls_arg = argType;
+				Method m = cls.getMethod(name, cls_arg);
+				Object obj_arg = Strings.valueOf(argType, value);
+				m.invoke(config, obj_arg);
+				continue;
 			}
+			catch (Exception e) { }
 		}
 		return config;
 	}
