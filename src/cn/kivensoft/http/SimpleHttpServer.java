@@ -115,7 +115,8 @@ public class SimpleHttpServer implements HttpHandler {
 		try {
 			// 查找路径对应的处理函数并解析参数，然后进行调用
 			MethodInfo act = handles.get(path);
-			if (act != null) {
+			if (act != null && (act.actionType.isEmpty()
+					|| act.actionType.equalsIgnoreCase(he.getRequestMethod()))) {
 				Map<String, List<String>> query = parseQuery(he.getRequestURI().getRawQuery());
 				if (preHandle != null) {
 					Object authRet = preHandle.apply(path, parseJwtToken(he, query));
