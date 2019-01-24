@@ -1061,17 +1061,20 @@ public class BaseDao {
 		return f.release();
 	}
 	
-	/** 映射ResultSet到单个Object中 */
-	final public static <T> T mapperObject(ResultSet rs, Class<T> cls)
-			throws SQLException {
-		T ret = null;
+	final public static <T> T mapperObject(ResultSet rs, Class<T> cls) throws SQLException {
 		try {
-			ret = (T)cls.newInstance();
+			return mapperToObject(rs, (T)cls.newInstance());
 		}
 		catch (Exception e) {
 			throw new SQLException("mapperObject cls.newInstance error.");
 		}
+	}
 
+	/** 映射ResultSet到单个Object中 */
+	final public static <T> T mapperToObject(ResultSet rs, T obj)
+			throws SQLException {
+
+		Class<?> cls = obj.getClass();
 		MethodAccess methodAccess = getMethodAccessByCache(cls);
 		FieldAccess fieldAccess = getFieldAccessByCache(cls);
 
@@ -1081,15 +1084,15 @@ public class BaseDao {
 			fieldName = columnToSetMethod(rsmd.getColumnLabel(i));
 			//如果对象的属性存在，则进行赋值
 			if ((index = methodAccess.getIndex(fieldName)) != -1) {
-				methodAccess.invoke(ret, index, rs.getObject(i));
+				methodAccess.invoke(obj, index, rs.getObject(i));
 			} else {
 				fieldName = columnToField(rsmd.getColumnLabel(i));
 				if ((index = fieldAccess.getIndex(fieldName)) != -1)
-					fieldAccess.set(ret, index, rs.getObject(i));
+					fieldAccess.set(obj, index, rs.getObject(i));
 			}
 		}
 
-		return ret;
+		return obj;
 	}
 	
 	/** 映射ResultSet结果到List中，并返回该list */
