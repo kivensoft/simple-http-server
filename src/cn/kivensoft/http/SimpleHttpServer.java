@@ -286,10 +286,9 @@ public class SimpleHttpServer implements HttpHandler {
 	
 	/** 解析url地址带的参数成hashmap类型返回值 */
 	final private HashMap<String, List<String>> parseQuery(String query) {
-		if (query == null || query.isEmpty()) return null;
-
 		HashMap<String, List<String>> ret = new HashMap<>();
 		if (query == null || query.isEmpty()) return ret;
+
 		int start, idx = -1;
 		do {
 			// 获取key和value

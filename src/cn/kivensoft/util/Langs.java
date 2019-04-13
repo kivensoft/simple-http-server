@@ -333,6 +333,7 @@ public final class Langs {
      * @return 找到返回指定索引, 否则返回-1
      */
     public static <T> int indexOfArray(T[] array, int start, Predicate<T> predicate) {
+    	if (array == null || array.length == 0) return -1;
     	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return i;
     	return -1;
@@ -345,6 +346,7 @@ public final class Langs {
      * @return 返回找到的元素, 否则返回null
      */
     public static <T> T elementAtArray(T[] array, int start, Predicate<T> predicate) {
+    	if (array == null || array.length == 0) return null;
     	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return array[i];
     	return null;
@@ -365,6 +367,7 @@ public final class Langs {
      * @return 找到返回该元素, 否则返回false
      */
     public static <T> T find(Collection<T> collection, Predicate<T> predicate) {
+    	if (collection == null || collection.isEmpty()) return null;
     	Iterator<T> iter = collection.iterator();
     	while (iter.hasNext()) {
     		T v = iter.next();

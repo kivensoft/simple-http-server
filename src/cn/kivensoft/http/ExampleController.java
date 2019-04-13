@@ -2,11 +2,12 @@ package cn.kivensoft.http;
 
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Map;
 
 @RequestMapping
 public class ExampleController {
 	@RequestMapping(value = "test", desc = "测试函数")
-	public ApiResult test(User user) {
+	public ApiResult<Map<String, Object>> test(User user) {
 		HashMap<String, Object> data = new HashMap<String, Object>();
 		data.put("now", new Date());
 		data.put("action", "测试函数");
@@ -18,7 +19,7 @@ public class ExampleController {
 	}
 
 	@RequestMapping(value = "test2", desc = "测试函数2")
-	public ApiResult test2(User user, @AuthInfo String token) {
+	public ApiResult<Map<String, Object>> test2(User user, @AuthInfo String token) {
 		HashMap<String, Object> data = new HashMap<String, Object>();
 		data.put("now", new Date());
 		data.put("action", "测试函数2");
@@ -31,7 +32,7 @@ public class ExampleController {
 	}
 	
 	@RequestMapping(value = "test3", desc = "测试函数3")
-	public ApiResult test3(HttpRaw hr, @AuthInfo String token) {
+	public ApiResult<Map<String, Object>> test3(HttpRaw hr, @AuthInfo String token) {
 		HashMap<String, Object> data = new HashMap<String, Object>();
 		data.put("now", new Date());
 		data.put("action", "测试函数3");

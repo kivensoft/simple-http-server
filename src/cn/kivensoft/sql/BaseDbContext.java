@@ -37,7 +37,7 @@ public class BaseDbContext {
 	}
 
 	@SuppressWarnings("unchecked")
-	final public <T extends BaseDao> T getDao(Class<T> cls) throws SQLException {
+	final public <T extends BaseDao> T getDao(Class<T> cls) {
 		String clsName = cls.getName();
 
 		T result = (T)daos.get(clsName);
@@ -52,18 +52,18 @@ public class BaseDbContext {
 			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
 					"class {} constructor(BaseDbContext dbContext) not found: {}",
 					clsName, e.getMessage()), e);
-			throw new SQLException(e);
+			throw new RuntimeException(e);
 		} catch (Exception e) {
 			LoggerFactory.getLogger(getClass()).error(Fmt.fmt(
 					"class {} constructor(BaseDbContext dbContext) call fail: {}",
 					clsName, e.getMessage()), e);
-			throw new SQLException(e);
+			throw new RuntimeException(e);
 		}
 
 		return result;
 	}
 
-	final public BaseDao getDao() throws SQLException {
+	final public BaseDao getDao() {
 		return getDao(BaseDao.class);
 	}
 

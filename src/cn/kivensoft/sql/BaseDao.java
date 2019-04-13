@@ -66,7 +66,7 @@ public class BaseDao {
 	 * @throws SQLException
 	 */
 	final public <T> int[] executeBatch(String... sqls) throws SQLException {
-		return executeBatch(Arrays.asList(sqls));
+		return executeBatch(Arrays.asList(sqls).iterator());
 	}
 
 	/** 批量执行SQL，参数批量
@@ -116,7 +116,7 @@ public class BaseDao {
 	 */
 	@SuppressWarnings("unchecked")
 	final public <T> int[] executeBatch(String sql, T... args) throws SQLException {
-		return executeBatch(sql, Arrays.asList(args));
+		return executeBatch(sql, Arrays.asList(args).iterator());
 	}
 	
 	/** 批量执行SQL，参数批量

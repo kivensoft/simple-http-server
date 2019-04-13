@@ -14,7 +14,7 @@ final public class UrlHelp {
 	 * @param req url=xxx，xxx表示要查询的参数
 	 * @return
 	 */
-	public static ApiResult help(HelpRequest req, SimpleHttpServer server) {
+	public static ApiResult<Object> help(HelpRequest req, SimpleHttpServer server) {
 		if (req.getUrl() == null)
 			return list(server);
 
@@ -48,7 +48,7 @@ final public class UrlHelp {
 		return ApiResult.success(data);
 	}
 	
-	private static ApiResult list(SimpleHttpServer server) {
+	private static ApiResult<Object> list(SimpleHttpServer server) {
 		Map<String, String> apis = server.getAllMappingPath();
 		List<ApiDesc> data = apis.size() == 0 ? null : new ArrayList<>();
 		for (Map.Entry<String, String> entry : apis.entrySet())

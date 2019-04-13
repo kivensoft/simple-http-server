@@ -84,11 +84,14 @@ public final class ConfigureFactory {
 			
 			// 尝试写入到公共字段, 写入成功直接进入下一循环
 			try {
-				Field field = cls.getField((String)entry.getKey());
+				String name = key2Field((String)entry.getKey());
+				Field field = cls.getField(name);
 				Object obj_arg = Strings.valueOf(field.getType(), value);
 				field.set(config, obj_arg);
 				continue;
-			} catch (Exception e) { }
+			} catch (Exception e) {
+				LoggerFactory.getLogger(getClass()).error("读写配置文件对象属性错误.", e);
+			}
 			
 			// 尝试写入到set函数中, 写入成功直接进入下一循环
 			String name = key2Method((String)entry.getKey());
@@ -279,6 +282,24 @@ public final class ConfigureFactory {
 		return null;
 	}
 	
+	/** 配置文件中的多个"."分割的配置键转换成设置属性函数 */
+	private static String key2Field(String key) {
+		Fmt f = Fmt.get();
+		boolean dot = false;
+		for (int i = 0, n = key.length(); i < n; i++) {
+			char c = key.charAt(i);
+			if (c != '.') {
+				if (dot) {
+					f.append(Character.toUpperCase(c));
+					dot = false;
+				}
+				else f.append(c);
+			}
+			else dot = true;
+		}
+		return f.release();
+	}
+	  
 	/** 配置文件中的多个"."分割的配置键转换成设置属性函数 */
 	private static String key2Method(String key) {
 		Fmt f = Fmt.get().append("set").append(Character.toUpperCase(key.charAt(0)));

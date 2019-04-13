@@ -695,7 +695,7 @@ public final class Fmt implements Appendable, CharSequence {
 	/** 获取平台相关的回车换行符
 	 * @return 回车换行符
 	 */
-	public String NL() {
+	public static String NL() {
 		return newLine;
 	}
 	

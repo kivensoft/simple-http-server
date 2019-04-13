@@ -4,14 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Predicate;
 
-public class SQL {
+final public class SQL {
 	private static final char BLANK = ' ';
 	private static final char COMMA = ',';
 	
 	private StringBuilder sb = new StringBuilder(512);
 	private List<Object> paramList = new ArrayList<>();
 	private boolean selected = false, whered = false,
-			grouped = false, ordered = false;
+			grouped = false, ordered = false, seted = false;
+	private List<String> inserts;
 
 	public SQL select(String field, String...fields) {
 		if (!selected) {
@@ -97,12 +98,60 @@ public class SQL {
 		return this;
 	}
 	
+	public String toString() {
+		return sql();
+	}
+	
 	public String sql() {
 		return sb.toString();
 	}
 	
 	public Object[] params() {
 		return paramList.toArray();
+	}
+	
+	public SQL update(String table) {
+		sb.append("update ").append(table).append(" set ");
+		return this;
+	}
+	
+	public SQL set(String express, Object...params) {
+		if (!seted) seted = true;
+		else sb.append(", ").append(express);
+		for (Object param : params) paramList.add(param);
+		return this;
+	}
+	
+	public SQL delete(String table) {
+		sb.append("delete from ").append(table);
+		return this;
+	}
+	
+	public SQL insert(String table, String...fields) {
+		sb.append("insert into ").append(table).append(" (");
+		if (inserts == null) inserts = new ArrayList<>();
+		for (String field : fields) inserts.add(field);
+		return this;
+	}
+	
+	public SQL values(Object...params) {
+		for (int i = 0, imax = params.length; i < imax; ++i) {
+			Object param = params[i];
+			if (param == null) inserts.remove(i);
+			else paramList.add(param);
+		}
+		
+		for (String field : inserts) sb.append(field).append(", ");
+		sb.setLength(sb.length() - 2);
+		sb.append(") values(");
+		for (int i = inserts.size() - 1; i >= 0; --i)
+			sb.append("?, ");
+		sb.setLength(sb.length() - 2);
+		sb.append(")");
+		
+		inserts = null;
+
+		return this;
 	}
 	
 }

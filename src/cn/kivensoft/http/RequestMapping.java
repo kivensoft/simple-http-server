@@ -8,6 +8,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ ElementType.METHOD, ElementType.TYPE })
 public @interface RequestMapping {
+	public static final String GET = "get";
+	public static final String POST = "post";
+	
 	String value() default "";
 	String method() default "";
 	String desc() default "";
