@@ -139,5 +139,14 @@ public class FmtTest {
 		String s2 = Fmt.get().appendBytes(bs).release();
 		assertEquals(s, s2);
 	}
+	
+	@Test
+	public void testHex() {
+		byte[] bs = {1, 2, 3, 80, 81, 127, (byte)128, (byte)129, (byte)254, (byte)255};
+		String r = "01020350517f8081feff";
+		assertEquals(r, Fmt.toHex(bs));
+		assertEquals("01 02 03 50 51 7f 80 81 fe ff", Fmt.toHex(bs, ' '));
+		assertEquals("", Fmt.toHex((byte[])null));
+	}
 }
 

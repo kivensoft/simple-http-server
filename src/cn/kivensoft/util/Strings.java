@@ -16,7 +16,6 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.TimeZone;
-import java.util.regex.Pattern;
 
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
@@ -453,7 +452,24 @@ public abstract class Strings {
 	 * @return true:浮点数,false:不是浮点数
 	 */
 	public static boolean isNumber(String text) {
-		return Pattern.matches("-?[0-9]+(\\.[0-9]+)?", text);
+		if (text == null || text.isEmpty()) return false;
+		boolean dotFlag = false, firstNumber = false, lastNumber = false;
+		char c = text.charAt(0);
+		if (c != '-' && c != '+' && (c < '0' || c > '9')) return false;
+		if (c >= '0' && c <= '9') firstNumber = true;
+		for (int i = 1, n = text.length(); i < n; ++i) {
+			c = text.charAt(i);
+			if (c == '.') {
+				if (!firstNumber || dotFlag) return false;
+				else dotFlag = true;
+			} else if (c < '0' || c > '9') {
+				return false;
+			} else {
+				if (!dotFlag) firstNumber = true;
+				else lastNumber = true;
+			}
+		}
+		return dotFlag && lastNumber || firstNumber && !dotFlag;
 	}
 	
 	/** 判断是否金额格式
@@ -461,7 +477,25 @@ public abstract class Strings {
 	 * @return true:金额格式,false:不是金额格式
 	 */
 	public static boolean isMoney(String text) {
-		return Pattern.matches("-?[0-9]+(\\.[0-9][0-9]?)?", text);
+		if (text == null || text.isEmpty()) return false;
+		boolean dotFlag = false, firstNumber = false;
+		int lastNumber = 0;
+		char c = text.charAt(0);
+		if (c != '-' && c != '+' && (c < '0' || c > '9')) return false;
+		if (c >= '0' && c <= '9') firstNumber = true;
+		for (int i = 1, n = text.length(); i < n; ++i) {
+			c = text.charAt(i);
+			if (c == '.') {
+				if (!firstNumber || dotFlag) return false;
+				else dotFlag = true;
+			} else if (c < '0' || c > '9') {
+				return false;
+			} else {
+				if (!dotFlag) firstNumber = true;
+				else if (lastNumber++ >= 2) return false;
+			}
+		}
+		return dotFlag && lastNumber > 0 || firstNumber && !dotFlag;
 	}
 	
 	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式

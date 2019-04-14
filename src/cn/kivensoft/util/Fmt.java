@@ -400,7 +400,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String toHex(final byte[] value) {
-		return get().appendHex(value, 0, value.length, '\0').release();
+		return get().appendHex(value, 0, value == null ? 0 : value.length, '\0').release();
 	}
 	
 	public static String toHex(final byte[] value, int start, int len) {
@@ -413,7 +413,7 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String toHex(final byte[] value, final char delimiter) {
-		return get().appendHex(value, 0, value.length, delimiter).release();
+		return get().appendHex(value, 0, value == null ? 0 : value.length, delimiter).release();
 	}
 	
 	public static String toHex(final byte[] value, int start, int len, final char delimiter) {
@@ -1513,23 +1513,15 @@ public final class Fmt implements Appendable, CharSequence {
 
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes, int start, int len, char delimiter) {
-		if(bytes == null) {
-			appendNull();
-			return this;
-		}
+		if(bytes == null || start < 0 || len <= 0) return this;
 
-		if (len > 0) {
-			int b = bytes[start];
-			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
-				.append(HEX_DIGEST[b & 0xF]); //取低4位
-		}
-		
-		for(int i = start + 1, n = start + len; i < n; ++i) {
+		for(int i = start, imax = start + len; i < imax; ++i) {
 			int b = bytes[i];
-			if (delimiter != '\0') buffer.append(delimiter);
 			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
 				.append(HEX_DIGEST[b & 0xF]); //取低4位
+			if (delimiter != '\0') buffer.append(delimiter);
 		}
+		if (delimiter != '\0') buffer.setLength(buffer.length() - 1);
 		
 		return this;
 	}

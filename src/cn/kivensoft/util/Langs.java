@@ -376,8 +376,6 @@ public final class Langs {
     	return null;
     }
 
-	private static Calendar calendar = null;
-	
 	/** 转换为Date类型 */
 	public static Date toDate(LocalDate date) {
 		return Date.from(date.atStartOfDay().atZone(ZoneId.systemDefault())
@@ -402,12 +400,10 @@ public final class Langs {
 	/** 转换为Date类型 */
 	public static Date toDate(int year, int month, int day, int hour,
 			int minute, int second, int millseconds) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.set(year, month - 1, day, hour, minute, second);
-			calendar.set(Calendar.MILLISECOND, millseconds);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.set(year, month - 1, day, hour, minute, second);
+		calendar.set(Calendar.MILLISECOND, millseconds);
+		return calendar.getTime();
 	}
 	
 	/** 转换为LocalDate类型 */
@@ -434,22 +430,18 @@ public final class Langs {
 	
 	/** 增加年份 */
 	public static Date addYears(Date date, int years) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (years != 0) calendar.add(Calendar.YEAR, years);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (years != 0) calendar.add(Calendar.YEAR, years);
+		return calendar.getTime();
 	}
 
 	/** 增加月份 */
 	public static Date addMonths(Date date, int months) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (months != 0) calendar.add(Calendar.MONTH, months);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (months != 0) calendar.add(Calendar.MONTH, months);
+		return calendar.getTime();
 	}
 
 	/** 增加天数 */
@@ -459,30 +451,26 @@ public final class Langs {
 	
 	/** 增加年月日 */
 	public static Date addDate(Date date, int years, int months, int days) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (years != 0) calendar.add(Calendar.YEAR, years);
-			if (months != 0) calendar.add(Calendar.MONTH, months);
-			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (years != 0) calendar.add(Calendar.YEAR, years);
+		if (months != 0) calendar.add(Calendar.MONTH, months);
+		if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+		return calendar.getTime();
 	}
 
 	/** 增加年月日时分秒 */
 	public static Date addDate(Date date, int years, int months, int days,
 			int hours, int minutes, int seconds) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (years != 0) calendar.add(Calendar.YEAR, years);
-			if (months != 0) calendar.add(Calendar.MONTH, months);
-			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
-			if (hours != 0) calendar.add(Calendar.HOUR, hours);
-			if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
-			if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (years != 0) calendar.add(Calendar.YEAR, years);
+		if (months != 0) calendar.add(Calendar.MONTH, months);
+		if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+		if (hours != 0) calendar.add(Calendar.HOUR, hours);
+		if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
+		if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
+		return calendar.getTime();
 	}
 
 	/** 增加时分秒 */

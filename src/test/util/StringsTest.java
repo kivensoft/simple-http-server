@@ -44,8 +44,17 @@ public class StringsTest {
 		assertTrue(Strings.isInt("-23"));
 		assertFalse(Strings.isInt(" -23"));
 		assertFalse(Strings.isInt("-23 "));
+		assertTrue(Strings.isNumber("+24"));
+		assertFalse(Strings.isNumber("24."));
+		assertFalse(Strings.isNumber(".24"));
+		assertFalse(Strings.isNumber("1.2.4"));
 		assertTrue(Strings.isNumber("-23.453"));
 		assertFalse(Strings.isNumber("-23.453 "));
+		assertTrue(Strings.isMoney("23"));
+		assertTrue(Strings.isMoney("23.0"));
+		assertFalse(Strings.isMoney("23."));
+		assertFalse(Strings.isMoney(".23"));
+		assertFalse(Strings.isMoney("1.2.3"));
 		assertTrue(Strings.isMoney("-23.43"));
 		assertFalse(Strings.isMoney("-23.431"));
 	}
