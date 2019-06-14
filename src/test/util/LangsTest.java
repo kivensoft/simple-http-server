@@ -18,7 +18,7 @@ import org.junit.Test;
 import cn.kivensoft.util.IntNumber;
 import cn.kivensoft.util.Langs;
 import cn.kivensoft.util.Pair;
-import cn.kivensoft.util.Pair3;
+import cn.kivensoft.util.Tuple;
 
 public class LangsTest {
 	
@@ -74,12 +74,12 @@ public class LangsTest {
 	@Test
 	public void testCopyProperties() {
 		Pair<Integer, Integer> p = Pair.of(233, 235);
-		Pair3<Integer, Integer, String> p3 = new Pair3<>();
+		Tuple<Integer, Integer, String, Void> p3 = new Tuple<>();
 		Langs.copyProperties(p, p3);
 		assertEquals(233, p3.getFirst().intValue());
 		assertEquals(235, p3.getSecond().intValue());
 		
-		Pair3<Integer, Integer, Float> pp3 = Pair3.of(234, 236, 11.4f);
+		Tuple<Integer, Integer, Float, Void> pp3 = Tuple.of(234, 236, 11.4f);
 		Langs.copyProperties(pp3, p);
 		assertEquals(234, p.getFirst().intValue());
 		assertEquals(236, p.getSecond().intValue());

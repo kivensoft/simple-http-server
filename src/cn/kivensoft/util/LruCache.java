@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * 2.0.0 增加过期时间判断，优化并发访问性能
  * 1.0.0 简单实现LRU缓存
  */
-public class LruCache<K, V> implements Serializable {
+final public class LruCache<K, V> implements Serializable {
 	private static final long serialVersionUID = 1L;
 	
 	private final HashMap<K, CacheObject> data;
@@ -74,8 +74,10 @@ public class LruCache<K, V> implements Serializable {
 		CacheObject co = data.get(key);
 		if (co != null) {
 			removeItem(co);
-			if (isExpired(co.lastAccess)) data.remove(key);
-			else {
+			if (isExpired(co.lastAccess)) {
+				data.remove(key);
+				co = null;
+			} else {
 				co.lastAccess = System.currentTimeMillis();
 				addLast(co);
 			}

@@ -24,14 +24,21 @@ final public class ObjectPool<T> {
 	private final Supplier<T> objFactory;
 	private final Consumer<T> recycleFunc;
 	
-	public ObjectPool(int capacity, Supplier<T> objFactory) {
-		this(capacity, objFactory, null);
+	public ObjectPool(Supplier<T> objFactory) {
+		this(objFactory, null);
 	}
 	
-	public ObjectPool(int capacity, Supplier<T> objFactory, Consumer<T> recycleFunc) {
+	public ObjectPool(Supplier<T> objFactory, Consumer<T> recycleFunc) {
 		super();
 		this.objFactory = objFactory;
 		this.recycleFunc = recycleFunc;
+	}
+
+	/** 获取缓存中的对象并进行处理 */
+	public void get(Consumer<T> consumer) {
+		PoolItem<T> item = get();
+		consumer.accept(item.get());
+		item.recycle();
 	}
 
 	/** 获取缓存中的对象实例, 缓存没有则新建一个实例返回 */
@@ -98,4 +105,5 @@ final public class ObjectPool<T> {
 		
 		@Override public void recycle() { ObjectPool.this.push(this); }
 	}
+
 }

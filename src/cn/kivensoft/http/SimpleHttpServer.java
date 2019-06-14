@@ -520,10 +520,10 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 	
 	/** char数组对象池 */
-	private ObjectPool<char[]> charsPool = new ObjectPool<>(16, () -> new char[512]); 
+	private ObjectPool<char[]> charsPool = new ObjectPool<>(() -> new char[512]); 
 	
 	/** StringBuilder对象池 */
-	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(16,
+	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(
 			() -> new StringBuilder(), v -> v.setLength(0)); 
 
 	private static class HttpRawImpl implements HttpRaw {

@@ -34,7 +34,7 @@ import java.util.stream.Stream;
  * @author kiven
  *
  */
-public final class Fmt implements Appendable, CharSequence {
+final public class Fmt implements Appendable, CharSequence {
 	private static final String UTF8 = "UTF-8";
 	// 创建StringBuilder的缺省长度
 	private static final int DEF_BUF_SIZE = 256;
@@ -400,24 +400,16 @@ public final class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static String toHex(final byte[] value) {
-		return get().appendHex(value, 0, value == null ? 0 : value.length, '\0').release();
+		return get().appendHex(value).release();
 	}
 	
-	public static String toHex(final byte[] value, int start, int len) {
-		return get().appendHex(value, start, len, '\0').release();
-	}
-
 	/** 转成16进制字符串
 	 * @param value 要转换的字节数组
 	 * @param delimiter 分隔符
 	 * @return
 	 */
 	public static String toHex(final byte[] value, final char delimiter) {
-		return get().appendHex(value, 0, value == null ? 0 : value.length, delimiter).release();
-	}
-	
-	public static String toHex(final byte[] value, int start, int len, final char delimiter) {
-		return get().appendHex(value, start, len, delimiter).release();
+		return get().appendHex(value, delimiter).release();
 	}
 	
 	/** 转成16进制字符串 */
@@ -695,7 +687,7 @@ public final class Fmt implements Appendable, CharSequence {
 	/** 获取平台相关的回车换行符
 	 * @return 回车换行符
 	 */
-	public static String NL() {
+	public String NL() {
 		return newLine;
 	}
 	
@@ -718,8 +710,6 @@ public final class Fmt implements Appendable, CharSequence {
 			buffer.append((String)obj);
 		else if (cls == Integer.class)
 			buffer.append(((Integer)obj).intValue());
-		else if (cls == String.class)
-			buffer.append((String)obj);
 		else if (cls == Date.class)
 			appendDateTime((Date)obj);
 		else if (cls == Long.class)
@@ -742,6 +732,8 @@ public final class Fmt implements Appendable, CharSequence {
 			buffer.append(((Byte)obj).byteValue());
 		else if (cls == Boolean.class)
 			buffer.append(((Boolean)obj).booleanValue());
+		else if (Fmt.class == cls)
+			buffer.append(((Fmt) obj).buffer);
 		else if (Iterator.class.isAssignableFrom(cls))
 			append((Iterator<?>)obj, ",");
 		else if (Iterable.class.isAssignableFrom(cls))
@@ -884,6 +876,16 @@ public final class Fmt implements Appendable, CharSequence {
 		try {
 			buffer.append(new String(bytes, offset, len, charsetName));
 		} catch (UnsupportedEncodingException e) {}
+		return this;
+	}
+
+	public Fmt append(Fmt f) {
+		buffer.append(f.buffer);
+		return this;
+	}
+
+	public Fmt append(Fmt f, int start, int count) {
+		buffer.append(f.buffer, start, count);
 		return this;
 	}
 
@@ -1388,6 +1390,7 @@ public final class Fmt implements Appendable, CharSequence {
 							|| mn.equals("getClass")
 							|| m.getTypeParameters().length > 0)
 						continue;
+					m.setAccessible(true);
 					Object obj = m.invoke(value);
 					if (obj == null) continue; //属性为空则忽略该属性
 					if (!first) first = true;
@@ -1411,6 +1414,7 @@ public final class Fmt implements Appendable, CharSequence {
 					Field f = fs[i];
 					String fn = f.getName();
 					if (names.contains(fn)) continue;
+					f.setAccessible(true);
 					Object obj = f.get(value);
 					if (obj == null) continue;
 					if (!first) first = true;
@@ -1500,28 +1504,29 @@ public final class Fmt implements Appendable, CharSequence {
 	
 	/** 转换成16进制 */
 	public Fmt appendHex(final byte[] bytes) {
-		return appendHex(bytes, 0, bytes.length, '\0');
+		return appendHex(bytes, '\0');
 	}
 	
-	public Fmt appendHex(final byte[] bytes, int start, int len) {
-		return appendHex(bytes, start, len, '\0');
-	}
-	
-	public Fmt appendHex(final byte[] bytes, char delimiter) {
-        return appendHex(bytes, 0, bytes.length, delimiter);
-	}
-
 	/** 转换成16进制 */
-	public Fmt appendHex(final byte[] bytes, int start, int len, char delimiter) {
-		if(bytes == null || start < 0 || len <= 0) return this;
-
-		for(int i = start, imax = start + len; i < imax; ++i) {
-			int b = bytes[i];
+	public Fmt appendHex(final byte[] bytes, char delimiter) {
+		if(bytes == null) {
+			appendNull();
+			return this;
+		}
+		int len = bytes.length;
+		
+		if (len > 0) {
+			int b = bytes[0];
 			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
 				.append(HEX_DIGEST[b & 0xF]); //取低4位
-			if (delimiter != '\0') buffer.append(delimiter);
 		}
-		if (delimiter != '\0') buffer.setLength(buffer.length() - 1);
+		
+		for(int i = 1; i < len; ++i) {
+			int b = bytes[i];
+			if (delimiter != '\0') buffer.append(delimiter);
+			buffer.append(HEX_DIGEST[(b >> 4) & 0xF]) //左移4位，取高4位
+				.append(HEX_DIGEST[b & 0xF]); //取低4位
+		}
 		
 		return this;
 	}

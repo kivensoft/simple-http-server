@@ -17,7 +17,7 @@ public class ObjectPoolTest {
 	@Before
 	public void setUp() throws Exception {
 		initValue = 1000;
-		ints = new ObjectPool<>(32, () -> new Integer(initValue++));
+		ints = new ObjectPool<>(() -> new Integer(initValue++));
 	}
 
 	@After

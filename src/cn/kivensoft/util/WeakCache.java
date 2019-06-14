@@ -9,7 +9,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * @author kiven
  * @version 1.0.0
  */
-public class WeakCache<K, V> {
+final public class WeakCache<K, V> {
 	private WeakHashMap<K, WeakReference<V>> map = new WeakHashMap<K, WeakReference<V>>();
 	private Lock lock;
 	
@@ -30,13 +30,17 @@ public class WeakCache<K, V> {
 	 * @return true包含, false不包含
 	 */
 	public boolean containsKey(K key) {
-		if (lock != null) lock.lock();
-		try {
-			WeakReference<V> ref = map.get(key);
-			return ref != null && ref.get() == null;
-		} finally {
-			if (lock != null) lock.unlock();
-		}
+		WeakReference<V> ref;
+		if (lock != null) {
+			lock.lock();
+			try {
+				ref = map.get(key);
+			} finally {
+				lock.unlock();
+			}
+		} else
+			ref = map.get(key);
+		return ref == null ? false : ref.get() == null;
 	}
 	
 	/** 设置键值
@@ -45,13 +49,17 @@ public class WeakCache<K, V> {
 	 * @return 原来的旧值, 没有旧值返回null
 	 */
 	public V put(K key, V value) {
-		if (lock != null) lock.lock();
-		try {
-			WeakReference<V> ref = map.put(key, new WeakReference<V>(value));
-			return ref == null ? null : ref.get();
-		} finally {
-			if (lock != null) lock.unlock();
-		}
+		WeakReference<V> ref;
+		if (lock != null) {
+			lock.lock();
+			try {
+				ref = map.put(key, new WeakReference<V>(value));
+			} finally {
+				lock.unlock();
+			}
+		} else
+			ref = map.put(key, new WeakReference<V>(value));
+		return ref == null ? null : ref.get();
 	}
 	
 	/** 获取指定键的值
@@ -59,55 +67,64 @@ public class WeakCache<K, V> {
 	 * @return 值, 找不到返回null
 	 */
 	public V get(K key) {
-		if (lock != null) lock.lock();
-		try {
-			WeakReference<V> ref = map.get(key);
-			return ref == null ? null : ref.get();
-		} finally {
-			if (lock != null) lock.unlock();
-		}
+		WeakReference<V> ref;
+		if (lock != null) {
+			lock.lock();
+			try {
+				ref = map.get(key);
+			} finally {
+				lock.unlock();
+			}
+		} else
+			ref = map.get(key);
+		return ref == null ? null : ref.get();
 	}
 	
 	/** 清楚所有缓存 */
 	public void clear() {
-		if (lock != null) lock.lock();
-		try {
+		if (lock != null) {
+			lock.lock();
+			try {
+				map.clear();
+			} finally {
+				lock.unlock();
+			}
+		} else
 			map.clear();
-		} finally {
-			if (lock != null) lock.unlock();
-		}
 	}
 	
 	/** 获取缓存大小
 	 * @return 缓存数量
 	 */
 	public int size() {
-		if (lock != null) lock.lock();
-		try {
-			return map.size();
-		} finally {
-			if (lock != null) lock.unlock();
+		int len;
+		if (lock != null) {
+			lock.lock();
+			try {
+				len = map.size();
+			} finally {
+				lock.unlock();
+			}
 		}
+		else len = map.size();
+		return len;
 	}
 	
 	/** 判断缓存是否为空
 	 * @return true表示缓存为空, false不为空
 	 */
 	public boolean isEmpty() {
-		if (lock != null) lock.lock();
-		try {
-			return map.size() == 0;
-		} finally {
-			if (lock != null) lock.unlock();
+		boolean b;
+		if (lock != null) {
+			lock.lock();
+			try {
+				b = map.size() == 0;
+			} finally {
+				lock.unlock();
+			}
 		}
+		else b = map.size() == 0;
+		return b;
 	}
 	
-	public static void main(String[] args) {
-		WeakCache<Integer, Long> cache = new WeakCache<>();
-		for (int i = 0; i < 10; i++)
-			cache.put(i + 1000, (long)(i + 2000));
-		System.out.printf("key = %d, value = %d", 1005, cache.get(1005));
-		System.gc();
-		System.out.printf("key = %d, value = %d", 1005, cache.get(1005));
-	}
 }

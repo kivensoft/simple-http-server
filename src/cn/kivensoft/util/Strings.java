@@ -21,7 +21,7 @@ import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-public abstract class Strings {
+final public class Strings {
 	private final static String UTF8 = "UTF-8";
 	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4',
 			'5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
@@ -35,13 +35,47 @@ public abstract class Strings {
 	
 	private static int[] INV = null;
 
-	private static DateFormat dfDate = null;
-	private static DateFormat dfDateTime = null;
-	private static DateFormat dfTime = null;
-	private static DateFormat dfGmtDateTime = null;
+	private static ThreadLocal<DateFormat> dfDate = new ThreadLocal<DateFormat>() {
+		@Override
+		protected DateFormat initialValue() {
+			return new SimpleDateFormat("yyyy-MM-dd");
+		}
+	};
+	private static ThreadLocal<DateFormat> dfDateTime = new ThreadLocal<DateFormat>() {
+		@Override
+		protected DateFormat initialValue() {
+			return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+		}
+	};
+	private static ThreadLocal<DateFormat> dfTime = new ThreadLocal<DateFormat>() {
+		@Override
+		protected DateFormat initialValue() {
+			return new SimpleDateFormat("HH:mm:ss");
+		}
+	};
+	private static ThreadLocal<DateFormat> dfGmtDateTime = new ThreadLocal<DateFormat>() {
+		@Override
+		protected DateFormat initialValue() {
+			DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+			df.setTimeZone(TimeZone.getTimeZone("GMT"));	
+			return df;
+		}
+	};
 
-	private static Calendar calendar = null;
-	private static Calendar gmt_calendar = null;
+	private static ThreadLocal<Calendar> calendar = new ThreadLocal<Calendar>() {
+		@Override
+		protected Calendar initialValue() {
+			return Calendar.getInstance();
+		}
+	};
+	private static ThreadLocal<Calendar> gmt_calendar = new ThreadLocal<Calendar>() {
+		@Override
+		protected Calendar initialValue() {
+			return Calendar.getInstance(TimeZone.getTimeZone("GMT"));
+		}
+	};
+	
+	private Strings() {}
 	
 	/** 字符串空值转成空字符串
 	 * @param string
@@ -146,6 +180,21 @@ public abstract class Strings {
 		for(int i = strLen; i < minLength; ++i)
 			chars[i] = padChar;
 		return new String(chars);
+	}
+
+	/** 路径连接, 去除中间多余的/或\ */
+	public static String joinPath(String... paths) {
+		Fmt f = Fmt.get().append(paths[0]);
+		for (int i = 1, n = paths.length; i < n; ++i) {
+			String p = paths[i];
+			if (p == null || p.length() == 0) continue;
+			char c = f.charAt(f.length() - 1);
+			if (c != '/' && c != '\\') f.append('/');
+			c = p.charAt(0);
+			if (c == '/' || c == '\\') f.append(p, 1, p.length());
+			else f.append(p);
+		}
+		return f.release();
 	}
 
 	/** 生成重复N次的字符串 */
@@ -453,23 +502,28 @@ public abstract class Strings {
 	 */
 	public static boolean isNumber(String text) {
 		if (text == null || text.isEmpty()) return false;
-		boolean dotFlag = false, firstNumber = false, lastNumber = false;
-		char c = text.charAt(0);
-		if (c != '-' && c != '+' && (c < '0' || c > '9')) return false;
-		if (c >= '0' && c <= '9') firstNumber = true;
-		for (int i = 1, n = text.length(); i < n; ++i) {
-			c = text.charAt(i);
-			if (c == '.') {
-				if (!firstNumber || dotFlag) return false;
-				else dotFlag = true;
-			} else if (c < '0' || c > '9') {
-				return false;
-			} else {
-				if (!dotFlag) firstNumber = true;
-				else lastNumber = true;
+
+		int index = 0, len = text.length();
+		char c = text.charAt(index++);
+		if (c < '0' || c > '9') {
+			if (c != '-' && c != '+') return false;
+			if (len < 2) return false;
+			c = text.charAt(index++);
+			if (c < '0' || c > '9') return false;
+		}
+
+		for (boolean findedDot = false; index < len; ++index) {
+			c = text.charAt(index);
+			if (c < '0' || c > '9') {
+				if (c == '.') {
+					if (findedDot) return false;
+					else findedDot = true;
+				}
+				else return false;
 			}
 		}
-		return dotFlag && lastNumber || firstNumber && !dotFlag;
+		return true;
+		//return Pattern.matches("-?[0-9]+(\\.[0-9]+)?", text);
 	}
 	
 	/** 判断是否金额格式
@@ -478,24 +532,57 @@ public abstract class Strings {
 	 */
 	public static boolean isMoney(String text) {
 		if (text == null || text.isEmpty()) return false;
-		boolean dotFlag = false, firstNumber = false;
+		
+		boolean firstNumber = false, hasDot = false;
 		int lastNumber = 0;
-		char c = text.charAt(0);
-		if (c != '-' && c != '+' && (c < '0' || c > '9')) return false;
-		if (c >= '0' && c <= '9') firstNumber = true;
-		for (int i = 1, n = text.length(); i < n; ++i) {
-			c = text.charAt(i);
-			if (c == '.') {
-				if (!firstNumber || dotFlag) return false;
-				else dotFlag = true;
-			} else if (c < '0' || c > '9') {
-				return false;
+		for (int i = 0, len = text.length(); i < len; ++i) {
+			char c = text.charAt(i);
+			if (c >= '0' && c <= '9') {
+				if (!firstNumber) firstNumber = true;
+				if (hasDot || ++lastNumber > 2) return false;
+			}
+			else if (c == '.') {
+				if (!firstNumber || hasDot) return false;
+				hasDot = true;
+			} else if (i == 0 && (c == '-' || c == '+')) {
 			} else {
-				if (!dotFlag) firstNumber = true;
-				else if (lastNumber++ >= 2) return false;
+				return false;
 			}
 		}
-		return dotFlag && lastNumber > 0 || firstNumber && !dotFlag;
+
+		return true;
+		//return Pattern.matches("-?[0-9]+(\\.[0-9][0-9]?)?", text);
+	}
+
+	/** 判断是否是手机号码 */
+	public static boolean isMobile(String text) {
+		if (text == null || text.length() != 11) return false;
+		if (text.charAt(0) != '1') return false;
+		char c2 = text.charAt(1);
+		if (c2 < '3' || c2 > '9') return false;
+		for (int i = 2, imax = text.length(); i < imax; ++i) {
+			char c3 = text.charAt(i);
+			if (c3 < '0' || c3 > '9') return false;
+		}
+		return true;
+	}
+
+	/** 判断是否email地址 */
+	public static boolean isEmail(String text) {
+		if (text == null || text.length() < 5) return false;
+		int len = text.length(), at = -1, dot = -1;
+		for (int i = 0; i < len; ++i) {
+			char c = text.charAt(i);
+			if (c == '@') {
+				if (at != -1 || i == 0) return false;
+				at = i;
+			} else if (c == '.') {
+				if (dot != -1 || i < 3) return false;
+				dot = i;
+			}
+		}
+
+		return at > 0 && at < len - 3 && dot >= 3 && dot < len - 1;
 	}
 	
 	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式
@@ -504,18 +591,7 @@ public abstract class Strings {
 	 */
 	public static String formatDateTime(Date date) {
 		if (date == null) return "";
-		
-		if (dfDateTime == null) {
-			synchronized (Strings.class) {
-				if (dfDateTime == null) {
-					dfDateTime = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-				}
-			}
-		}
-		
-		synchronized (dfDateTime) {
-			return dfDateTime.format(date);
-		}
+		return dfDateTime.get().format(date);
 	}
 	
 	/** 格式化日期时间为"yyyy-MM-dd"格式
@@ -524,17 +600,7 @@ public abstract class Strings {
 	 */
 	public static String formatDate(Date date) {
 		if (date == null) return "";
-		
-		if (dfDate == null) {
-			synchronized (Strings.class) {
-				if (dfDate == null)
-					dfDate = new SimpleDateFormat("yyyy-MM-dd");
-			}
-		}
-		
-		synchronized (dfDate) {
-			return dfDate.format(date);
-		}
+		return dfDate.get().format(date);
 	}
 	
 	/** 格式化日期时间为"HH:mm:ss"格式
@@ -543,17 +609,7 @@ public abstract class Strings {
 	 */
 	public static String formatTime(Date date) {
 		if (date == null) return "";
-
-		if (dfTime == null) {
-			synchronized (Strings.class) {
-				if (dfTime == null)
-					dfTime = new SimpleDateFormat("HH:mm:ss");
-			}
-		}
-
-		synchronized (dfTime) {
-			return dfTime.format(date);
-		}
+		return dfTime.get().format(date);
 	}
 	
 	/** 格式化日期时间为"yyyy-MM-dd'T'HH:mm:ss'Z'"格式
@@ -562,21 +618,19 @@ public abstract class Strings {
 	 */
 	public static String formatGmtDateTime(Date date) {
 		if (date == null) return "";
-		
-		if (dfGmtDateTime == null) {
-			synchronized (Strings.class) {
-				if (dfGmtDateTime == null) {
-					dfGmtDateTime = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-					dfGmtDateTime.setTimeZone(TimeZone.getTimeZone("GMT"));
-				}
-			}
-		}
-
-		synchronized (dfGmtDateTime) {
-			return dfGmtDateTime.format(date);
-		}
+		return dfGmtDateTime.get().format(date);
 	}
 	
+	public static String changeExt(String origin, String newExt, char sep) {
+		if (origin == null) return null;
+		int idx = origin.lastIndexOf(sep);
+		StringBuilder sb = new StringBuilder();
+		if (idx != -1) sb.append(origin, 0, idx + 1);
+		else sb.append(sep);
+		sb.append(newExt);
+		return sb.toString();
+	}
+
 	@FunctionalInterface
 	public static interface OnSplitInt<T> {
 		void accept (int index, int value, T result);
@@ -630,33 +684,53 @@ public abstract class Strings {
 		boolean isGmt = text.indexOf('T') > 0;
 		int[] vs = splitDate(text);
 		Date ret = null;
-		Calendar cal;
-		if (isGmt) {
-			if (gmt_calendar == null) {
-				synchronized (Strings.class) {
-					if (gmt_calendar == null) 
-						gmt_calendar = Calendar.getInstance(TimeZone.getTimeZone("GMT"));
-				}
-			}
-			cal = gmt_calendar;
-		}
-		else {
-			if (calendar == null) {
-				synchronized (Strings.class) {
-					if (calendar == null)
-						calendar = Calendar.getInstance();
-				}
-			}
-			cal = calendar;
-		}
+		Calendar cal = isGmt ? gmt_calendar.get() : calendar.get();
 
-		synchronized (cal) {
-			cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
-			cal.set(Calendar.MILLISECOND, vs[6]);
-			ret = cal.getTime();
-		}
+		cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
+		cal.set(Calendar.MILLISECOND, vs[6]);
+		ret = cal.getTime();
 
 		return ret;
+	}
+	
+	public static Date parseDate(String text, Calendar cal) {
+		if (text == null || text.isEmpty()) return null;
+
+		int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0, d6 = 0;
+		int i = 0, len = text.length(), index = 0;
+		while (i < len) {
+			char c = text.charAt(i++);
+			if (c >= '0' && c <= '9') {
+				int num = c - 48;
+				while (i < len) {
+					char ch = text.charAt(i++);
+					if (ch < '0' || ch > '9') break;
+					num = (num << 3) + (num << 1) + (ch - 48);
+				}
+				switch (index++) {
+					case 0: d0 = num; break;
+					case 1: d1 = num; break;
+					case 2: d2 = num; break;
+					case 3: d3 = num; break;
+					case 4: d4 = num; break;
+					case 5: d5 = num; break;
+					case 6: d6 = num; break;
+				}
+			}
+			else {
+				while (i < len) {
+					char ch = text.charAt(i++);
+					if (ch >= '0' && ch <= '9') {
+						--i;
+						break;
+					}
+				}
+			}
+		}
+
+		cal.set(d0, d1 - 1, d2, d3, d4, d5);
+		cal.set(Calendar.MILLISECOND, d6);
+		return cal.getTime();
 	}
 	
 	/** 解析本地日期格式 yyyy-MM-dd格式 */
