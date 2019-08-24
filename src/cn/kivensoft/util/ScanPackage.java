@@ -93,21 +93,25 @@ final public class ScanPackage {
 		// 如果存在 就获取包下的所有文件 包括目录
 		// 自定义过滤规则 如果可以循环(包含子目录) 或则是以.class结尾的文件(编译好的java类文件)
 		File[] dirfiles = dir.listFiles();
+		StringBuilder sb = new StringBuilder();
 
 		// 循环所有文件
 		for (int i = 0, n = dirfiles.length; i < n; ++i) {
 			File file = dirfiles[i];
+			sb.setLength(0);
+			sb.append(packageName).append('.');
 			// 如果是目录 则继续扫描
-			if (recursive && file.isDirectory())
-				findByFile(Fmt.concat(packageName, ".", file.getName()),
+			if (recursive && file.isDirectory()) {
+				findByFile(sb.append(file.getName()).toString(),
 						file.getAbsolutePath(), recursive, classes, predicate);
+			}
 			else if (file.getName().endsWith(CLASS_NAME)) {
 				// 如果是java类文件 去掉后面的.class 只留下类名
 				String className = file.getName().substring(0,
 						file.getName().length() - CLASS_NAME.length());
 				try {
 					// 添加到集合中去
-					String clsName = Fmt.concat(packageName, ".", className);
+					String clsName = sb.append(className).toString();
 					if (predicate == null || predicate.test(clsName))
 						classes.add(Class.forName(clsName));
 				}
@@ -126,6 +130,7 @@ final public class ScanPackage {
 		catch (IOException e) { }
 		
 		Enumeration<JarEntry> entries = jar.entries();
+		StringBuilder sb = new StringBuilder();
 		// 进行循环迭代
 		while (entries.hasMoreElements()) {
 			// 获取jar里的一个实体 可以是目录 和一些jar包里的其他文件 如META-INF等文件
@@ -150,9 +155,11 @@ final public class ScanPackage {
 			// 去掉后面的".class" 获取真正的类名
 			String className = name.substring(packageName.length() + 1,
 					name.length() - CLASS_NAME.length());
+			sb.setLength(0);
+			String clsName = sb.append(packageName).append('.')
+					.append(className).toString();
 			try {
 				// 添加到classes
-				String clsName = Fmt.concat(packageName, ".", className);
 				if (predicate == null || predicate.test(clsName))
 					classes.add(Class.forName(clsName));
 			}

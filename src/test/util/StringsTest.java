@@ -31,15 +31,14 @@ public class StringsTest {
 
 	@Test
 	public void testPredicate() {
-		assertEquals("", Strings.nullToEmpty(null));
-		assertEquals("a", Strings.nullToEmpty("a"));
-		assertEquals(null, Strings.emptyToNull(""));
-		assertEquals("a", Strings.emptyToNull("a"));
+		assertEquals("xxx", Strings.nullToDefault(null, "xxx"));
+		assertEquals("", Strings.nullToDefault("", "xxx"));
+		assertEquals("xxx", Strings.emptyToDefault("", "xxx"));
+		assertEquals("abc", Strings.emptyToDefault("abc", "xxx"));
 		
+		assertTrue(Strings.isNullOrEmpty(null));
 		assertTrue(Strings.isNullOrEmpty(""));
-		assertTrue(Strings.isNotNullAndEmpty("a"));
-		assertTrue(Strings.isNullOrEmpty("", null, ""));
-		assertTrue(Strings.isNotNullAndEmpty("a", 4, 5, "b"));
+		assertFalse(Strings.isNullOrEmpty("ab"));
 		
 		assertTrue(Strings.isInt("-23"));
 		assertFalse(Strings.isInt(" -23"));

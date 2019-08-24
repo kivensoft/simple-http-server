@@ -845,10 +845,11 @@ public class BaseDao {
 			}
 		});
 
-		Fmt sqlFmt = Fmt.get().append("select * from ")
+		Fmt sqlFmt = Fmt.get();
+		sqlFmt.append("select * from ")
 				.append(classToTable(arg.getClass().getSimpleName()));
 		if (whereFmt.length() > and.length())
-			sqlFmt.append(" where ").append(whereFmt.subSequence(and.length()));
+			sqlFmt.append(" where ").append(whereFmt.substring(and.length()));
 		return (T) queryForObject(sqlFmt.release(), arg.getClass(), args.toArray());
 	}
 	
@@ -858,7 +859,8 @@ public class BaseDao {
 	
 	final public <T> T selectBy(String select, DynParams arg, Class<T> cls,
 			String appendWhere, String endSql) throws SQLException {
-		Fmt f = Fmt.get().append(select);
+		Fmt f = Fmt.get();
+		f.append(select);
 		int minSize = f.length();
 		if (arg != null && !arg.isEmpty()) {
 			f.append(" where ");
@@ -866,7 +868,7 @@ public class BaseDao {
 				f.append(column).append(" = ? and ");
 			}
 		}
-		if (f.length() > minSize) f.deleteLastChar(5);
+		if (f.length() > minSize) f.setLength(f.length() - 5);
 		if (appendWhere != null) {
 			if (f.length() == minSize) f.append(" where ");
 			else f.append(" and ");
@@ -1010,7 +1012,7 @@ public class BaseDao {
 				params.add(value);
 			}
 		});
-		if (dynFmt.length() > 4) dynFmt.deleteLastChar(4);
+		if (dynFmt.length() > 4) dynFmt.setLength(dynFmt.length() - 4);
 
 		return Pair.of(dynFmt.release(), params);
 	}
@@ -1028,7 +1030,7 @@ public class BaseDao {
 				}
 			});
 		}
-		if (dynFmt.length() > 4) dynFmt.deleteLastChar(4);
+		if (dynFmt.length() > 4) dynFmt.setLength(dynFmt.length() - 4);
 
 		return Pair.of(dynFmt.release(), params);
 	}
@@ -1056,7 +1058,8 @@ public class BaseDao {
 	/** 生成指定数量的占位符, 如3个: ?,?,? */
 	final protected static String makePlaceholders(int count) {
 		if (count == 0) return "";
-		Fmt f = Fmt.get().append('?');
+		Fmt f = Fmt.get();
+		f.append('?');
 		while (--count > 0) f.append(',').append(' ').append('?');
 		return f.release();
 	}
@@ -1168,13 +1171,15 @@ public class BaseDao {
 	}
 
 	final static public String columnToSetMethod(String columnName) {
-		Fmt f = Fmt.get().append('s').append('e').append('t');
+		Fmt f = Fmt.get();
+		f.append('s').append('e').append('t');
 		columnNameMap(columnName, f, true);
 		return f.release();
 	}
 	
 	final static public String columnToGetMethod(String columnName) {
-		Fmt f = Fmt.get().append('g').append('e').append('t');
+		Fmt f = Fmt.get();
+		f.append('g').append('e').append('t');
 		columnNameMap(columnName, f, true);
 		return f.release();
 	}
@@ -1227,13 +1232,15 @@ public class BaseDao {
 	}
 
 	final static public String fieldToGetMethod(String fieldName) {
-		Fmt f = Fmt.get().append('g').append('e').append('t');
+		Fmt f = Fmt.get();
+		f.append('g').append('e').append('t');
 		fieldToMethod(fieldName, f);
 		return f.release();
 	}
 	
 	final static public String fieldToSetMethod(String fieldName) {
-		Fmt f = Fmt.get().append('s').append('e').append('t');
+		Fmt f = Fmt.get();
+		f.append('s').append('e').append('t');
 		fieldToMethod(fieldName, f);
 		return f.release();
 	}
@@ -1252,7 +1259,8 @@ public class BaseDao {
 	}
 	
 	final static public String classToTable(String className) {
-		Fmt f = Fmt.get().append('T');
+		Fmt f = Fmt.get();
+		f.append('T');
 		fieldNameMap(className, f);
 		return f.release();
 	}

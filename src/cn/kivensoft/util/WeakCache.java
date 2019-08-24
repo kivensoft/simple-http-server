@@ -2,8 +2,6 @@ package cn.kivensoft.util;
 
 import java.lang.ref.WeakReference;
 import java.util.WeakHashMap;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 /** 弱键值的字典缓存，键和值都是弱引用, 支持线程安全与不安全两种模式
  * @author kiven
@@ -11,18 +9,18 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 final public class WeakCache<K, V> {
 	private WeakHashMap<K, WeakReference<V>> map = new WeakHashMap<K, WeakReference<V>>();
-	private Lock lock;
+	private boolean isSynchronized;
 	
 	/** 构造函数, 缺省为线程不安全 */
 	public WeakCache() {
-		this(false);
+		this.isSynchronized = false;
 	}
 	
 	/** 构造函数, 可选择线程安全或不安全方式
 	 * @param isSynchronized true表示支持线程安全, false表示线程不安全
 	 */
 	public WeakCache(boolean isSynchronized) {
-		if (isSynchronized) lock = new ReentrantLock();
+		this.isSynchronized = isSynchronized;
 	}
 
 	/** 测试是否包含指定的键
@@ -31,15 +29,11 @@ final public class WeakCache<K, V> {
 	 */
 	public boolean containsKey(K key) {
 		WeakReference<V> ref;
-		if (lock != null) {
-			lock.lock();
-			try {
+		if (isSynchronized)
+			synchronized (this) {
 				ref = map.get(key);
-			} finally {
-				lock.unlock();
 			}
-		} else
-			ref = map.get(key);
+		else ref = map.get(key);
 		return ref == null ? false : ref.get() == null;
 	}
 	
@@ -50,15 +44,11 @@ final public class WeakCache<K, V> {
 	 */
 	public V put(K key, V value) {
 		WeakReference<V> ref;
-		if (lock != null) {
-			lock.lock();
-			try {
+		if (isSynchronized)
+			synchronized (this) {
 				ref = map.put(key, new WeakReference<V>(value));
-			} finally {
-				lock.unlock();
 			}
-		} else
-			ref = map.put(key, new WeakReference<V>(value));
+		else ref = map.put(key, new WeakReference<V>(value));
 		return ref == null ? null : ref.get();
 	}
 	
@@ -68,44 +58,35 @@ final public class WeakCache<K, V> {
 	 */
 	public V get(K key) {
 		WeakReference<V> ref;
-		if (lock != null) {
-			lock.lock();
-			try {
+		if (isSynchronized)
+			synchronized (this) {
 				ref = map.get(key);
-			} finally {
-				lock.unlock();
 			}
-		} else
-			ref = map.get(key);
+		else ref = map.get(key);
 		return ref == null ? null : ref.get();
 	}
 	
-	/** 清楚所有缓存 */
+	/** 清除所有缓存 */
 	public void clear() {
-		if (lock != null) {
-			lock.lock();
-			try {
+		if (isSynchronized)
+			synchronized (this) {
 				map.clear();
-			} finally {
-				lock.unlock();
 			}
-		} else
-			map.clear();
+		else map.clear();
+	}
+
+	/** 回收被gc掉的空间 */
+	public void cycle() {
+		size();
 	}
 	
-	/** 获取缓存大小
-	 * @return 缓存数量
-	 */
+	/** 获取缓存大小 */
 	public int size() {
 		int len;
-		if (lock != null) {
-			lock.lock();
-			try {
+		if (isSynchronized)
+			synchronized (this) {
 				len = map.size();
-			} finally {
-				lock.unlock();
 			}
-		}
 		else len = map.size();
 		return len;
 	}
@@ -114,17 +95,7 @@ final public class WeakCache<K, V> {
 	 * @return true表示缓存为空, false不为空
 	 */
 	public boolean isEmpty() {
-		boolean b;
-		if (lock != null) {
-			lock.lock();
-			try {
-				b = map.size() == 0;
-			} finally {
-				lock.unlock();
-			}
-		}
-		else b = map.size() == 0;
-		return b;
+		return size() == 0;
 	}
 	
 }

@@ -45,11 +45,11 @@ final public class LruCache<K, V> implements Serializable {
 		return _cacheSize == 0 ? false : currentSize > _cacheSize;
 	}
 	
-	protected boolean isExpired(long lastAccess) {
+	private boolean isExpired(long lastAccess) {
 		return timeout > 0 && lastAccess + timeout < System.currentTimeMillis();
 	}
 	
-	protected void removeItem(CacheObject cacheObject) {
+	private void removeItem(CacheObject cacheObject) {
 		if (cacheObject.prev != null)
 			cacheObject.prev.next = cacheObject.next;
 		else head = cacheObject.next;
@@ -58,7 +58,7 @@ final public class LruCache<K, V> implements Serializable {
 		else tail = cacheObject.prev;
 	}
 	
-	protected void addLast(CacheObject cacheObject) {
+	private void addLast(CacheObject cacheObject) {
 		cacheObject.next = null;
 		if (head == null) head = cacheObject;
 		if (tail != null) {
@@ -67,6 +67,21 @@ final public class LruCache<K, V> implements Serializable {
 		}
 		else cacheObject.prev = null;
 		tail = cacheObject;
+	}
+
+	public V _get(K key) {
+		CacheObject co = data.get(key);
+		if (co != null) {
+			removeItem(co);
+			if (isExpired(co.lastAccess)) {
+				data.remove(key);
+				co = null;
+			} else {
+				co.lastAccess = System.currentTimeMillis();
+				addLast(co);
+			}
+		}
+		return co == null ? null : co.value;
 	}
 
 	public V get(K key) {

@@ -163,7 +163,6 @@ class ExchangeImpl {
 
 	public OutputStream getResponseBody() {
 		/*
-		 * TODO. Change spec to remove restriction below. Filters cannot work
 		 * with this restriction
 		 *
 		 * if (!sentHeaders) { throw new IllegalStateException

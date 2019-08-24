@@ -1,8 +1,16 @@
 package cn.kivensoft.util;
 
 import java.io.Closeable;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.lang.reflect.Array;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.Reader;
+import java.io.StringWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.LocalDate;
@@ -10,6 +18,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
@@ -20,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.BiConsumer;
+import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
 /** 基于jdk8的实用函数集合
@@ -37,7 +47,7 @@ import java.util.function.Predicate;
 public final class Langs {
 	private static long msOfDay = 86400000;
 	private static long tzOffset = TimeZone.getDefault().getRawOffset();
-	
+
 	/** 比较两个对象是否相等
 	 * @param src 源对象
 	 * @param dst 目标对象
@@ -46,7 +56,7 @@ public final class Langs {
 	public static <T> boolean isEquals(T src, T dst) {
 		return src == null ? dst == null : src.equals(dst);
 	}
-	
+
 	/** 比较整数对象与整数基本值
 	 * @param obj 整数对象
 	 * @param i 整数基本值
@@ -55,7 +65,7 @@ public final class Langs {
 	public static boolean isEquals(int i, Integer obj) {
 		return obj == null ? false : obj.intValue() == i;
 	}
-	
+
 	/** 比较整数对象与整数基本值
 	 * @param obj 整数对象
 	 * @param i 整数基本值
@@ -64,50 +74,67 @@ public final class Langs {
 	public static boolean isEquals(long i, Long obj) {
 		return obj == null ? false : obj.longValue() == i;
 	}
-	
-	/** 比较两个日期时间对象是否相等
-	 * @param obj 整数对象
-	 * @param i 整数基本值
-	 * @return
-	 */
-	public static boolean isEquals(Date d1, Date d2) {
-		return d1 == null ? d2 == null
-				: d2 == null ? false : d1.getTime() == d2.getTime();
+
+	public static String getStackTrace(Exception e) {
+		StringWriter sw = new StringWriter();
+		try {
+			e.printStackTrace(new PrintWriter(sw));
+		} catch(Exception ex) {}
+		return sw.toString();
 	}
-	
-	/** 判断参数列表中是否有null的对象
-	 * @param args 参数列表
-	 * @return 有null返回true，没有返回false
+
+	/** 三目运算函数, true返回第一个值, false返回第二个值
+	 * @param value true时返回的值
+	 * @param def false时返回额值
+	 * @param pred lambda, 参数是value, 返回值根据该lambda返回的true/false决定
+	 * @return true返回value, false返回def
 	 */
-	public static boolean isAnyNull(Object...args) {
-		int count = args.length;
-		while (--count >= 0) if (args[count] == null) return true;
-		return false;
+	public static int test(int value, int def, IntPredicate pred) {
+		return pred.test(value) ? value : def;
 	}
-	
-	/** 判断参数列表中是否有不为null的对象
-	 * @param args 参数列表
-	 * @return 有非null对象返回true，全null返回false
+
+	/** 三目运算函数, value不为null返回value, 否则返回def
+	 * @param value not null时返回的值
+	 * @param def null时返回额值
+	 * @return not null返回value, null返回def
 	 */
-	public static boolean isAnyNotNull(Object... args) {
-		int count = args.length;
-		while (--count >= 0) if (args[count] != null) return true;
-		return false;
+	public static <T> T test(T value, T def) {
+		return value != null ? value : def;
 	}
-	
+
+	/** 三目运算函数, true返回第一个值, false返回第二个值
+	 * @param value true时返回的值
+	 * @param def false时返回额值
+	 * @param pred lambda, 参数是value, 返回值根据该lambda返回的true/false决定
+	 * @return true返回value, false返回def
+	 */
+	public static <T> T test(T value, T def, Predicate<T> pred) {
+		return pred.test(value) ? value : def;
+	}
+
 	@SuppressWarnings("unchecked")
-	public static <T1, T2> HashMap<T1, T2> makeHashMap(Object... args) {
-		HashMap<T1, T2> ret = new HashMap<>();
+	public static <K, V> HashMap<K, V> mapOf(Object... args) {
+		HashMap<K, V> ret = new HashMap<>();
 		for (int i = 0, imax = args.length - 1; i < imax; i += 2)
-			ret.put((T1) args[i], (T2) args[i + 1]);
+			ret.put((K) args[i], (V) args[i + 1]);
 		return ret;
 	}
 
 	@SafeVarargs
-	public static <T1, T2> HashMap<T1, T2> makeFromMap(Map<T1, T2> map, T1... args) {
-		HashMap<T1, T2> ret = new HashMap<>();
-		for (T1 arg : args) ret.put(arg, map.get(arg));
+	public static <T> ArrayList<T> listOf(T... args) {
+		ArrayList<T> ret = new ArrayList<>();
+		for (int i = 0, imax = args.length; i < imax; ++i)
+			ret.add(args[i]);
 		return ret;
+	}
+
+	@SafeVarargs
+	public static <T> T[] arrayOf(T... args) {
+		return args;
+	}
+
+	public static int[] arrayOfInt(int... args) {
+		return args;
 	}
 
 	@SafeVarargs
@@ -116,21 +143,21 @@ public final class Langs {
 	}
 
 	@FunctionalInterface
-	public static interface MyConsumer<T> {
+	public interface NoExceptionConsumer<T> {
 		void accept(T t) throws Exception;
 	}
-	
+
 	@FunctionalInterface
-	public static interface MyBiConsumer<T, U> {
+	public interface NoExceptionBiConsumer<T, U> {
 		void accept(T t, U u) throws Exception;
 	}
-	
+
 	/** 双重嵌套的数组循环函数, 减少性能损失
 	 * @param args 需要循环的数组
 	 * @param value 循环时用到的变量
 	 * @param consumer 循环回调函数
 	 */
-	public static <T> void forEachWithCatch(T[] args, MyConsumer<T> consumer) {
+	public static <T> void forEachWithCatch(T[] args, NoExceptionConsumer<T> consumer) {
 		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
 		for (int i = 0, n = args.length; i < n; ++i) {
 			try {
@@ -139,13 +166,13 @@ public final class Langs {
 			catch (Exception e) {}
 		}
 	}
-	
+
 	/** 双重嵌套的数组循环函数, 减少性能损失
 	 * @param args 需要循环的数组
 	 * @param value 循环时用到的变量
 	 * @param consumer 循环回调函数
 	 */
-	public static <T, R> R forEachWithCatch(T[] args, R value, MyBiConsumer<T, R> consumer) {
+	public static <T, R> R forEachWithCatch(T[] args, R value, NoExceptionBiConsumer<T, R> consumer) {
 		// 双重嵌套循环，减少循环中频繁设置try/catch的性能损失
 		for (int i = 0, n = args.length; i < n; ++i) {
 			try {
@@ -155,13 +182,13 @@ public final class Langs {
 		}
 		return value;
 	}
-	
+
 	/** 双重嵌套的数组循环函数, 减少性能损失
 	 * @param args 需要循环的数组
 	 * @param value 循环时用到的变量
 	 * @param consumer 循环回调函数
 	 */
-	public static <T> void forEachWithCatch(Collection<T> args, MyConsumer<T> consumer) {
+	public static <T> void forEachWithCatch(Collection<T> args, NoExceptionConsumer<T> consumer) {
 		Iterator<T> iter = args.iterator();
 		while (iter.hasNext()) {
 			try {
@@ -172,13 +199,13 @@ public final class Langs {
 			catch (Exception e) {}
 		}
 	}
-	
+
 	/** 双重嵌套的数组循环函数, 减少性能损失
 	 * @param args 需要循环的数组
 	 * @param value 循环时用到的变量
 	 * @param consumer 循环回调函数
 	 */
-	public static <T, R> R forEachWithCatch(Collection<T> args, R value, MyBiConsumer<T, R> consumer) {
+	public static <T, R> R forEachWithCatch(Collection<T> args, R value, NoExceptionBiConsumer<T, R> consumer) {
 		Iterator<T> iter = args.iterator();
 		while (iter.hasNext()) {
 			try {
@@ -190,7 +217,7 @@ public final class Langs {
 		}
 		return value;
 	}
-	
+
 	/** javabean的属性复制，只支持同名同类型属性的复制
 	 * @param src 复制源对象
 	 * @param dst 复制的目标对象
@@ -215,18 +242,21 @@ public final class Langs {
 			String fname = sb.append(Character.toLowerCase(name.charAt(3)))
 					.append(name, 4, name.length()).toString();
 			try {
+				method.setAccessible(true);
 				Method m = dstCls.getMethod(mname, method.getReturnType());
+				m.setAccessible(true);
 				m.invoke(dst, method.invoke(src));
 				names.add(fname);
 			} catch (Exception e) {
 				try {
 					Field f2 = dstCls.getField(fname);
+					f2.setAccessible(true);
 					f2.set(dst, method.invoke(src));
 					names.add(fname);
 				} catch (Exception e2) { }
 			}
 		}
-		
+
 		Field[] fields = src.getClass().getFields();
 		for (int i = 0, n = fields.length; i < n; ++i) {
 			Field field = fields[i];
@@ -234,7 +264,9 @@ public final class Langs {
 			if (names.contains(name))
 				continue;
 			try {
+				field.setAccessible(true);
 				Field f2 = dstCls.getField(name);
+				f2.setAccessible(true);
 				f2.set(dst, field.get(src));
 			} catch (Exception e) {
 				sb.setLength(0);
@@ -243,14 +275,15 @@ public final class Langs {
 					.append(name, 1, name.length()).toString();
 				try {
 					Method m = dstCls.getMethod(mname, field.getType());
+					m.setAccessible(true);
 					m.invoke(dst, field.get(src));
 				} catch (Exception e2) {}
 			}
 		}
-		
+
 		return dst;
 	}
-	
+
 	public static void forEachFields(Object obj, BiConsumer<String, Object> consumer) {
 		if (obj == null) return;
 
@@ -261,6 +294,7 @@ public final class Langs {
 			Field field = fields[i];
 			String name = field.getName();
 			try {
+				field.setAccessible(true);
 				Object value = field.get(obj);
 				consumer.accept(name, value);
 			} catch (Exception e) { }
@@ -278,12 +312,146 @@ public final class Langs {
 			String fname = sb.append(Character.toLowerCase(name.charAt(3)))
 					.append(name, 4, name.length()).toString();
 			try {
+				method.setAccessible(true);
 				consumer.accept(fname, method.invoke(obj));
 			} catch (Exception e) {
 			}
 		}
 	}
-	
+
+	public static Object getField(Object obj, String name) {
+		Class<?> cls = obj.getClass();
+		char first = name.charAt(0);
+		if (first >= 'a' && first <= 'z') first -= 0x20;
+		String n = "get" + first + name.substring(1);
+		try {
+			Method m = cls.getMethod(n);
+			m.setAccessible(true);
+			return m.invoke(obj);
+		} catch (Exception e) {
+			try {
+				Field f = cls.getField(name);
+				f.setAccessible(true);
+				return f.get(obj);
+			} catch (Exception e1) {
+				return null;
+			}
+		}
+	}
+
+	public static boolean setField(Object obj, String name, Object value) {
+		Class<?> cls = obj.getClass();
+		char first = name.charAt(0);
+		if (first >= 'a' && first <= 'z') first -= 0x20;
+		String n = "set" + first + name.substring(1);
+		try {
+			Method m = cls.getMethod(n, cls);
+			m.setAccessible(true);
+			m.invoke(obj, value);
+		} catch (Exception e) {
+			try {
+				Field f = cls.getField(name);
+				f.setAccessible(true);
+				f.set(obj, value);
+			} catch (Exception e1) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public static void transTo(InputStream in, OutputStream out, boolean autoClose)
+			throws IOException {
+		byte[] buf = new byte[4096];
+		try {
+			int count = in.read(buf);
+			while (count > 0) {
+				out.write(buf, 0, count);
+				count = in.read(buf);
+			}
+		} finally {
+			if (autoClose) close(in, out);
+		}
+	}
+
+	public static byte[] readFromFile(String filename) throws IOException {
+		File f = new File(filename);
+		if (!f.exists()) throw new FileNotFoundException();
+		int len = (int) f.length();
+		byte[] buf = new byte[len];
+		FileInputStream fis = new FileInputStream(f);
+		try {
+			int pos = 0, count = fis.read(buf);
+			while (count > 0) {
+				pos += count;
+				count = fis.read(buf, pos, len - pos);
+			}
+		} finally {
+			close(fis);
+		}
+
+		return buf;
+	}
+
+	public static byte[] readFromStream(InputStream in, boolean autoClose) throws IOException {
+		// 缓冲区长度必须为2的n次幂, 因为下面的计算中使用了位移算法
+		final int BUF_SIZE = 4096;
+		ArrayList<byte[]> list = new ArrayList<>();
+		int readLength = 0, pos = 0;
+		byte[] bytes = new byte[BUF_SIZE];
+		try {
+			while (true) {
+				int rlen = in.read(bytes, pos, BUF_SIZE - pos);
+				if (rlen == -1) {
+					if (pos > 0) list.add(bytes);
+					break;
+				}
+				readLength += rlen;
+				pos += rlen;
+				if (pos >= BUF_SIZE) {
+					list.add(bytes);
+					bytes = new byte[BUF_SIZE];
+					pos = 0;
+				}
+			}
+		} finally {
+			if (autoClose) close(in);
+		}
+
+		byte[] ret = new byte[readLength];
+		int maxIndex = list.size() - 1;
+		// 先把所有读满的缓冲区复制到返回对象
+		for (int i = 0; i < maxIndex; ++i)
+			System.arraycopy(list.get(i), 0, ret, i << 12, BUF_SIZE);
+		// 处理最后一块可能长度不满的缓冲区
+		System.arraycopy(list.get(maxIndex), 0, ret,
+				maxIndex << 12, readLength & (BUF_SIZE - 1));
+
+		return ret;
+	}
+
+	public static String readStringFromFile(String filename) throws IOException {
+		FileInputStream fis = new FileInputStream(filename);
+		return readStringFromStream(fis, true);
+	}
+
+	public static String readStringFromStream(InputStream in, boolean autoClose)
+			throws IOException {
+		char[] buf = new char[4096];
+		StringBuilder sb = new StringBuilder();
+		try {
+			Reader r = new InputStreamReader(in, "UTF8");
+			int count = r.read(buf);
+			while (count > 0) {
+				sb.append(buf, 0, count);
+				count = r.read(buf);
+			}
+		} finally {
+			if (autoClose) close(in);
+		}
+		return sb.toString();
+	}
+
 	/** 关闭资源，抛弃异常
 	 * @param closeable 实现可关闭接口的对象
 	 */
@@ -307,7 +475,7 @@ public final class Langs {
 			catch(IOException e) {}
 		}
 	}
-	
+
 	/** 采用反射的方式调用对象的close函数关闭资源，抛弃异常
 	 * @param args 多个需要关闭的对象
 	 */
@@ -327,28 +495,6 @@ public final class Langs {
 		}
 	}
 
-	/** 根据数组类型的class创建对应类型的数组
-     * @param <T> 目标类型
-     * @param clazz
-     * @param length 数组长度
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-	public static <T> T[] newArrayByArrayClass(Class<T[]> clazz, int length) {
-        return (T[]) Array.newInstance(clazz.getComponentType(), length);
-    }
-     
-    /** 根据普通类型的class创建数组
-     * @param <T> 目标类型
-     * @param clazz
-     * @param length 数组长度
-     * @return
-     */
-    @SuppressWarnings("unchecked")
-	public static <T> T[] newArrayByClass(Class<T> clazz, int length) {
-        return (T[]) Array.newInstance(clazz, length);
-    }
-    
     /** 返回第一个回调为true的元素在数组中的索引位置
      * @param array 数组
      * @param start 起始查找位置
@@ -361,7 +507,7 @@ public final class Langs {
     		if (predicate.test(array[i])) return i;
     	return -1;
     }
-    
+
     /** 返回表达式为true时的数组所在位置的元素
      * @param array 迭代的数组
      * @param start 起始迭代位置
@@ -383,7 +529,7 @@ public final class Langs {
     public static <T> T find(T[] array, Predicate<T> predicate) {
     	return elementAtArray(array, 0, predicate);
     }
-    
+
     /** 查找元素
      * @param collection 要迭代的集合
      * @param predicate 回调函数
@@ -399,40 +545,36 @@ public final class Langs {
     	return null;
     }
 
-	private static Calendar calendar = null;
-	
 	/** 转换为Date类型 */
 	public static Date toDate(LocalDate date) {
 		return Date.from(date.atStartOfDay().atZone(ZoneId.systemDefault())
 				.toInstant());
 	}
-	
+
 	/** 转换为Date类型 */
 	public static Date toDate(LocalDateTime daettime) {
 		return Date.from(daettime.atZone(ZoneId.systemDefault()).toInstant());
 	}
-	
+
 	/** 转换为Date类型 */
 	public static Date toDate(LocalDate date, LocalTime time) {
 		return toDate(LocalDateTime.of(date, time));
 	}
-	
+
 	/** 转换为Date类型 */
 	public static Date toDate(int year, int month, int day) {
 		return toDate(year, month, day, 0, 0, 0, 0);
 	}
-	
+
 	/** 转换为Date类型 */
 	public static Date toDate(int year, int month, int day, int hour,
 			int minute, int second, int millseconds) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.set(year, month - 1, day, hour, minute, second);
-			calendar.set(Calendar.MILLISECOND, millseconds);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.set(year, month - 1, day, hour, minute, second);
+		calendar.set(Calendar.MILLISECOND, millseconds);
+		return calendar.getTime();
 	}
-	
+
 	/** 转换为LocalDate类型 */
 	public static LocalDate toLocalDate(Date value) {
 		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
@@ -442,13 +584,13 @@ public final class Langs {
 	public static LocalTime toLocalTime(Date value) {
 		return value.toInstant().atZone(ZoneId.systemDefault()).toLocalTime();
 	}
-	
+
 	/** 转换为LocalDateTime类型 */
 	public static LocalDateTime toLocalDateTime(Date value) {
 		return value.toInstant().atZone(ZoneId.systemDefault())
 				.toLocalDateTime();
 	}
-	
+
 	public static LocalDateTime localToUTC(LocalDateTime value) {
 		return value.atZone(ZoneId.systemDefault())
 				.withZoneSameInstant(ZoneOffset.UTC)
@@ -466,58 +608,50 @@ public final class Langs {
 		return new Date((System.currentTimeMillis() + tzOffset)
 				/ msOfDay * msOfDay - tzOffset);
 	}
-	
+
 	/** 增加年份 */
 	public static Date addYears(Date date, int years) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (years != 0) calendar.add(Calendar.YEAR, years);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (years != 0) calendar.add(Calendar.YEAR, years);
+		return calendar.getTime();
 	}
 
 	/** 增加月份 */
 	public static Date addMonths(Date date, int months) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (months != 0) calendar.add(Calendar.MONTH, months);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (months != 0) calendar.add(Calendar.MONTH, months);
+		return calendar.getTime();
 	}
 
 	/** 增加天数 */
 	public static Date addDays(Date date, int days) {
 		return new Date(date.getTime() + msOfDay * days);
 	}
-	
+
 	/** 增加年月日 */
 	public static Date addDate(Date date, int years, int months, int days) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (years != 0) calendar.add(Calendar.YEAR, years);
-			if (months != 0) calendar.add(Calendar.MONTH, months);
-			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (years != 0) calendar.add(Calendar.YEAR, years);
+		if (months != 0) calendar.add(Calendar.MONTH, months);
+		if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+		return calendar.getTime();
 	}
 
 	/** 增加年月日时分秒 */
 	public static Date addDate(Date date, int years, int months, int days,
 			int hours, int minutes, int seconds) {
-		if (calendar == null) calendar = Calendar.getInstance();
-		synchronized (calendar) {
-			calendar.setTime(date);
-			if (years != 0) calendar.add(Calendar.YEAR, years);
-			if (months != 0) calendar.add(Calendar.MONTH, months);
-			if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
-			if (hours != 0) calendar.add(Calendar.HOUR, hours);
-			if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
-			if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
-			return calendar.getTime();
-		}
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(date);
+		if (years != 0) calendar.add(Calendar.YEAR, years);
+		if (months != 0) calendar.add(Calendar.MONTH, months);
+		if (days != 0) calendar.add(Calendar.DAY_OF_MONTH, days);
+		if (hours != 0) calendar.add(Calendar.HOUR, hours);
+		if (minutes != 0) calendar.add(Calendar.MINUTE, minutes);
+		if (seconds != 0) calendar.add(Calendar.SECOND, seconds);
+		return calendar.getTime();
 	}
 
 	/** 增加时分秒 */
@@ -525,7 +659,7 @@ public final class Langs {
 		return new Date(date.getTime()
 				+ hours * 3600000 + minutes * 60000 + seconds * 1000);
 	}
-	
+
 	/** 返回一个新的日期变量，值为日期参数的日期部分 */
 	public static Date onlyDate(Date date) {
 		return new Date((date.getTime()
@@ -536,32 +670,32 @@ public final class Langs {
 	public static void trimTime(Date date) {
 		date.setTime((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
 	}
-	
+
 	/** GMT转换为本地时间 */
 	public static Date fromGmt(Date date) {
 		return new Date(date.getTime() + tzOffset);
 	}
-	
+
 	/** 本地时间转换为GMT */
 	public static Date toGmt(Date date) {
 		return new Date(date.getTime() - tzOffset);
 	}
-	
+
 	/** 合并两个int成long */
 	public static long mergeInt(int high, int low) {
 		return ((long)high << 32) | ((long)low & 0xFFFFFFFFL);
 	}
-	
+
 	/** 获取long的高位int */
 	public static int highInt(long value) {
 		return (int)(value >> 32 & 0xFFFFFFFFL);
 	}
-	
+
 	/** 获取long的低位int */
 	public static int lowInt(long value) {
 		return (int)(value &0xFFFFFFFFL);
 	}
-	
+
 	@FunctionalInterface
 	public interface Act {
 		void accept();

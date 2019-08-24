@@ -32,169 +32,88 @@ final public class Strings {
 			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
-	
+
 	private static int[] INV = null;
 
-	private static ThreadLocal<DateFormat> dfDate = new ThreadLocal<DateFormat>() {
-		@Override
-		protected DateFormat initialValue() {
-			return new SimpleDateFormat("yyyy-MM-dd");
-		}
-	};
-	private static ThreadLocal<DateFormat> dfDateTime = new ThreadLocal<DateFormat>() {
-		@Override
-		protected DateFormat initialValue() {
-			return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-		}
-	};
-	private static ThreadLocal<DateFormat> dfTime = new ThreadLocal<DateFormat>() {
-		@Override
-		protected DateFormat initialValue() {
-			return new SimpleDateFormat("HH:mm:ss");
-		}
-	};
-	private static ThreadLocal<DateFormat> dfGmtDateTime = new ThreadLocal<DateFormat>() {
-		@Override
-		protected DateFormat initialValue() {
-			DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-			df.setTimeZone(TimeZone.getTimeZone("GMT"));	
-			return df;
-		}
-	};
-
-	private static ThreadLocal<Calendar> calendar = new ThreadLocal<Calendar>() {
-		@Override
-		protected Calendar initialValue() {
-			return Calendar.getInstance();
-		}
-	};
-	private static ThreadLocal<Calendar> gmt_calendar = new ThreadLocal<Calendar>() {
-		@Override
-		protected Calendar initialValue() {
-			return Calendar.getInstance(TimeZone.getTimeZone("GMT"));
-		}
-	};
-	
 	private Strings() {}
-	
-	/** 字符串空值转成空字符串
-	 * @param string
-	 * @return 参数是空值返回空字符串, 否则返回原字符串
+
+	/** 字符串空值取缺省值
+	 * @param string 要判断的字符串
+	 * @param def 缺省值
+	 * @return 不为空返回自己, 为空返回缺省值
 	 */
-	public static String nullToEmpty(String string) {
-		return (string == null) ? "" : string;
+	public static String nullToDefault(String string, String def) {
+		return string == null ? def : string;
 	}
 
-	/** 空字符串转成null
-	 * @param string
-	 * @return 参数为空字符串时返回null, 否则返回原字符串
+	/** null或空字符串返回缺省值
+	 * @param string 要判断的字符串
+	 * @return 参数为null或空字符串时返回缺省值, 否则返回原字符串
 	 */
-	public static String emptyToNull(String string) {
-		return (string != null && string.isEmpty()) ? null : string;
-	}
-
-	/** 字符串非空判断, 空值和空字符串都返回false
-	 * @param string
-	 * @return 空值与空字符串返回false, 否则返回true
-	 */
-	public static boolean isNotNullAndEmpty(String string) {
-		return string != null && !string.isEmpty();
-	}
-
-	/** 多个字符串参数判断, 全部非空返回true, 否则返回false
-	 * @param args
-	 * @return 全部非空返回true, 否则返回false
-	 */
-	public static boolean isNotNullAndEmpty(String ...args) {
-		int count = args.length;
-		while (--count >= 0) {
-			String arg = args[count];
-			if(arg == null || arg.isEmpty()) return false;
-		}
-		return true;
-	}
-
-	/** 对象空判断，支持同时判断多个，全部有效返回true */
-	public static boolean isNotNullAndEmpty(Object ...args) {
-		Class<?> cls = String.class;
-		int count = args.length;
-		Object arg;
-		while (--count >= 0) {
-			arg = args[count];
-			if(arg == null || arg.getClass() == cls && ((String)arg).isEmpty())
-				return false;
-		}
-		return true;
+	public static String emptyToDefault(String string, String def) {
+		return (string == null || string.isEmpty()) ? def : string;
 	}
 
 	/** 字符串非空判断,空值和空字符串都返回true */
 	public static boolean isNullOrEmpty(String string) {
 		return string == null || string.isEmpty();
 	}
-	
-	/** 字符串空判断，支持同时判断多个，全部为null或空则返回true */
-	public static boolean isNullOrEmpty(String ...args) {
-		int count = args.length;
-		String arg;
-		while (--count >= 0) {
-			arg = args[count];
-			if(arg != null && !arg.isEmpty()) return false;
-		}
-		return true;
-	}
 
-	/** 对象空判断，支持同时判断多个，全部为null或空返回true */
-	public static boolean isNullOrEmpty(Object ...args) {
-		Class<?> cls = String.class;
-		int count = args.length;
-		Object arg;
-		while (--count >= 0) {
-			arg = args[count];
-			if(arg != null) {
-				if (arg.getClass() == cls) {
-					if (!((String)arg).isEmpty()) return false;
-				}
-				else return false;
-			}
-		}
-		return true;
-	}
-
-	/** 右对齐字符串，长度小于minLength则在左边加上padChar */
-	public static String padLeft(String string, int minLength, char padChar) {
-		int strLen = string.length();
-		if (strLen >= minLength) return string;
+	/** 右对齐字符串，长度小于minLength则在左边加上padChar
+	 * @param src 源字符串
+	 * @param minLength 最小长度
+	 * @param padChar 补齐字符
+	 * @return 生成的字符串
+	 */
+	public static String padLeft(String src, int minLength, char padChar) {
+		int len = src == null ? 0 : src.length();
+		if (len >= minLength) return src;
 		char[] chars = new char[minLength];
-		for(int i = 0, n = minLength - strLen; i < n; ++i)
+		for(int i = 0, imax = minLength - len; i < imax; ++i)
 			chars[i] = padChar;
-		string.getChars(0, strLen, chars, minLength - strLen);
+		if (src != null)
+			src.getChars(0, len, chars, minLength - len);
 		return new String(chars);
 	}
 
-	/** 左对齐字符串，长度小于minLength则在右边加上padChar */
-	public static String padRight(String string, int minLength, char padChar) {
-		int strLen = string.length();
-		if (string.length() >= minLength) return string;
+	/** 左对齐字符串，长度小于minLength则在右边加上padChar
+	 * @param src 源字符串
+	 * @param minLength 最小长度
+	 * @param padChar 补齐字符
+	 * @return 生成的字符串
+	 */
+	public static String padRight(String src, int minLength, char padChar) {
+		int len = src == null ? 0 : src.length();
+		if (len >= minLength) return src;
 		char[] chars = new char[minLength];
-		string.getChars(0, strLen, chars, 0);
-		for(int i = strLen; i < minLength; ++i)
+		if (src != null)
+			src.getChars(0, len, chars, 0);
+		for(int i = len; i < minLength; ++i)
 			chars[i] = padChar;
 		return new String(chars);
 	}
 
-	/** 路径连接, 去除中间多余的/或\ */
+	/** 路径连接, 去除中间多余的路径分隔符'/'或'\' 
+	 * @param paths 要连接的多个路径字符串
+	 * @return 生成的路径
+	 */
 	public static String joinPath(String... paths) {
-		Fmt f = Fmt.get().append(paths[0]);
+		StringBuilder sb = new StringBuilder(nullToDefault(paths[0], ""));
 		for (int i = 1, n = paths.length; i < n; ++i) {
 			String p = paths[i];
-			if (p == null || p.length() == 0) continue;
-			char c = f.charAt(f.length() - 1);
-			if (c != '/' && c != '\\') f.append('/');
-			c = p.charAt(0);
-			if (c == '/' || c == '\\') f.append(p, 1, p.length());
-			else f.append(p);
+			if (p == null || p.isEmpty()) continue;
+			char p_char = p.charAt(0);
+			boolean begin = p_char == '/' || p_char == '\\';
+			int sb_len = sb.length();
+			char sb_char = sb_len == 0 ? '\0' : sb.charAt(sb_len - 1);
+			boolean last = sb_char == '/' || sb_char == '\\';
+			if (last && begin)
+				sb.setLength(sb.length() - 1);
+			else if (!last && !begin)
+				sb.append('/');
+			sb.append(p);
 		}
-		return f.release();
+		return sb.toString();
 	}
 
 	/** 生成重复N次的字符串 */
@@ -202,7 +121,7 @@ final public class Strings {
 		int strlen = string.length();
 		//如果字符串长度为1，转为调用速度更快的方法
 		if(strlen == 1) return repeat(string.charAt(0), count);
-		
+
 		char[] retChars = new char[strlen * count];
 		for(int i = 0; i < count; ++i)
 			string.getChars(0, strlen, retChars, i * strlen);
@@ -221,7 +140,7 @@ final public class Strings {
 	public static String fromBytes(byte[] bytes) {
 		return fromBytes(bytes, 0, bytes.length);
 	}
-	
+
 	/** 字节数组转字符串 */
 	public static String fromBytes(byte[] bytes, int offset) {
 		return fromBytes(bytes, 0, bytes.length - offset);
@@ -235,7 +154,7 @@ final public class Strings {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/** 字符串转字节数组 */
 	public static byte[] toBytes(String string) {
 		try {
@@ -257,7 +176,7 @@ final public class Strings {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/** md5加密
 	 * @param text 要加密的文本
 	 * @return 加密后的内容的16进制表示
@@ -269,7 +188,7 @@ final public class Strings {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/** hmacsha1加密
 	 * @param key 密钥
 	 * @param bytes 要加密的内容
@@ -285,7 +204,7 @@ final public class Strings {
 			throw new RuntimeException(e);
 		}
 	}
-	
+
 	/**hmacsha1加密
 	 * @param key 密钥
 	 * @param text 要加密的文本
@@ -303,7 +222,7 @@ final public class Strings {
 	public static String toHex(final byte[] bytes) {
 		return toHex(bytes, '\0');
 	}
-	
+
 	/** 转换成16进制 */
 	public static String toHex(final byte[] bytes, final char separator) {
 		if(bytes == null) return null;
@@ -331,7 +250,7 @@ final public class Strings {
 	/** 从16进制转换成字符串 */
 	public static byte[] fromHex(final String string) {
 		if (string == null || string.length() < 2) return null;
-		
+
 		// 计算有效字符数量, 空格逗号等分隔符不计入内
 		byte[] sb = string.getBytes();
 		int count = 0;
@@ -357,7 +276,7 @@ final public class Strings {
 				fb = -1;
 			}
 		}
-		
+
 		return ret;
 	}
 
@@ -365,7 +284,7 @@ final public class Strings {
 	public static String toBase64(final byte[] bytes) {
 		return toBase64(bytes, false);
 	}
-	
+
 	/** base64编码, 3个字节转4个字节，即3个8位转成4个前两位固定为0的8位共24位
 	 * @param bytes 要编码的字节数组
 	 * @param lineBreak 是否每76个字符换行标志
@@ -480,7 +399,7 @@ final public class Strings {
 
 		return ret;
 	}
-	
+
 	/** 判断是否是纯数字,允许开头有加减号
 	 * @param text 要判断的文本
 	 * @return true:纯数字,false:不是纯数字
@@ -525,14 +444,14 @@ final public class Strings {
 		return true;
 		//return Pattern.matches("-?[0-9]+(\\.[0-9]+)?", text);
 	}
-	
+
 	/** 判断是否金额格式
 	 * @param text 要判断的文本
 	 * @return true:金额格式,false:不是金额格式
 	 */
 	public static boolean isMoney(String text) {
 		if (text == null || text.isEmpty()) return false;
-		
+
 		boolean firstNumber = false, hasDot = false;
 		int lastNumber = 0;
 		for (int i = 0, len = text.length(); i < len; ++i) {
@@ -584,43 +503,60 @@ final public class Strings {
 
 		return at > 0 && at < len - 3 && dot >= 3 && dot < len - 1;
 	}
-	
+
 	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
 	public static String formatDateTime(Date date) {
 		if (date == null) return "";
-		return dfDateTime.get().format(date);
+		return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(date);
 	}
-	
+
+	public static String formatDateTime(Date date, DateFormat dateFormat) {
+		if (date == null) return "";
+		return dateFormat.format(date);
+	}
+
 	/** 格式化日期时间为"yyyy-MM-dd"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
 	public static String formatDate(Date date) {
 		if (date == null) return "";
-		return dfDate.get().format(date);
+		return new SimpleDateFormat("yyyy-MM-dd").format(date);
 	}
-	
+
+	public static String formatDate(Date date, DateFormat dateFormat) {
+		if (date == null) return "";
+		return dateFormat.format(date);
+	}
+
 	/** 格式化日期时间为"HH:mm:ss"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
 	public static String formatTime(Date date) {
 		if (date == null) return "";
-		return dfTime.get().format(date);
+		return new SimpleDateFormat("HH:mm:ss").format(date);
 	}
-	
+
+	public static String formatTime(Date date, DateFormat dateFormat) {
+		if (date == null) return "";
+		return dateFormat.format(date);
+	}
+
 	/** 格式化日期时间为"yyyy-MM-dd'T'HH:mm:ss'Z'"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
 	 */
 	public static String formatGmtDateTime(Date date) {
 		if (date == null) return "";
-		return dfGmtDateTime.get().format(date);
+		DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+		df.setTimeZone(TimeZone.getTimeZone("GMT"));	
+		return df.format(date);
 	}
-	
+
 	public static String changeExt(String origin, String newExt, char sep) {
 		if (origin == null) return null;
 		int idx = origin.lastIndexOf(sep);
@@ -635,7 +571,7 @@ final public class Strings {
 	public static interface OnSplitInt<T> {
 		void accept (int index, int value, T result);
 	}
-	
+
 	/** 解析由逗号或空格分隔的数字字符串成整数数组 */
     public static <R> R splitInt(String value, R result, OnSplitInt<R> consumer) {
 		if (value == null || value.isEmpty()) return result;
@@ -664,19 +600,19 @@ final public class Strings {
 		}
 		return result;
 	}
-    
+
 	/** 解析由逗号或空格分隔的数字字符串成整数数组 */
     public static List<Integer> splitInt(String value) {
     	return splitInt(value, new ArrayList<Integer>(), (i, v, r) -> r.add(v));
     }
-	
+
 	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
 	public static int[] splitDate (String value) {
 		return splitInt(value, new int[7],
 				(i, v, r) -> { if (i < 7) r[i] = v;
 		});
 	}
-	
+
 	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text) {
 		if (text == null || text.isEmpty()) return null;
@@ -684,7 +620,8 @@ final public class Strings {
 		boolean isGmt = text.indexOf('T') > 0;
 		int[] vs = splitDate(text);
 		Date ret = null;
-		Calendar cal = isGmt ? gmt_calendar.get() : calendar.get();
+		Calendar cal = Calendar.getInstance();
+		if (isGmt) cal.setTimeZone(TimeZone.getTimeZone("GMT"));
 
 		cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
 		cal.set(Calendar.MILLISECOND, vs[6]);
@@ -692,47 +629,28 @@ final public class Strings {
 
 		return ret;
 	}
-	
+
+	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text, Calendar cal) {
 		if (text == null || text.isEmpty()) return null;
+		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		boolean isGmt = text.indexOf('T') > 0;
+		int[] vs = splitDate(text);
+		Date ret = null;
 
-		int d0 = 0, d1 = 0, d2 = 0, d3 = 0, d4 = 0, d5 = 0, d6 = 0;
-		int i = 0, len = text.length(), index = 0;
-		while (i < len) {
-			char c = text.charAt(i++);
-			if (c >= '0' && c <= '9') {
-				int num = c - 48;
-				while (i < len) {
-					char ch = text.charAt(i++);
-					if (ch < '0' || ch > '9') break;
-					num = (num << 3) + (num << 1) + (ch - 48);
-				}
-				switch (index++) {
-					case 0: d0 = num; break;
-					case 1: d1 = num; break;
-					case 2: d2 = num; break;
-					case 3: d3 = num; break;
-					case 4: d4 = num; break;
-					case 5: d5 = num; break;
-					case 6: d6 = num; break;
-				}
-			}
-			else {
-				while (i < len) {
-					char ch = text.charAt(i++);
-					if (ch >= '0' && ch <= '9') {
-						--i;
-						break;
-					}
-				}
-			}
-		}
+		boolean cal_gmt = "GMT".equals(cal.getTimeZone().getID());
+		if (isGmt && !cal_gmt)
+			cal.setTimeZone(TimeZone.getTimeZone("GMT"));
+		else if (!isGmt && cal_gmt)
+			cal.setTimeZone(TimeZone.getDefault());
 
-		cal.set(d0, d1 - 1, d2, d3, d4, d5);
-		cal.set(Calendar.MILLISECOND, d6);
-		return cal.getTime();
+		cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
+		cal.set(Calendar.MILLISECOND, vs[6]);
+		ret = cal.getTime();
+
+		return ret;
 	}
-	
+
 	/** 解析本地日期格式 yyyy-MM-dd格式 */
 	public static LocalDate parseLocalDate(String text) {
 		if (text == null || text.isEmpty()) return null;
@@ -807,7 +725,7 @@ final public class Strings {
 					}
 					else sb.append(c);
 					break;
-				
+
 				default:
 					sb.append(c);
 					inWord = true;
@@ -815,7 +733,7 @@ final public class Strings {
 			}
 		}
 		if (sb.length() > 0) args.add(sb.toString());
-		
+
 		return args;
 	}
 
@@ -838,7 +756,7 @@ final public class Strings {
 		return split(text, separators, new ArrayList<String>(),
 				(b, e, r) -> r.add(text.substring(b, e)));
 	}
-	
+
 	/** 解析字符串,按指定的字符做分隔符
 	 * @param text 要解析的文本
 	 * @param separator 分隔符字符串, 多个
@@ -848,12 +766,12 @@ final public class Strings {
 		return split(text, separator, new ArrayList<String>(),
 				(b, e, r) -> r.add(text.substring(b, e)));
 	}
-	
+
 	@FunctionalInterface
     public static interface SplitConsumer<T> {
 		void accept(int start, int stop, T result);
 	}
-    
+
 	/** 解析字符串,按指定的字符做分隔符
 	 * @param text 要解析的文本
 	 * @param separator 分隔符
@@ -888,7 +806,7 @@ final public class Strings {
 		separator.getChars(0, len, chars, 0);
 		return split(text, chars, result, consumer);
 	}
-	
+
 	/** 解析字符串,按指定的字符做分隔符
 	 * @param text 要解析的文本
 	 * @param separator 分隔符字符串, 多个
@@ -912,63 +830,81 @@ final public class Strings {
 		if (index != -1) consumer.accept(index, text.length(), result);
 		return result;
 	}
-	
+
 	/** 转换文本内容为对象
 	 * @param cls 对象类型
 	 * @param value 文本内容
 	 * @return 转换后生成的对象，转换失败返回null
 	 */
 	@SuppressWarnings("unchecked")
-	public static <T> T valueOf(Class<T> cls, String value) {
-		if (value == null || value.isEmpty())
-			return null;
-		if (cls == String.class)
-			return (T)value;
-		try {
-			if (cls == Integer.class || cls == Integer.TYPE)
-				return (T)Integer.valueOf(value);
-			if (cls == Long.class || cls == Long.TYPE)
-				return (T)Long.valueOf(value);
-			if (cls == Float.class || cls == Float.TYPE)
-				return (T)Float.valueOf(value);
-			if (cls == Date.class)
-				return (T)parseDate(value);
-			if (cls == Boolean.class || cls == Boolean.TYPE)
-				return (T)Boolean.valueOf(value);
-			if (cls == BigDecimal.class)
-				return (T)new BigDecimal(value);
-			if (cls == BigInteger.class)
-				return (T)new BigInteger(value);
-			if (cls == LocalDate.class)
-				return (T)parseLocalDate(value);
-			if (cls == LocalDateTime.class)
-				return (T)parseLocalDateTime(value);
-			if (cls == LocalTime.class)
-				return (T)parseLocalTime(value);
-			if (cls == Double.class || cls == Double.TYPE)
-				return (T)Double.valueOf(value);
-			if (cls == Byte.class || cls == Byte.TYPE)
-				return (T)Byte.valueOf(value);
-			if (cls == Short.class || cls == Short.TYPE)
-				return (T)Short.valueOf(value);
-			if (cls == Character.class || cls == Character.TYPE)
-				return (T)Character.valueOf(value.charAt(0));
-			if (cls.isEnum()) {
-				Enum<?>[] vs = (Enum<?>[])cls.getMethod("values").invoke(null);
-				try {
-					int n = Integer.parseInt(value);
-					return (T)vs[n];
+	public static <T> T valueOf(String value, Class<T> cls) {
+		if (value == null || value.isEmpty()) return null;
+
+		T ret = null;
+		switch (cls.getName()) {
+			case "java.lang.String":
+				ret = (T) value;
+				break;
+			case "java.lang.Integer":
+				ret = (T) Integer.valueOf(value);
+				break;
+			case "java.lang.Long":
+				ret = (T) Long.valueOf(value);
+				break;
+			case "java.lang.Byte":
+				ret = (T) Byte.valueOf(value);
+				break;
+			case "java.lang.Short":
+				ret = (T) Short.valueOf(value);
+				break;
+			case "java.lang.Character":
+				ret = (T) Character.valueOf(value.charAt(0));
+				break;
+			case "java.lang.Boolean":
+				ret = (T) Boolean.valueOf(value);
+				break;
+			case "java.lang.Double":
+				ret = (T) Double.valueOf(value);
+				break;
+			case "java.lang.Float":
+				ret = (T) Float.valueOf(value);
+				break;
+			case "java.util.Date":
+				ret = (T) parseDate(value);
+				break;
+			case "java.time.LocalDate":
+				ret = (T) parseLocalDate(value);
+				break;
+			case "java.time.LocalTime":
+				ret = (T) parseLocalTime(value);
+				break;
+			case "java.time.LocalDateTime":
+				ret = (T) parseLocalDateTime(value);
+				break;
+			case "java.math.BigDecimal":
+				ret = (T) new BigDecimal(value);
+				break;
+			case "java.math.BigInteger":
+				ret = (T) new BigInteger(value);
+				break;
+			case "[B":
+				ret = (T) fromHex((String) value);
+				break;
+			default:
+				if (cls.isEnum()) {
+					for (T v : cls.getEnumConstants()) {
+						if (value.equals(v.toString())) {
+							ret = v;
+							break;
+						}
+					}
 				}
-				catch (NumberFormatException e) {
-					for (int i = 0, n = vs.length; i < n; ++i)
-						if (vs[i].name().equals(value)) return (T)vs[i];
-				}
-			}
+				break;
 		}
-		catch (Exception e) {}
-		return null;
+		
+		return ret;
 	}
-	
+
 	public static void main(String[] args) throws Exception {
 		if(args.length == 0)
 			System.out.println("Usage: Crypt <string> <string>");

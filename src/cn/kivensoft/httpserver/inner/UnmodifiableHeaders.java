@@ -79,8 +79,6 @@ class UnmodifiableHeaders extends Headers {
 		return Collections.unmodifiableCollection(map.values());
 	}
 
-	/* TODO check that contents of set are not modifable : security */
-
 	public Set<Map.Entry<String, List<String>>> entrySet() {
 		return Collections.unmodifiableSet(map.entrySet());
 	}

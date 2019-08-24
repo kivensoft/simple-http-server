@@ -21,9 +21,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BiFunction;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 
@@ -33,6 +30,7 @@ import cn.kivensoft.httpserver.HttpHandler;
 import cn.kivensoft.httpserver.HttpServer;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
+import cn.kivensoft.util.MyLogger;
 import cn.kivensoft.util.ObjectPool;
 import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
@@ -42,8 +40,8 @@ public class SimpleHttpServer implements HttpHandler {
 	private static final String UTF8 = "UTF-8";
 	private static final String DEFAULT_SERVER_NAME = "SimpleHttpServer";
 	private static final String HTTP_VERSION = "1.0";
-	
-	private Logger logger = LoggerFactory.getLogger(getClass());
+
+	private MyLogger logger = MyLogger.get(getClass());
 	private HttpServer httpServer;
 	private BiFunction<String, String, Object> preHandle;
 	private Map<String, MethodInfo> handles = new HashMap<>();
@@ -52,7 +50,7 @@ public class SimpleHttpServer implements HttpHandler {
 	public void start(int port, ExecutorService executorService) throws Exception {
 		start(null, port, executorService);
 	}
-	
+
 	public void start(String serverName, int port, ExecutorService executorService) throws Exception {
 		if (serverName == null || serverName.isEmpty())
 			serverName = DEFAULT_SERVER_NAME;
@@ -71,7 +69,7 @@ public class SimpleHttpServer implements HttpHandler {
 	public void setAuthHandle(BiFunction<String, String, Object> preHandle) {
 		this.preHandle = preHandle;
 	}
-	
+
 	/** 映射类的公共静态函数到api地址
 	 * @param prefix 地址前缀
 	 * @param cls 要映射的类
@@ -138,7 +136,7 @@ public class SimpleHttpServer implements HttpHandler {
 				httpCode = 404; // http找不到页面错误
 			}
 		} catch (Exception e) {
-			logger.error(Fmt.fmt("process {} has error: {}", path, e.getMessage()), e);
+			logger.error(e, "process {} has error: {}", path, e.getMessage());
 			ret = "系统内部错误";
 			httpCode = 500; // http 内部错误
 		}
@@ -146,7 +144,7 @@ public class SimpleHttpServer implements HttpHandler {
 		// 写入返回结果
 		processResult(he, path, httpCode, ret);
 	}
-	
+
 	/** 获取已经生效的映射url */
 	final public Map<String, String> getAllMappingPath() {
 		Map<String, String> ret = new LinkedHashMap<>();
@@ -170,7 +168,7 @@ public class SimpleHttpServer implements HttpHandler {
 		try {
 			ctrl = cls.newInstance();
 		} catch (Exception e) {
-			logger.error(Fmt.fmt("create {} class error: {}", cls.getName(), e.getMessage()), e);
+			logger.error(e, "create {} class error: {}", cls.getName(), e.getMessage());
 			return;
 		}
 
@@ -204,7 +202,7 @@ public class SimpleHttpServer implements HttpHandler {
 			sb.setLength(prefixLen);
 		}
 	}
-	
+
 	/** url路径增加子路径，必须开头有斜杠和结尾不能有斜杠 */
 	final static public void pathAppend(StringBuilder sb, String path) {
 		if (path == null || path.isEmpty()) return;
@@ -212,20 +210,20 @@ public class SimpleHttpServer implements HttpHandler {
 		sb.append(path);
 		if (sb.charAt(sb.length() - 1) == '/') sb.setLength(sb.length() - 1);
 	}
-	
+
 	/** 根据MethodInfo的参数个数进行相应的函数处理 */
 	final private Object invokeMethodInfo(HttpExchange he,
 			Map<String, List<String>> query, MethodInfo act) throws Exception {
 		// 0个参数
 		if (act.argType1 == null) return act.method.invoke(act.obj);
-		
+
 		Object attr = he.getAttribute("auth");
 		Object arg1 = null, arg2 = null;
 		if (act.argType1 == HttpRaw.class) arg1 = new HttpRawImpl(he);
 		else if (act.authParamIndex == 0) arg1 = attr;
 		if (act.argType2 == HttpRaw.class) arg2 = new HttpRawImpl(he);
 		else if (act.authParamIndex == 1) arg2 = attr;
-		
+
 		// 1个参数需要解析或2个参数有1个需要解析时, 解析参数
 		if (arg1 == null && act.argType2 == null
 				|| ((arg1 == null || arg2 == null) && act.argType2 != null)) {
@@ -237,19 +235,19 @@ public class SimpleHttpServer implements HttpHandler {
 			} else {
 				arg = argType.newInstance();
 			}
-			
+
 			// 读取并设置url中的参数
 			if (query != null && query.size() > 0) {
 				Object def_arg = argType.newInstance();
 				for (Map.Entry<String, List<String>> item : query.entrySet())
 					setObjectProperty(argType, arg, def_arg, item);
 			}
-			
+
 			if (arg1 == null) arg1 = arg;
 			else arg2 = arg;
-			logger.debug("params: {}", Fmt.toJson(arg));
+			logger.debugJson("params: {}", arg);
 		}
-		
+
 		// 1个参数, 且参数是预定义的, 无需解析
 		if (act.argType2 == null) return act.method.invoke(act.obj, arg1);
 		// 2个参数
@@ -265,7 +263,7 @@ public class SimpleHttpServer implements HttpHandler {
 		}
 		return -1;
 	}
-	
+
 	/** 解析POST请求的body内容的json格式参数,返回类型为参数cls类型 */
 	final private Object parseBody(HttpExchange he, Class<?> cls) {
 		try {
@@ -274,16 +272,14 @@ public class SimpleHttpServer implements HttpHandler {
 			Object ret = body == null || body.isEmpty()
 					? cls.newInstance() : JSON.parseObject(body, cls);
 			if (logger.isDebugEnabled())
-				logger.debug("parseBody result: {}", JSON.toJSONString(ret,
-					SerializerFeature.WriteDateUseDateFormat,
-					SerializerFeature.DisableCircularReferenceDetect));
+				logger.debug("parseBody result: {}", Json.toJson(ret));
 			return ret;
 		} catch (Exception e) {
-			logger.error(Fmt.fmt("parseBody error: {}", e.getMessage()), e);
+			logger.error(e, "parseBody error: {}", e.getMessage());
 			return null;
 		}
 	}
-	
+
 	/** 解析url地址带的参数成hashmap类型返回值 */
 	final private HashMap<String, List<String>> parseQuery(String query) {
 		HashMap<String, List<String>> ret = new HashMap<>();
@@ -308,7 +304,7 @@ public class SimpleHttpServer implements HttpHandler {
 			} catch (UnsupportedEncodingException e) {
 				continue;
 			}
-			
+
 			// 写入键值到字典表中
 			List<String> vals = ret.get(key);
 			if (vals == null) {
@@ -317,17 +313,17 @@ public class SimpleHttpServer implements HttpHandler {
 			}
 			vals.add(value);
 		} while (idx != -1);
-		
+
 		return ret;
 	}
-	
+
 	final private String parseJwtToken(HttpExchange he, Map<String, List<String>> query) {
 		List<String> auths = he.getRequestHeaders().get("Authorization");
 		if (auths != null && !auths.isEmpty()) {
 			String auth = auths.get(0);
 			if (auth.startsWith("Bearer ")) return auth.substring(7);
 		}
-		
+
 		auths = he.getRequestHeaders().get("Cookie");
 		if (auths != null && !auths.isEmpty()) {
 			auths = Strings.split(auths.get(0), ';');
@@ -339,13 +335,13 @@ public class SimpleHttpServer implements HttpHandler {
 				}
 			}
 		}
-		
+
 		auths = query.get("jwtToken");
 		if (auths != null && !auths.isEmpty()) return auths.get(0);
 
 		return null;
 	}
-	
+
 	/** 记录映射api的条目 */
 	private void logMappingInfo(String uri, Class<?> cls, Method method,
 			Class<?> argType1, Class<?> argType2) {
@@ -354,7 +350,7 @@ public class SimpleHttpServer implements HttpHandler {
 			logger.info("Mapping api url: {}  ->  {}.{}({}, {})",
 					uri, cls.getSimpleName(), method.getName(),
 					argType1.getSimpleName(), argType2.getSimpleName());
-			
+
 		} else if (argType1 != null) {
 			logger.info("Mapping api url: {}  ->  {}.{}({})",
 					uri, cls.getSimpleName(), method.getName(),
@@ -377,7 +373,7 @@ public class SimpleHttpServer implements HttpHandler {
 				logger.debug("{} {}?{}", he.getRequestMethod(), uri.getPath(), query);
 		}
 	}
-	
+
 	/** 处理返回结果，生成json格式发送给调用方
 	 * @param he http上下文
 	 * @param path 请求路径
@@ -391,7 +387,7 @@ public class SimpleHttpServer implements HttpHandler {
 		headers.add("Server", serverName);
 		OutputStream out = he.getResponseBody();
 		Class<?> retCls = result == null ? null : result.getClass();
-		
+
 		if (result == null) {
 			he.sendResponseHeaders(status, 0);
 		} else if (retCls == String.class) {
@@ -420,7 +416,7 @@ public class SimpleHttpServer implements HttpHandler {
 
 		out.close();
 	}
-	
+
 	/** 从流中读取文本内容直到末尾
 	 * @param inputStream http请求内容流
 	 * @return 读取的内容
@@ -437,28 +433,31 @@ public class SimpleHttpServer implements HttpHandler {
 
 			while ((readCount = reader.read(buf)) != -1)
 				sb.append(buf, 0, readCount);
-			
+
 			ret = sb.toString();
 		}
 		catch(IOException e) {
-			logger.error(Fmt.fmt("readStringFromInputStream error: {}", e.getMessage()), e);
+			logger.error(e, Fmt.fmt("readStringFromInputStream error: {}", e.getMessage()));
 		}
 		finally {
 			bufItem.recycle();
 			sbItem.recycle();
 		}
-	
+
 		return ret;
 	}
-	
+
 	private final void setObjectProperty(Class<?> cls, Object arg,
 			Object def, Map.Entry<String, List<String>> item) {
+
 		if (item.getValue() == null || item.getValue().size() == 0)
 			return;
+
 		String key = item.getKey();
-		String suffix = Fmt.get()
-				.append(Character.toUpperCase(key.charAt(0)))
-				.append(key, 1, key.length()).release();
+		Fmt fmt = Fmt.get();
+		fmt.append(Character.toUpperCase(key.charAt(0)))
+			.append(key, 1, key.length());
+		String suffix = fmt.release();
 		Method m = null;
 		Field f = null;
 		Object prop_val = null, def_val = null;
@@ -485,7 +484,7 @@ public class SimpleHttpServer implements HttpHandler {
 		if (!Langs.isEquals(prop_val, def_val)) return;
 
 		// 用反射对参数进行赋值
-		Object new_val = Strings.valueOf(prop_cls, item.getValue().get(0));
+		Object new_val = Strings.valueOf(item.getValue().get(0), prop_cls);
 		try {
 			if (f == null) {
 				m = cls.getMethod(Fmt.concat("set", suffix), prop_cls);
@@ -494,10 +493,10 @@ public class SimpleHttpServer implements HttpHandler {
 				f.set(arg, new_val);
 			}
 		} catch (Exception e) {
-			logger.debug("write object property {} fail.", key);
+			logger.warn(e, "write object property {} fail.", key);
 		}
 	}
-	
+
 	public static class MethodInfo {
 		public Object obj;
 		public Method method;
@@ -518,21 +517,21 @@ public class SimpleHttpServer implements HttpHandler {
 			this.argType2 = argType2;
 		}
 	}
-	
+
 	/** char数组对象池 */
 	private ObjectPool<char[]> charsPool = new ObjectPool<>(() -> new char[512]); 
-	
+
 	/** StringBuilder对象池 */
 	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(
 			() -> new StringBuilder(), v -> v.setLength(0)); 
 
 	private static class HttpRawImpl implements HttpRaw {
 		private HttpExchange he;
-		
+
 		public HttpRawImpl(HttpExchange he) {
 			this.he = he;
 		}
-		
+
 		@Override
 		public URI getRequestURI() {
 			return he.getRequestURI();
@@ -548,7 +547,7 @@ public class SimpleHttpServer implements HttpHandler {
 			if (list != null && !list.isEmpty()) return list.get(0);
 			return null;
 		}
-		
+
 		@Override
 		public InputStream getRequestBody() {
 			return he.getRequestBody();

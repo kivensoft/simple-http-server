@@ -67,10 +67,12 @@ public class FmtTest {
 
 	@Test
 	public void testFormat() {
+		System.out.println();
 		Date d = Strings.parseDate("2004-1-3 4:5:6");
 		int[] ints = {3, 5, 9};
 		Integer[] Ints = {3, 5, 9};
 		List<Integer> list = Arrays.asList(Ints);
+		assertEquals("load 2004-01-03 04:05:06 ok", Fmt.fmt("load {} ok", d));
 		assertEquals("2004-01-03 04:05:06 3,5,9 {}", Fmt.fmt("{} {} {}", d, ints));
 		assertEquals("{} 3,5,9", Fmt.fmt("\\{} {}", ints));
 		assertEquals("2004-01-03 04:05:06 3,5,9 {}", Fmt.fmt("{} {} {}",
@@ -80,8 +82,8 @@ public class FmtTest {
 				ints, ", ", "[", "]").release());
 		assertEquals("[3, 5, 9]", Fmt.get().append(Ints, ", ", "[", "]").release());
 		assertEquals("3,5,9", Fmt.fmt("{}", list));
-		assertEquals("3,5,9", Fmt.fmt("{}", list.stream()));
-		assertEquals("3,5,9", Fmt.fmt("{},{},{}", list::get));
+		assertEquals("3,5,9", Fmt.fmt("{},{},{}", (f, i) -> f.append(list.get(i))));
+		assertEquals("{3,5,9{", Fmt.fmt("{{}{", list));
 	}
 	
 	@Test
@@ -90,7 +92,7 @@ public class FmtTest {
 		Integer[] Ints = {3, 5, 9};
 		assertEquals(a, JSON.parseObject(Fmt.toJson(a), A.class));
 		assertEquals(a, JSON.parseObject(Fmt.fmtJson("{}", a), A.class));
-		assertEquals("{\"name\": \"hello\", \"age\": 33}, [3, 5, 9], 42",
+		assertEquals("{\"age\": 33, \"name\": \"hello\"}, [3, 5, 9], 42",
 				Fmt.fmtJson("{}, {}, {}", a, Ints, 42));
 	}
 	
@@ -103,11 +105,10 @@ public class FmtTest {
 		
 		assertEquals("--------", Fmt.rep('-', 8));
 		assertEquals("--------", Fmt.rep("-", 8));
-		assertEquals("-=-=-=-=-=-=-=-", Fmt.rep("-", 8, '='));
-		assertEquals("-=0-=0-=0-=0-=0-=0-=0-", Fmt.rep("-", 8, '=', '0'));
+		assertEquals("-=-=-=-=-=-=-=-", Fmt.rep("-", 8, "="));
 		
 		assertEquals("f2345678", Fmt.toHex(0xF2345678));
-		assertEquals("f2345678-a8765432", Fmt.toHex('-', 0xF2345678, 0xa8765432));
+		//assertEquals("f2345678-a8765432", Fmt.toHex('-', 0xF2345678, 0xa8765432));
 		assertEquals("f2345678a8765432", Fmt.toHex(0xF2345678a8765432L));
 		assertEquals("f2-34-56-78", Fmt.toHex(
 				new byte[] {(byte)0xF2, 0x34, 0x56, 0x78}, '-'));
@@ -121,7 +122,7 @@ public class FmtTest {
 			switch (i) {
 				case 0: f.appendHex(0xF2345678); break;
 				case 1: f.appendBase64(Strings.toBytes("口令1"), false); break;
-				case 2: f.repeat("-", 8, '=', '0'); break;
+				case 2: f.repeat("-", 8, "=0"); break;
 			}
 		}));
 		
@@ -146,7 +147,25 @@ public class FmtTest {
 		String r = "01020350517f8081feff";
 		assertEquals(r, Fmt.toHex(bs));
 		assertEquals("01 02 03 50 51 7f 80 81 fe ff", Fmt.toHex(bs, ' '));
-		assertEquals("", Fmt.toHex((byte[])null));
+		assertEquals("null", Fmt.toHex((byte[])null));
+	}
+
+	@Test
+	public void testAppendable() {
+		StringBuilder sb = new StringBuilder();
+		for (int i = 100000; i < 109999; i++) sb.append(i).append(',');
+		Fmt f = Fmt.get();
+		f.append(sb);
+		assertEquals(sb.toString(), f.toString());
+	}
+
+	@Test
+	public void testAppendFmt() {
+		Fmt sb = Fmt.get();
+		for (int i = 100000; i < 100999; i++) sb.append(i).append(',');
+		Fmt f = Fmt.get();
+		f.append(sb);
+		assertEquals(sb.toString(), f.toString());
 	}
 }
 

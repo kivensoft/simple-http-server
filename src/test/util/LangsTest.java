@@ -50,13 +50,11 @@ public class LangsTest {
 		assertTrue(Langs.isEquals(d1, d2));
 		assertFalse(Langs.isEquals(d1, d3));
 		
-		assertTrue(Langs.isAnyNull(i1, d1, d2, null, i3));
-		assertTrue(Langs.isAnyNotNull(null, null, d3, null));
 	}
 	
 	@Test
 	public void testForEach() {
-		Integer[] ia = Langs.newArrayByClass(Integer.class, 5);
+		Integer[] ia = new Integer[5];
 		for (int i = 0; i < ia.length; i++) ia[i] = i;
 		IntNumber num = Langs.forEachWithCatch(ia, new IntNumber(), (v, r) -> {
 			if (v != 3) r.plus(v);
