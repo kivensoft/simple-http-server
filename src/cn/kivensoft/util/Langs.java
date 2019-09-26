@@ -98,7 +98,7 @@ public final class Langs {
 	 * @param def null时返回额值
 	 * @return not null返回value, null返回def
 	 */
-	public static <T> T test(T value, T def) {
+	public static <T> T assignIf(T value, T def) {
 		return value != null ? value : def;
 	}
 
@@ -108,7 +108,7 @@ public final class Langs {
 	 * @param pred lambda, 参数是value, 返回值根据该lambda返回的true/false决定
 	 * @return true返回value, false返回def
 	 */
-	public static <T> T test(T value, T def, Predicate<T> pred) {
+	public static <T> T assignIf(T value, T def, Predicate<T> pred) {
 		return pred.test(value) ? value : def;
 	}
 
@@ -501,7 +501,7 @@ public final class Langs {
      * @param predicate 回调函数
      * @return 找到返回指定索引, 否则返回-1
      */
-    public static <T> int indexOfArray(T[] array, int start, Predicate<T> predicate) {
+    public static <T> int indexOf(T[] array, int start, Predicate<T> predicate) {
     	if (array == null || array.length == 0) return -1;
     	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return i;
@@ -514,7 +514,7 @@ public final class Langs {
      * @param predicate 回调函数
      * @return 返回找到的元素, 否则返回null
      */
-    public static <T> T elementAtArray(T[] array, int start, Predicate<T> predicate) {
+    public static <T> T elementAt(T[] array, int start, Predicate<T> predicate) {
     	if (array == null || array.length == 0) return null;
     	for (int i = start, len = array.length; i < len; ++i)
     		if (predicate.test(array[i])) return array[i];
@@ -527,7 +527,7 @@ public final class Langs {
      * @return 找到则返回该元素, 否则返回false
      */
     public static <T> T find(T[] array, Predicate<T> predicate) {
-    	return elementAtArray(array, 0, predicate);
+    	return elementAt(array, 0, predicate);
     }
 
     /** 查找元素

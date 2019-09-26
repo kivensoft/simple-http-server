@@ -3,38 +3,47 @@ package cn.kivensoft.util;
 /** 键值对泛型类
  * @author kiven
  *
- * @param <K>
- * @param <V>
  */
-final public class Pair <K, V> {
-	public K first;
-	public V second;
+final public class Tuple3 <T1, T2, T3> {
+	public T1 first;
+	public T2 second;
+	public T3 three;
 	
-	public Pair() { super(); }
+	public Tuple3() { super(); }
 	
-	public Pair(K first, V second) {
+	public Tuple3(T1 first, T2 second, T3 three) {
 		this.first = first;
 		this.second = second;
+		this.three = three;
 	}
 	
-	public static <K, V> Pair<K, V> of(K first, V second) {
-		return new Pair<K, V>(first, second);
+	public static <T1, T2, T3> Tuple3<T1, T2, T3> of(
+			T1 first, T2 second, T3 three) {
+		return new Tuple3<T1, T2, T3>(first, second, three);
 	}
-	
-	public K getFirst() {
+
+	public T1 getFirst() {
 		return first;
 	}
 	
-	public void setFirst(K key) {
+	public void setFirst(T1 key) {
 		this.first = key;
 	}
 	
-	public V getSecond() {
+	public T2 getSecond() {
 		return second;
 	}
 	
-	public void setSecond(V value) {
+	public void setSecond(T2 value) {
 		this.second = value;
+	}
+
+	public T3 getThree() {
+		return three;
+	}
+
+	public void setThree(T3 three) {
+		this.three = three;
 	}
 
 	@Override
@@ -43,6 +52,7 @@ final public class Pair <K, V> {
 		int result = 1;
 		result = prime * result + ((first == null) ? 0 : first.hashCode());
 		result = prime * result + ((second == null) ? 0 : second.hashCode());
+		result = prime * result + ((three == null) ? 0 : three.hashCode());
 		return result;
 	}
 
@@ -51,7 +61,7 @@ final public class Pair <K, V> {
 		if (this == obj) return true;
 		if (obj == null) return false;
 		if (getClass() != obj.getClass()) return false;
-		Pair<?, ?> other = (Pair<?, ?>) obj;
+		Tuple3<?, ?, ?> other = (Tuple3<?, ?, ?>) obj;
 		if (first == null) {
 			if (other.first != null) return false;
 		}
@@ -60,11 +70,18 @@ final public class Pair <K, V> {
 			if (other.second != null) return false;
 		}
 		else if (!second.equals(other.second)) return false;
+		if (three == null) {
+			if (other.three != null) return false;
+		}
+		else if (!three.equals(other.three)) return false;
+		
 		return true;
 	}
 
 	@Override
 	public String toString() {
-		return "Pair [first = " + first + ", second = " + second + "]";
+		return "Tuple3 [first = " + first + ", second = " + second
+				+ ", three = " + three + "]";
 	}
+
 }

@@ -119,9 +119,11 @@ final public class Resources {
 
 		if(path.endsWith(".jar")) { //在部署环境
 			path = path.substring(0, path.lastIndexOf('/'));
-			libPath = Strings.joinPath("/", libPath);
-			if (libPath.length() > 0 && path.endsWith(libPath))
-				path = path.substring(0, path.length() - libPath.length());
+			if (libPath != null && libPath.length() > 0) {
+				libPath = Strings.joinPath("/", libPath);
+				if (path.endsWith(libPath))
+					path = path.substring(0, path.length() - libPath.length());
+			}
 		}
 
 		return path;

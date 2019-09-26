@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.TimeZone;
 
@@ -504,6 +505,46 @@ final public class Strings {
 		return at > 0 && at < len - 3 && dot >= 3 && dot < len - 1;
 	}
 
+	public enum CharType {
+		数字, 小写字母, 大写字母, 特殊符号
+	}
+	
+	/** 密码强壮级别
+	 * @param value
+	 * @return 包含类型的枚举集合
+	 */
+	public static EnumSet<CharType> getCharType(String value) {
+		EnumSet<CharType> ret = EnumSet.noneOf(CharType.class);
+
+		if (value == null || value.length() == 0)
+			return ret;
+
+		boolean hasNumber = false, hasLower = false,
+				hasUpper = false, hasSymbol = false;
+
+		for (int i = 0, imax = value.length(); i < imax; ++i) {
+			char c = value.charAt(i);
+			if (!hasNumber && c >= '0' && c <= '9')
+				hasNumber = true;
+			else if (!hasLower && c >= 'a' && c <= 'z')
+				hasLower = true;
+			else if (!hasUpper && c >= 'A' && c <= 'Z')
+				hasLower = true;
+			else if (!hasSymbol && (c >= 0x21 && c <= 0x2f
+					|| c >= 0x3a && c <= 0x40
+					|| c >= 0x5b && c <= 0x60
+					|| c >= 0x7b && c <= 0x7e))
+				hasSymbol = true;
+		}
+
+		if (hasNumber) ret.add(CharType.数字);
+		if (hasLower) ret.add(CharType.小写字母);
+		if (hasUpper) ret.add(CharType.大写字母);
+		if (hasSymbol) ret.add(CharType.特殊符号);
+
+		return ret;
+	}
+
 	/** 格式化日期时间为"yyyy-MM-dd HH:mm:ss"格式
 	 * @param date 要格式化的日期对象
 	 * @return 格式化后的文本
@@ -608,47 +649,60 @@ final public class Strings {
 
 	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
 	public static int[] splitDate (String value) {
-		return splitInt(value, new int[7],
+		return splitInt(value, new int[8],
 				(i, v, r) -> { if (i < 7) r[i] = v;
 		});
 	}
 
 	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text) {
-		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-		boolean isGmt = text.indexOf('T') > 0;
-		int[] vs = splitDate(text);
-		Date ret = null;
-		Calendar cal = Calendar.getInstance();
-		if (isGmt) cal.setTimeZone(TimeZone.getTimeZone("GMT"));
-
-		cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
-		cal.set(Calendar.MILLISECOND, vs[6]);
-		ret = cal.getTime();
-
-		return ret;
+		return parseDate(text, Calendar.getInstance());
 	}
 
 	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text, Calendar cal) {
 		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf('-') < 1 || text.length() < 5) return null;
-		boolean isGmt = text.indexOf('T') > 0;
+		
+		// 有效值为 "2019-02-03" "2019-02-03 04:05:06" "2019-02-03 04:05:06.333"
+		// "2019-02-03T04:05:06Z" "2019-02-03T04:05:06+08"
+		// "2019-02-03T04:05:06+0800" "2019-02-03T04:05:06+08:00"
+		
+		// 日期格式错误, 起始分隔符不在4位年份之后
+		if (text.length() < 8 || text.indexOf('-') < 4)
+			return null;
+
+		// ISO8601格式错误, "T"所在位置有误
+		int t_idx = text.indexOf('T');
+		if (t_idx != -1 && t_idx < 8)
+			return null;
+
+		boolean hasTimeZone = t_idx != -1;
+		
 		int[] vs = splitDate(text);
-		Date ret = null;
-
-		boolean cal_gmt = "GMT".equals(cal.getTimeZone().getID());
-		if (isGmt && !cal_gmt)
-			cal.setTimeZone(TimeZone.getTimeZone("GMT"));
-		else if (!isGmt && cal_gmt)
-			cal.setTimeZone(TimeZone.getDefault());
-
 		cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
-		cal.set(Calendar.MILLISECOND, vs[6]);
-		ret = cal.getTime();
+		
+		// 无时区的日期格式, 使用系统时区, 转成utc时区表示
+		if (!hasTimeZone) {
+			cal.set(Calendar.MILLISECOND, vs[6]);
+		}
+		else {
+			// 小时和分钟偏移合在一起
+			if (vs[6] >= 100) {
+				vs[7] = vs[6] % 100;
+				vs[6] = vs[6] / 100;
+			}
+			
+			int real_offset = vs[6] * 3600_000 + vs[7] * 60_000;
+			
+			// 判断是加时区还是减时区, 减时区要取负
+			if (text.indexOf('+') == -1)
+				real_offset = -real_offset;
 
-		return ret;
+			cal.add(Calendar.MILLISECOND,
+					TimeZone.getDefault().getRawOffset() - real_offset);
+		}
+
+		return cal.getTime();
 	}
 
 	/** 解析本地日期格式 yyyy-MM-dd格式 */

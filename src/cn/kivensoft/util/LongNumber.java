@@ -81,4 +81,5 @@ final public class LongNumber extends Number {
 	public String toString() {
 		return Long.toString(value);
 	}
+
 }

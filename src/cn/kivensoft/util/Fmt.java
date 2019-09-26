@@ -161,8 +161,8 @@ final public class Fmt implements Appendable, CharSequence {
 	 * @param format 格式化字符串
 	 * @param args 格式化参数
 	 */
-	public static final void pl(String format, Object... args) throws IOException {
-		get().format(format, args).appendNewLine().toStream(System.out);;
+	public static final void pl(String format, Object... args) {
+		System.out.println(get().format(format, args).release());
 	}
 
 	/** 输出到流
@@ -1355,7 +1355,7 @@ final public class Fmt implements Appendable, CharSequence {
 		boolean isMatch = true;
 		switch (cls.getName()) {
 			case "java.lang.String":
-				appendJavascriptString((CharSequence)value);
+				appendJsonString((CharSequence)value);
 				break;
 			case "java.lang.Integer":
 				buffer.append(((Integer)value).intValue());
@@ -1412,7 +1412,7 @@ final public class Fmt implements Appendable, CharSequence {
 		else if (cls.isArray())
 			arrayToJson(value);
 		else if (cls.isEnum())
-			appendJavascriptString(((Enum<?>)value).toString());
+			appendJsonString(((Enum<?>)value).toString());
 		else if (value instanceof Map)
 			mapToJson((Map<?, ?>)value);
 		else if (value instanceof Iterable)
@@ -1420,7 +1420,7 @@ final public class Fmt implements Appendable, CharSequence {
 		else if (value instanceof Number)
 			buffer.append(((Number)value).toString());
 		else if (value instanceof CharSequence)
-			appendJavascriptString((CharSequence)value);
+			appendJsonString((CharSequence)value);
 		else if (value instanceof Calendar)
 			append('"').append((Calendar)value).append('"');
 		else 
@@ -1748,10 +1748,10 @@ final public class Fmt implements Appendable, CharSequence {
 	}
 
 	/** 以json字符串方式追加字符串, 自动对字符串进行json方式转义 */
-	public final void appendJavascriptString(CharSequence value) {
+	public final Fmt appendJsonString(CharSequence value) {
 		if(value == null) {
 			appendNull();
-			return;
+			return this;
 		}
 
 		buffer.append('"');
@@ -1771,6 +1771,7 @@ final public class Fmt implements Appendable, CharSequence {
 			}
 		}
 		buffer.append('"');
+		return this;
 	}
 
 }

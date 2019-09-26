@@ -77,8 +77,6 @@ final public class IntNumber extends Number {
 		return (double)value;
 	}
 
-
-
 	@Override
 	public String toString() {
 		return Integer.toString(value);

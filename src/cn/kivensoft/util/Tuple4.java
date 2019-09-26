@@ -4,34 +4,34 @@ package cn.kivensoft.util;
  * @author kiven
  *
  */
-final public class Tuple <T1, T2, T3, T4> {
+final public class Tuple4 <T1, T2, T3, T4> {
 	public T1 first;
 	public T2 second;
 	public T3 three;
 	public T4 four;
 	
-	public Tuple() { super(); }
+	public Tuple4() { super(); }
 	
-	public Tuple(T1 first, T2 second, T3 three, T4 four) {
+	public Tuple4(T1 first, T2 second, T3 three, T4 four) {
 		this.first = first;
 		this.second = second;
 		this.three = three;
 		this.four = four;
 	}
 	
-	public static <T1, T2> Tuple<T1, T2, Void, Void> of(
+	public static <T1, T2> Tuple4<T1, T2, Void, Void> of(
 			T1 first, T2 second) {
-		return new Tuple<T1, T2, Void, Void>(first, second, null, null);
+		return new Tuple4<T1, T2, Void, Void>(first, second, null, null);
 	}
 
-	public static <T1, T2, T3> Tuple<T1, T2, T3, Void> of(
+	public static <T1, T2, T3> Tuple4<T1, T2, T3, Void> of(
 			T1 first, T2 second, T3 three) {
-		return new Tuple<T1, T2, T3, Void>(first, second, three, null);
+		return new Tuple4<T1, T2, T3, Void>(first, second, three, null);
 	}
 
-	public static <T1, T2, T3, T4> Tuple<T1, T2, T3, T4> of(
+	public static <T1, T2, T3, T4> Tuple4<T1, T2, T3, T4> of(
 			T1 first, T2 second, T3 three, T4 four) {
-		return new Tuple<T1, T2, T3, T4>(first, second, three, four);
+		return new Tuple4<T1, T2, T3, T4>(first, second, three, four);
 	}
 	
 	public T1 getFirst() {
@@ -82,7 +82,7 @@ final public class Tuple <T1, T2, T3, T4> {
 		if (this == obj) return true;
 		if (obj == null) return false;
 		if (getClass() != obj.getClass()) return false;
-		Tuple<?, ?, ?, ?> other = (Tuple<?, ?, ?, ?>) obj;
+		Tuple4<?, ?, ?, ?> other = (Tuple4<?, ?, ?, ?>) obj;
 		if (first == null) {
 			if (other.first != null) return false;
 		}
