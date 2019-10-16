@@ -75,6 +75,10 @@ public final class Langs {
 		return obj == null ? false : obj.longValue() == i;
 	}
 
+	/** 获取异常的堆栈详细内容
+	 * @param e 异常变量
+	 * @return 堆栈详细内容
+	 */
 	public static String getStackTrace(Exception e) {
 		StringWriter sw = new StringWriter();
 		try {
@@ -89,7 +93,7 @@ public final class Langs {
 	 * @param pred lambda, 参数是value, 返回值根据该lambda返回的true/false决定
 	 * @return true返回value, false返回def
 	 */
-	public static int test(int value, int def, IntPredicate pred) {
+	public static int assignIf(int value, int def, IntPredicate pred) {
 		return pred.test(value) ? value : def;
 	}
 
@@ -112,34 +116,59 @@ public final class Langs {
 		return pred.test(value) ? value : def;
 	}
 
+	/** 生成map字典
+	 * @param args key1, value1, key2, value2, ... 形式的参数
+	 * @return 字典对象
+	 */
 	@SuppressWarnings("unchecked")
 	public static <K, V> HashMap<K, V> mapOf(Object... args) {
-		HashMap<K, V> ret = new HashMap<>();
+		HashMap<K, V> ret = new HashMap<>(args.length);
 		for (int i = 0, imax = args.length - 1; i < imax; i += 2)
 			ret.put((K) args[i], (V) args[i + 1]);
 		return ret;
 	}
 
+	/** 生成列表
+	 * @param args 列表项
+	 * @return 列表
+	 */
 	@SafeVarargs
 	public static <T> ArrayList<T> listOf(T... args) {
-		ArrayList<T> ret = new ArrayList<>();
+		ArrayList<T> ret = new ArrayList<>(args.length);
 		for (int i = 0, imax = args.length; i < imax; ++i)
 			ret.add(args[i]);
 		return ret;
 	}
 
+	/** 生成数组
+	 * @param args 数组项
+	 * @return 数组
+	 */
 	@SafeVarargs
 	public static <T> T[] arrayOf(T... args) {
 		return args;
 	}
 
+	/** 生成整数数组
+	 * @param args 整数项
+	 * @return 整数数组
+	 */
 	public static int[] arrayOfInt(int... args) {
 		return args;
 	}
 
+	/** 拷贝字典表中的指定键值
+	 * @param dst
+	 * @param src
+	 * @param args
+	 */
 	@SafeVarargs
 	public static <T1, T2> void transTo(Map<T1, T2> dst, Map<T1, T2> src, T1... args) {
-		for (T1 arg : args) dst.put(arg, src.get(arg));
+		if (args.length == 0)
+			dst.putAll(src);
+		else
+			for (T1 arg : args)
+				dst.put(arg, src.get(arg));
 	}
 
 	@FunctionalInterface
@@ -284,6 +313,10 @@ public final class Langs {
 		return dst;
 	}
 
+	/** 循环对象的所有字段名/值
+	 * @param obj 要循环的对象
+	 * @param consumer 回调函数, 每个找到的字段名/值进行回调
+	 */
 	public static void forEachFields(Object obj, BiConsumer<String, Object> consumer) {
 		if (obj == null) return;
 
@@ -319,6 +352,11 @@ public final class Langs {
 		}
 	}
 
+	/** 获取对象指定字段名的值
+	 * @param obj 对象实例
+	 * @param name 字段名
+	 * @return
+	 */
 	public static Object getField(Object obj, String name) {
 		Class<?> cls = obj.getClass();
 		char first = name.charAt(0);
@@ -339,6 +377,12 @@ public final class Langs {
 		}
 	}
 
+	/** 设置对象指定字段的值
+	 * @param obj 对象实例
+	 * @param name 字段名
+	 * @param value 值
+	 * @return
+	 */
 	public static boolean setField(Object obj, String name, Object value) {
 		Class<?> cls = obj.getClass();
 		char first = name.charAt(0);
@@ -360,6 +404,12 @@ public final class Langs {
 		return true;
 	}
 
+	/** 自动流拷贝
+	 * @param in 输入流
+	 * @param out 输出流
+	 * @param autoClose 自动关闭标志
+	 * @throws IOException
+	 */
 	public static void transTo(InputStream in, OutputStream out, boolean autoClose)
 			throws IOException {
 		byte[] buf = new byte[4096];
@@ -374,6 +424,11 @@ public final class Langs {
 		}
 	}
 
+	/** 读取文件内容到字节数组
+	 * @param filename 文件名
+	 * @return 文件内容的字节数组
+	 * @throws IOException
+	 */
 	public static byte[] readFromFile(String filename) throws IOException {
 		File f = new File(filename);
 		if (!f.exists()) throw new FileNotFoundException();
@@ -393,6 +448,12 @@ public final class Langs {
 		return buf;
 	}
 
+	/** 读取流内容到字节数组
+	 * @param in 输入流
+	 * @param autoClose 自动关闭标志
+	 * @return 流内容字节数组
+	 * @throws IOException
+	 */
 	public static byte[] readFromStream(InputStream in, boolean autoClose) throws IOException {
 		// 缓冲区长度必须为2的n次幂, 因为下面的计算中使用了位移算法
 		final int BUF_SIZE = 4096;
@@ -430,11 +491,22 @@ public final class Langs {
 		return ret;
 	}
 
+	/** 读取文件内容到字符串
+	 * @param filename 文件名
+	 * @return 读取的字符串
+	 * @throws IOException
+	 */
 	public static String readStringFromFile(String filename) throws IOException {
 		FileInputStream fis = new FileInputStream(filename);
 		return readStringFromStream(fis, true);
 	}
 
+	/** 读取流内容到字符串(UTF8格式)
+	 * @param in 输入流
+	 * @param autoClose 是否自动关闭
+	 * @return 流内容的字符串表示形式
+	 * @throws IOException
+	 */
 	public static String readStringFromStream(InputStream in, boolean autoClose)
 			throws IOException {
 		char[] buf = new char[4096];
@@ -667,8 +739,9 @@ public final class Langs {
 	}
 
 	/** 设置日期参数的时分秒为0 */
-	public static void trimTime(Date date) {
+	public static Date trimTime(Date date) {
 		date.setTime((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
+		return date;
 	}
 
 	/** GMT转换为本地时间 */

@@ -425,6 +425,7 @@ final public class Strings {
 
 		int index = 0, len = text.length();
 		char c = text.charAt(index++);
+
 		if (c < '0' || c > '9') {
 			if (c != '-' && c != '+') return false;
 			if (len < 2) return false;
@@ -436,12 +437,13 @@ final public class Strings {
 			c = text.charAt(index);
 			if (c < '0' || c > '9') {
 				if (c == '.') {
-					if (findedDot) return false;
+					if (findedDot || index == len - 1) return false;
 					else findedDot = true;
 				}
 				else return false;
 			}
 		}
+
 		return true;
 		//return Pattern.matches("-?[0-9]+(\\.[0-9]+)?", text);
 	}
@@ -453,17 +455,16 @@ final public class Strings {
 	public static boolean isMoney(String text) {
 		if (text == null || text.isEmpty()) return false;
 
-		boolean firstNumber = false, hasDot = false;
+		boolean hasDot = false;
 		int lastNumber = 0;
 		for (int i = 0, len = text.length(); i < len; ++i) {
 			char c = text.charAt(i);
 			if (c >= '0' && c <= '9') {
-				if (!firstNumber) firstNumber = true;
-				if (hasDot || ++lastNumber > 2) return false;
+				if (hasDot && ++lastNumber > 2) return false;
 			}
 			else if (c == '.') {
-				if (!firstNumber || hasDot) return false;
-				hasDot = true;
+				if (hasDot || i == 0 || i == len - 1) return false;
+				else hasDot = true;
 			} else if (i == 0 && (c == '-' || c == '+')) {
 			} else {
 				return false;
@@ -597,15 +598,61 @@ final public class Strings {
 		df.setTimeZone(TimeZone.getTimeZone("GMT"));	
 		return df.format(date);
 	}
+	
+	/** 获取去除文件名的路径
+	 * @param fullpath 全路径的文件名
+	 * @return 路径
+	 */
+	public static String getFilePath(String fullpath) {
+		if (fullpath == null) return null;
+		int p1 = fullpath.lastIndexOf('/');
+		int p2 = fullpath.lastIndexOf('\\');
+		if (p1 < p2) p1 = p2;
+		return fullpath.substring(0, p1);
+	}
 
-	public static String changeExt(String origin, String newExt, char sep) {
-		if (origin == null) return null;
-		int idx = origin.lastIndexOf(sep);
-		StringBuilder sb = new StringBuilder();
-		if (idx != -1) sb.append(origin, 0, idx + 1);
-		else sb.append(sep);
-		sb.append(newExt);
-		return sb.toString();
+	/** 获取去除路径的纯文件名
+	 * @param fullpath 全路径的文件名
+	 * @return 纯文件名
+	 */
+	public static String getFileName(String fullpath) {
+		if (fullpath == null || fullpath.isEmpty()) return null;
+		int p1 = fullpath.lastIndexOf('/');
+		int p2 = fullpath.lastIndexOf('\\');
+		if (p1 < p2) p1 = p2;
+		if (p1 == fullpath.length() - 1) return null;
+		return fullpath.substring(p1 + 1);
+	}
+
+	/** 获取文件扩展名
+	 * @param filename
+	 * @return
+	 */
+	public static String getFileExt(String filename) {
+		if (filename == null || filename.isEmpty()) return null;
+		filename = getFileName(filename);
+		int p = filename.lastIndexOf('.');
+		if (p == -1 || p == filename.length() - 1) return "";
+		return filename.substring(p + 1);
+	}
+
+	/** 改变文件扩展名
+	 * @param filename 文件名
+	 * @param ext 新的扩展名
+	 * @return
+	 */
+	public static String changeExt(String filename, String ext) {
+		if (filename == null || filename.isEmpty()) return null;
+		String fn = getFileName(filename);
+		StringBuilder sb = new StringBuilder(256);
+		int idx = fn.lastIndexOf('.');
+		if (idx > 0 && idx < fn.length() - 1)
+			sb.append(fn, 0, idx + 1);
+		else
+			sb.append(fn).append('.');
+
+		String ret = sb.append(ext).toString();
+		return ret;
 	}
 
 	@FunctionalInterface
@@ -613,45 +660,54 @@ final public class Strings {
 		void accept (int index, int value, T result);
 	}
 
-	/** 解析由逗号或空格分隔的数字字符串成整数数组 */
-    public static <R> R splitInt(String value, R result, OnSplitInt<R> consumer) {
+	/** 解析由非数字字符分隔的数字字符串 */
+	public static <R> R splitInt(String value, R result, OnSplitInt<R> consumer) {
+		return splitInt(value, result, consumer, true);
+	}
+
+	private static <R> R splitInt(String value, R result, OnSplitInt<R> consumer, boolean hasSym) {
 		if (value == null || value.isEmpty()) return result;
-		int i = 0, len = value.length(), index = 0;
-		while (i < len) {
-			char c = value.charAt(i++);
+		boolean finded_num = false, finded_sym = false;
+		int num = 0, idx = 0;
+		for (int i = 0, len = value.length(); i < len; ++i) {
+			char c = value.charAt(i);
 			if (c >= '0' && c <= '9') {
-				int num = c - 48;
-				while (i < len) {
-					char ch = value.charAt(i++);
-					if (ch < '0' || ch > '9') break;
-					//number * 10 = number * 8 + number * 2 = number << 3 + number << 1
-					num = (num << 3) + (num << 1) + (ch - 48);
+				finded_num = true;
+				//num * 10 = num * 8 + num * 2 = num << 3 + num << 1
+				num = (num << 3) + (num << 1) + (c - 48);
+			} else if (hasSym && c == '-') {
+				finded_sym = true;
+			} else {
+				if (finded_num) {
+					finded_num = false;
+					if (finded_sym) num = -num;
+					consumer.accept(idx++, num, result);
+					num = 0;
 				}
-				consumer.accept(index++, num, result);
+				finded_sym = false;
 			}
-			else {
-				while (i < len) {
-					char ch = value.charAt(i++);
-					if (ch >= '0' && ch <= '9') {
-						--i;
-						break;
-					}
-				}
-			}
+		}
+		if (finded_num) {
+			if (finded_sym) num = -num;
+			consumer.accept(idx, num, result);
 		}
 		return result;
 	}
 
 	/** 解析由逗号或空格分隔的数字字符串成整数数组 */
-    public static List<Integer> splitInt(String value) {
-    	return splitInt(value, new ArrayList<Integer>(), (i, v, r) -> r.add(v));
-    }
+	public static List<Integer> splitInt(String value) {
+		return splitInt(value, new ArrayList<Integer>(), (i, v, r) -> r.add(v), true);
+	}
+
+	public static List<Integer> splitInt(String value, boolean hasSymbol) {
+		return splitInt(value, new ArrayList<Integer>(), (i, v, r) -> r.add(v), hasSymbol);
+	}
 
 	/** 解析日期时间字段成 年/月/日/时/分/秒/毫秒 数组 */
 	public static int[] splitDate (String value) {
 		return splitInt(value, new int[8],
 				(i, v, r) -> { if (i < 7) r[i] = v;
-		});
+		}, false);
 	}
 
 	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
@@ -686,6 +742,7 @@ final public class Strings {
 			cal.set(Calendar.MILLISECOND, vs[6]);
 		}
 		else {
+			cal.set(Calendar.MILLISECOND, 0);
 			// 小时和分钟偏移合在一起
 			if (vs[6] >= 100) {
 				vs[7] = vs[6] % 100;
@@ -822,7 +879,7 @@ final public class Strings {
 	}
 
 	@FunctionalInterface
-    public static interface SplitConsumer<T> {
+	public static interface SplitConsumer<T> {
 		void accept(int start, int stop, T result);
 	}
 
@@ -830,8 +887,7 @@ final public class Strings {
 	 * @param text 要解析的文本
 	 * @param separator 分隔符
 	 */
-	public static <R> R split(String text, char separator, R result,
-			SplitConsumer<R> consumer) {
+	public static <R> R split(String text, char separator, R result, SplitConsumer<R> consumer) {
 		if (text == null || text.isEmpty()) return result;
 		int index = -1;
 		for (int i = 0, len = text.length(); i < len; ++i) {
@@ -957,6 +1013,28 @@ final public class Strings {
 		}
 		
 		return ret;
+	}
+
+	public static int getBytesLength(String value) {
+		if (value == null || value.isEmpty()) return 0;
+		int count = 0;
+		for (int i = 0, len = value.length(); i < len; ++i) {
+			char c = value.charAt(i);
+			if (c < 0x80) ++count;
+			else if (c < 0x800) count += 2;
+			else if (c < 0x10000) count += 3;
+			else count += 4;
+		}
+		return count;
+	}
+
+	public static byte[] getBytes(String value) {
+		if (value == null) return null;
+		try {
+			return value.getBytes(UTF8);
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
 	}
 
 	public static void main(String[] args) throws Exception {

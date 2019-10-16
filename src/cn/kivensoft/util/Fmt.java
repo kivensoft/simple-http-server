@@ -363,6 +363,18 @@ final public class Fmt implements Appendable, CharSequence {
 		return buffer.length();
 	}
 
+	public final int bytesLength() {
+		int count = 0;
+		for (int i = 0, len = buffer.length(); i < len; ++i) {
+			char c = buffer.charAt(i);
+			if (c < 0x80) ++count;
+			else if (c < 0x800) count += 2;
+			else if (c < 0x10000) count += 3;
+			else count += 4;
+		}
+		return count;
+	}
+
 	@Override
 	public final char charAt(int index) {
 		return buffer.charAt(index);
@@ -429,6 +441,14 @@ final public class Fmt implements Appendable, CharSequence {
 	public final Fmt append(char[] str, int offset, int len) {
 		buffer.append(str, offset, len);
 		return this;
+	}
+
+	public final Fmt append(byte[] bytes) {
+		return appendBytes(bytes, 0, bytes.length);
+	}
+
+	public final Fmt append(byte[] bytes, int offset, int len) {
+		return appendBytes(bytes, offset, len);
 	}
 
 	public final Fmt setLength(int newLength) {
@@ -542,7 +562,7 @@ final public class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	/** 使用{}作为格式化参数进行格式化 
+	/** 使用{}作为格式化参数进行格式化
 	 * @param format 字符串格式模板
 	 * @param arg1 格式化参数1
 	 * @return
@@ -551,7 +571,7 @@ final public class Fmt implements Appendable, CharSequence {
 		return format(format, 1, arg1, null, null);
 	}
 
-	/** 使用{}作为格式化参数进行格式化 
+	/** 使用{}作为格式化参数进行格式化
 	 * @param format 字符串格式模板
 	 * @param arg1 格式化参数1
 	 * @param arg2 格式化参数2
@@ -561,7 +581,7 @@ final public class Fmt implements Appendable, CharSequence {
 		return format(format, 2, arg1, arg2, null);
 	}
 
-	/** 使用{}作为格式化参数进行格式化 
+	/** 使用{}作为格式化参数进行格式化
 	 * @param format 字符串格式模板
 	 * @param arg1 格式化参数1
 	 * @param arg2 格式化参数2
@@ -572,7 +592,7 @@ final public class Fmt implements Appendable, CharSequence {
 		return format(format, 3, arg1, arg2, arg3);
 	}
 
-	/** 使用{}作为格式化参数进行格式化 
+	/** 使用{}作为格式化参数进行格式化
 	 * @param format 字符串格式模板
 	 * @param count 格式化参数个数
 	 * @param arg1 格式化参数1
@@ -730,7 +750,9 @@ final public class Fmt implements Appendable, CharSequence {
 
 		if (cls.isArray()) {
 			if (cls.getComponentType() == char.class)
-				buffer.append((char[])obj);
+				buffer.append((char[]) obj);
+			else if (cls.getComponentType() == byte.class)
+				appendBytes((byte[]) obj);
 			else if (cls.getComponentType().isPrimitive())
 				appendPrimitiveArray(obj, ",", null, null);
 			else append((Object[])obj, ",", null, null, null);
@@ -1136,7 +1158,7 @@ final public class Fmt implements Appendable, CharSequence {
 			appendNull();
 			return this;
 		}
-		
+
 		if (prefix != null) buffer.append(prefix);
 		if (iter.hasNext())
 			append(func == null ? iter.next() : func.apply(iter.next()));
@@ -1423,7 +1445,7 @@ final public class Fmt implements Appendable, CharSequence {
 			appendJsonString((CharSequence)value);
 		else if (value instanceof Calendar)
 			append('"').append((Calendar)value).append('"');
-		else 
+		else
 			objectToJson(value);
 
 		return this;
@@ -1501,7 +1523,7 @@ final public class Fmt implements Appendable, CharSequence {
 			case '\n': append('\\').append('n'); break;
 			case '\r': append('\\').append('r'); break;
 			case '\t': append('\\').append('t'); break;
-			case '"': case '\'': case '\\': case '/': 
+			case '"': case '\'': case '\\': case '/':
 				append('\\').append(value);
 				break;
 			default: append(value);
@@ -1737,7 +1759,7 @@ final public class Fmt implements Appendable, CharSequence {
 				buffer.append(BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F])
 					.append(BASE64_DIGEST[(b2 << 2) & 0x3F]);
 			}
-			else{ 
+			else{
 				buffer.append(BASE64_DIGEST[(b1 << 4) & 0x3F])
 					.append(PAD); //余数为1，第三个也是=号
 			}

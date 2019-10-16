@@ -112,7 +112,11 @@ public class StringsTest {
 		assertEquals("03:04:05", Strings.formatTime(d));
 		assertEquals("2003-02-05T19:04:05Z", Strings.formatGmtDateTime(d));
 		assertEquals(d, Strings.parseDate(str1));
+		System.out.printf("%d, %d\n", d.getTime(), Strings.parseDate("2003-2-5T19:4:5Z").getTime());
 		assertEquals(d, Strings.parseDate("2003-2-5T19:4:5Z"));
+		assertEquals(d, Strings.parseDate("2003-02-06T03:04:05+08"));
+		assertEquals(d, Strings.parseDate("2003-02-06T03:04:05+0800"));
+		assertEquals(d, Strings.parseDate("2003-02-06T03:04:05+08:00"));
 		assertEquals(LocalDate.of(2003, 2, 6), Strings.parseLocalDate(str1));
 		assertEquals(LocalDateTime.of(2003, 2, 6, 3, 4, 5, 0),
 				Strings.parseLocalDateTime(str1));
