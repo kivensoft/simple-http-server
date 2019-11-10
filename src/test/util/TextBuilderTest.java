@@ -6,7 +6,7 @@ import org.junit.Test;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.TextBuilder;
 
-public class TextBuildTest {
+public class TextBuilderTest {
 	@Test public void testSetLength() throws Exception {
 		TextBuilder tb = new TextBuilder();
 		Fmt.pl("default: length = {}, capacity = {}", tb.length(), tb.capacity());
