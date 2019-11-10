@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 
@@ -114,6 +116,24 @@ public final class Langs {
 	 */
 	public static <T> T assignIf(T value, T def, Predicate<T> pred) {
 		return pred.test(value) ? value : def;
+	}
+
+	public static <T> T callIf(T value, Consumer<T> func) {
+		if (value != null) func.accept(value);
+		return value;
+	}
+
+	public static <T> T callIf(T value, Predicate<T> pred, Consumer<T> func) {
+		if (pred.test(value)) func.accept(value);
+		return value;
+	}
+
+	public static <T, R> R callIf(T value, R def, Function<T, R> func) {
+		return value != null ? func.apply(value) : def;
+	}
+
+	public static <T, R> R callIf(T value, R def, Predicate<T> pred, Function<T, R> func) {
+		return pred.test(value) ? func.apply(value) : def;
 	}
 
 	/** 生成map字典

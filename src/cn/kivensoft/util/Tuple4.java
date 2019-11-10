@@ -19,50 +19,48 @@ final public class Tuple4 <T1, T2, T3, T4> {
 		this.four = four;
 	}
 	
-	public static <T1, T2> Tuple4<T1, T2, Void, Void> of(
-			T1 first, T2 second) {
-		return new Tuple4<T1, T2, Void, Void>(first, second, null, null);
+	final public static <T1, T2, T3, T4> Tuple4<T1, T2, T3, T4> of(T1 first, T2 second) {
+		return new Tuple4<T1, T2, T3, T4>(first, second, null, null);
 	}
 
-	public static <T1, T2, T3> Tuple4<T1, T2, T3, Void> of(
-			T1 first, T2 second, T3 three) {
-		return new Tuple4<T1, T2, T3, Void>(first, second, three, null);
+	final public static <T1, T2, T3, T4> Tuple4<T1, T2, T3, T4> of(T1 first, T2 second, T3 three) {
+		return new Tuple4<T1, T2, T3, T4>(first, second, three, null);
 	}
 
-	public static <T1, T2, T3, T4> Tuple4<T1, T2, T3, T4> of(
+	final public static <T1, T2, T3, T4> Tuple4<T1, T2, T3, T4> of(
 			T1 first, T2 second, T3 three, T4 four) {
 		return new Tuple4<T1, T2, T3, T4>(first, second, three, four);
 	}
 	
-	public T1 getFirst() {
+	final public T1 getFirst() {
 		return first;
 	}
 	
-	public void setFirst(T1 key) {
+	final public void setFirst(T1 key) {
 		this.first = key;
 	}
 	
-	public T2 getSecond() {
+	final public T2 getSecond() {
 		return second;
 	}
 	
-	public void setSecond(T2 value) {
+	final public void setSecond(T2 value) {
 		this.second = value;
 	}
 
-	public T3 getThree() {
+	final public T3 getThree() {
 		return three;
 	}
 
-	public void setThree(T3 three) {
+	final public void setThree(T3 three) {
 		this.three = three;
 	}
 
-	public T4 getFour() {
+	final public T4 getFour() {
 		return four;
 	}
 
-	public void setFour(T4 four) {
+	final public void setFour(T4 four) {
 		this.four = four;
 	}
 

@@ -30,9 +30,8 @@ import cn.kivensoft.httpserver.HttpHandler;
 import cn.kivensoft.httpserver.HttpServer;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
-import cn.kivensoft.util.MyLogger;
+import cn.kivensoft.util.Logx;
 import cn.kivensoft.util.ObjectPool;
-import cn.kivensoft.util.PoolItem;
 import cn.kivensoft.util.ScanPackage;
 import cn.kivensoft.util.Strings;
 
@@ -41,7 +40,7 @@ public class SimpleHttpServer implements HttpHandler {
 	private static final String DEFAULT_SERVER_NAME = "SimpleHttpServer";
 	private static final String HTTP_VERSION = "1.0";
 
-	private MyLogger logger = MyLogger.get(getClass());
+	private Logx logger = Logx.get(getClass());
 	private HttpServer httpServer;
 	private BiFunction<String, String, Object> preHandle;
 	private Map<String, MethodInfo> handles = new HashMap<>();
@@ -423,8 +422,8 @@ public class SimpleHttpServer implements HttpHandler {
 	 */
 	private final String readStringFromInputStream(InputStream inputStream) {
 		String ret = null;
-		PoolItem<char[]> bufItem = charsPool.get();
-		PoolItem<StringBuilder> sbItem = bufferPool.get();
+		ObjectPool.Item<char[]> bufItem = charsPool.get();
+		ObjectPool.Item<StringBuilder> sbItem = bufferPool.get();
 		char[] buf = bufItem.get();
 		StringBuilder sb = sbItem.get();
 		try {

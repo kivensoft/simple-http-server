@@ -104,18 +104,17 @@ public class FmtTest {
 		assertEquals("abcdefg1234", Fmt.concat(new Object[] {"abc", "def", "g", 12, 34}));
 		
 		assertEquals("--------", Fmt.rep('-', 8));
-		assertEquals("--------", Fmt.rep("-", 8));
-		assertEquals("-=-=-=-=-=-=-=-", Fmt.rep("-", 8, "="));
+		assertEquals("-=-=-=-=-=-=-=-", Fmt.get().repeat("-", 8, "=").release());
 		
-		assertEquals("f2345678", Fmt.toHex(0xF2345678));
+		assertEquals("f2345678", Fmt.get().appendHex(0xF2345678).release());
 		//assertEquals("f2345678-a8765432", Fmt.toHex('-', 0xF2345678, 0xa8765432));
-		assertEquals("f2345678a8765432", Fmt.toHex(0xF2345678a8765432L));
-		assertEquals("f2-34-56-78", Fmt.toHex(
-				new byte[] {(byte)0xF2, 0x34, 0x56, 0x78}, '-'));
+		assertEquals("f2345678a8765432", Fmt.get().appendHex(0xF2345678a8765432L).release());
+		assertEquals("f2-34-56-78", Fmt.get().appendHex(
+				new byte[] {(byte)0xF2, 0x34, 0x56, 0x78}, '-').release());
 		
-		assertEquals("5Y+j5Luk", Fmt.toBase64("口令".getBytes("utf8"), false));
-		assertEquals("5Y+j5LukMQ==", Fmt.toBase64("口令1".getBytes("utf8"), false));
-		assertEquals("5Y+j5LukMTI=", Fmt.toBase64("口令12".getBytes("utf8"), false));
+		assertEquals("5Y+j5Luk", Fmt.get().appendBase64("口令".getBytes("utf8"), false).release());
+		assertEquals("5Y+j5LukMQ==", Fmt.get().appendBase64("口令1".getBytes("utf8"), false).release());
+		assertEquals("5Y+j5LukMTI=", Fmt.get().appendBase64("口令12".getBytes("utf8"), false).release());
 		
 		assertEquals("0xf2345678, 5Y+j5LukMQ==, -=0-=0-=0-=0-=0-=0-=0-",
 				Fmt.fmt("0x{}, {}, {}", (f, i) -> {
@@ -137,7 +136,7 @@ public class FmtTest {
 		byte[] b2 = new byte[bs.length - 3];
 		System.arraycopy(bs, 0, b1, 0, 3);
 		System.arraycopy(bs, 3, b2, 0, b2.length);
-		String s2 = Fmt.get().appendBytes(bs).release();
+		String s2 = Fmt.get().append(bs).release();
 		assertEquals(s, s2);
 	}
 	
@@ -145,9 +144,9 @@ public class FmtTest {
 	public void testHex() {
 		byte[] bs = {1, 2, 3, 80, 81, 127, (byte)128, (byte)129, (byte)254, (byte)255};
 		String r = "01020350517f8081feff";
-		assertEquals(r, Fmt.toHex(bs));
-		assertEquals("01 02 03 50 51 7f 80 81 fe ff", Fmt.toHex(bs, ' '));
-		assertEquals("null", Fmt.toHex((byte[])null));
+		assertEquals(r, Fmt.get().appendHex(bs).release());
+		assertEquals("01 02 03 50 51 7f 80 81 fe ff", Fmt.get().appendHex(bs, ' ').release());
+		assertEquals("null", Fmt.get().appendHex((byte[])null).release());
 	}
 
 	@Test

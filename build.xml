@@ -88,6 +88,19 @@
 			<!-- 源文件 -->
 			<!--fileset dir="${basedir}" includes="${src}/**" /-->
 		</jar>
+
+		<delete dir="${output}" includes="kivensoft-util-1.0.jar" />
+		<jar destfile="${output}/kivensoft-util-1.0.jar">
+			<manifest>
+				<attribute name="Created-By" value="${ant.version}" />
+				<attribute name="Built-By" value="Kiven Lee" />
+				<attribute name="Build-Jdk" value="${java.version}" />
+				<attribute name="Implementation-Title" value="kivensoft-util" />
+				<attribute name="Implementation-Version" value="1.0" />
+				<attribute name="Implementation-Time" value="${build.time}" />
+			</manifest>
+			<fileset dir="${basedir}/${bin}" includes="cn/kivensoft/util/**"/>
+		</jar>
 	</target>
 
 	<target name="dist" depends="jar">

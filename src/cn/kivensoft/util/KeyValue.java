@@ -61,7 +61,7 @@ public final class KeyValue {
 
 	@Override
 	public String toString() {
-		return Fmt.toJson(this);
+		return "[key=" + key + ", value=" + value + "]";
 	}
 	
 }

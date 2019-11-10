@@ -1,8 +1,5 @@
 package cn.kivensoft.util;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Array;
@@ -28,7 +25,6 @@ import java.util.function.ObjIntConsumer;
  * @version 2.0
  */
 final public class Fmt implements Appendable, CharSequence {
-	private static final String UTF8 = "UTF-8";
 	public static final String newLine = System.getProperty("line.separator");
 
 	// 全局无锁非阻塞堆栈头部指针
@@ -36,23 +32,23 @@ final public class Fmt implements Appendable, CharSequence {
 	private final WeakReference<Fmt> self;
 	private WeakReference<Fmt> next;
 
-	private StringBuilder buffer;
+	private TextBuilder buffer;
 	private Calendar calendar;
 
 	// 无锁非阻塞弹出栈顶元素
 	private static Fmt pop() {
-		WeakReference<Fmt> old_head, new_head;
+		WeakReference<Fmt> top, next;
 		Fmt item;
 		do {
-			old_head = head.get();
-			if (old_head == null) return null;
-			item = old_head.get();
+			top = head.get();
+			if (top == null) return null;
+			item = top.get();
 			if (item == null) {
-				head.compareAndSet(old_head, null);
+				head.compareAndSet(top, null);
 				return null;
 			}
-			new_head = item.next;
-		} while (!head.compareAndSet(old_head, new_head));
+			next = item.next;
+		} while (!head.compareAndSet(top, next));
 		item.next = null;
 		return item;
 	}
@@ -60,17 +56,18 @@ final public class Fmt implements Appendable, CharSequence {
 	// 无锁非阻塞元素压入栈顶
 	private static void push(Fmt value) {
 		if (value.next != null) return;
-		WeakReference<Fmt> old_head;
+		value.buffer.setLength(0);
+		WeakReference<Fmt> top;
 		do {
-			old_head = head.get();
-			if (old_head != null && old_head.get() != null)
-				value.next = old_head;
-		} while (!head.compareAndSet(old_head, value.self));
+			top = head.get();
+			if (top != null && top.get() != null)
+				value.next = top;
+		} while (!head.compareAndSet(top, value.self));
 	}
 
 	private Fmt() {
 		super();
-		buffer = new StringBuilder(256);
+		buffer = new TextBuilder();
 		self = new WeakReference<>(this);
 	}
 
@@ -82,9 +79,12 @@ final public class Fmt implements Appendable, CharSequence {
 		return f != null ? f : new Fmt();
 	}
 
+	public TextBuilder getBuffer() {
+		return buffer;
+	}
+
 	//回收对象
 	public final void recycle() {
-		buffer.setLength(0);
 		push(this);
 	}
 
@@ -94,15 +94,6 @@ final public class Fmt implements Appendable, CharSequence {
 	 */
 	public static final String fmt(Object arg) {
 		return get().append(arg).release();
-	}
-
-	/** 以{}为格式化标识符进行快速格式化，类似日志输出
-	 * @param format 格式化字符串
-	 * @param args 格式化参数
-	 * @return
-	 */
-	public static final String fmt(String format, Object... args) {
-		return get().format(format, args).release();
 	}
 
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
@@ -137,6 +128,15 @@ final public class Fmt implements Appendable, CharSequence {
 
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
 	 * @param format 格式化字符串
+	 * @param args 格式化参数
+	 * @return
+	 */
+	public static final String fmt(String format, Object... args) {
+		return get().format(format, args).release();
+	}
+
+	/** 以{}为格式化标识符进行快速格式化，类似日志输出
+	 * @param format 格式化字符串
 	 * @param func 返回格式化参数的lambda表达式
 	 * @return
 	 */
@@ -150,10 +150,8 @@ final public class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public static final String fmtString(String format, Object... args) {
-		for (int i = 0, imax = args.length; i < imax; ++i) {
-			Object obj = args[i];
-			if (obj == null) args[i] = "";
-		}
+		for (int i = 0, imax = args.length; i < imax; ++i)
+			if (args[i] == null) args[i] = "";
 		return fmt(format, args);
 	}
 
@@ -165,24 +163,6 @@ final public class Fmt implements Appendable, CharSequence {
 		System.out.println(get().format(format, args).release());
 	}
 
-	/** 输出到流
-	 * @param stream 指定输出的流
-	 * @param format 格式化字符串
-	 * @param args 格式化参数列表
-	 */
-	public static final void out(PrintStream stream, String format, Object... args) throws IOException {
-		get().format(format, args).toStream(stream);
-	}
-
-	/** 输出到流
-	 * @param stream 指定输出的流
-	 * @param format 格式化字符串
-	 * @param args 格式化参数列表
-	 */
-	public static final void out(OutputStream stream, String format, Object... args) throws IOException {
-		get().format(format, args).toStream(stream);
-	}
-
 	/** 以{}为格式化标识符进行快速格式化，类似日志输出
 	 * @param format 格式化字符串
 	 * @param args 格式化参数
@@ -190,15 +170,6 @@ final public class Fmt implements Appendable, CharSequence {
 	 */
 	public static final String fmtJson(String format, Object... args) {
 		return get().formatJson(format, args).release();
-	}
-
-	/** 以{}为格式化标识符进行快速格式化，类似日志输出
-	 * @param format 格式化字符串
-	 * @param func 返回格式化参数的lambda表达式
-	 * @return
-	 */
-	public static final String fmtJson(String format, IntFunction<Object> func) {
-		return get().formatJson(format, func).release();
 	}
 
 	/** 返回json化后的字符串，用缓冲区对象进行
@@ -226,7 +197,7 @@ final public class Fmt implements Appendable, CharSequence {
 	/** 连接多个字符串成1个 */
 	public static final String concat(String... args) {
 		Fmt f = get();
-		StringBuilder sb = f.buffer;
+		TextBuilder sb = f.buffer;
 		for (int i = 0, n = args.length; i < n; ++i)
 			sb.append(args[i]);
 		return f.release();
@@ -258,14 +229,13 @@ final public class Fmt implements Appendable, CharSequence {
 		return get().repeat(text, count, null).release();
 	}
 
-	/** 生成指定重复次数的字符串
-	 * @param text 指定要重复的字符串
-	 * @param count 重复数量
-	 * @param delimiter 重复分隔符
-	 * @return 生成的字符串
+	/** 返回格式化后的字符串，用缓冲区对象进行
+	 * @param array 要格式化的数组
+	 * @param delimiter 分隔符
+	 * @return
 	 */
-	public static final String rep(String text, int count, String delimiter) {
-		return get().repeat(text, count, delimiter).release();
+	public static final <T> String join(T[] array, String delimiter) {
+		return get().append(array, delimiter, null, null, null).release();
 	}
 
 	/** 返回格式化后的字符串，用缓冲区对象进行
@@ -276,15 +246,6 @@ final public class Fmt implements Appendable, CharSequence {
 	 */
 	public static final <T, R> String join(T[] array, String delimiter, Function<T, R> func) {
 		return get().append(array, delimiter, null, null, func).release();
-	}
-
-	/** 返回格式化后的字符串，用缓冲区对象进行
-	 * @param array 要格式化的数组
-	 * @param delimiter 分隔符
-	 * @return
-	 */
-	public static final <T> String join(T[] array, String delimiter) {
-		return get().append(array, delimiter, null, null, null).release();
 	}
 
 	/** 返回格式化后的字符串
@@ -307,47 +268,11 @@ final public class Fmt implements Appendable, CharSequence {
 	}
 
 	/** 连接多个字符串合成的路径 */
-	public static final String concatPaths(String...paths) {
+	public static final String concatPaths(String... paths) {
 		Fmt f = Fmt.get();
 		for (int i = 0, imax = paths.length; i < imax; ++i)
 			f.appendPath(paths[i]);
 		return f.release();
-	}
-
-	/** 转成16进制字符串
-	 * @param value 要转换的字节数组
-	 * @return
-	 */
-	public static final String toHex(final byte[] value) {
-		return get().appendHex(value).release();
-	}
-
-	/** 转成16进制字符串
-	 * @param value 要转换的字节数组
-	 * @param delimiter 分隔符
-	 * @return
-	 */
-	public static final String toHex(final byte[] value, final char delimiter) {
-		return get().appendHex(value, delimiter).release();
-	}
-
-	/** 转成16进制字符串 */
-	public static final String toHex(final int value) {
-		return get().appendHex(value).release();
-	}
-
-	/** 转成16进制字符串 */
-	public static final String toHex(final long value) {
-		return get().appendHex(value).release();
-	}
-
-	/** 转成base64编码
-	 * @param value 要编码的字节数组
-	 * @param lineBreak 是否按76个字符分行
-	 * @return
-	 */
-	public static final String toBase64(final byte[] value, boolean lineBreak) {
-		return get().appendBase64(value, lineBreak).release();
 	}
 
 	/** json化字符串并输出到控制台
@@ -364,15 +289,7 @@ final public class Fmt implements Appendable, CharSequence {
 	}
 
 	public final int bytesLength() {
-		int count = 0;
-		for (int i = 0, len = buffer.length(); i < len; ++i) {
-			char c = buffer.charAt(i);
-			if (c < 0x80) ++count;
-			else if (c < 0x800) count += 2;
-			else if (c < 0x10000) count += 3;
-			else count += 4;
-		}
-		return count;
+		return buffer.byteLength();
 	}
 
 	@Override
@@ -380,9 +297,13 @@ final public class Fmt implements Appendable, CharSequence {
 		return buffer.charAt(index);
 	}
 
+	public final void setCharAt(int index, char c) {
+		buffer.setCharAt(index, c);
+	}
+
 	@Override
 	public final CharSequence subSequence(int start, int end) {
-		return buffer.subSequence(start, end);
+		return buffer.substring(start, end);
 	}
 
 	@Override
@@ -404,7 +325,7 @@ final public class Fmt implements Appendable, CharSequence {
 	}
 
 	public final Fmt append(boolean b) {
-		buffer.append(b ? "true" : "false");
+		buffer.append(b);
 		return this;
 	}
 
@@ -413,8 +334,8 @@ final public class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	public final Fmt append(long lng) {
-		buffer.append(lng);
+	public final Fmt append(long l) {
+		buffer.append(l);
 		return this;
 	}
 
@@ -428,39 +349,40 @@ final public class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	public final Fmt append(String str) {
-		buffer.append(str);
+	public final Fmt append(String s) {
+		buffer.append(s);
 		return this;
 	}
 
 	public final Fmt append(char[] str) {
-		buffer.append(str);
+		if (str == null) buffer.appendNull();
+		else buffer.append(str, 0, str.length);
 		return this;
 	}
 
 	public final Fmt append(char[] str, int offset, int len) {
-		buffer.append(str, offset, len);
+		if (str == null) buffer.appendNull();
+		else buffer.append(str, offset, len);
 		return this;
 	}
 
 	public final Fmt append(byte[] bytes) {
-		return appendBytes(bytes, 0, bytes.length);
+		buffer.append(bytes);
+		return this;
 	}
 
 	public final Fmt append(byte[] bytes, int offset, int len) {
-		return appendBytes(bytes, offset, len);
+		buffer.append(bytes, offset, len);
+		return this;
 	}
 
 	public final Fmt setLength(int newLength) {
-		return setLength(newLength, '\u0000');
+		buffer.setLength(newLength);
+		return this;
 	}
 
 	public final Fmt setLength(int newLength, char fillChar) {
-		if (newLength <= buffer.length())
-			buffer.setLength(newLength);
-		else
-			for (int i = buffer.length(); i++ < newLength;)
-				buffer.append(fillChar);
+		buffer.setLength(newLength, fillChar);
 		return this;
 	}
 
@@ -480,59 +402,49 @@ final public class Fmt implements Appendable, CharSequence {
 	/** 将字符串内容转成UTF-8字节数组返回
 	 * @return 返回的字节数组
 	 */
-	public final byte[] toBytes() {
-		return toBytes(0, buffer.length());
+	public final byte[] getBytes() {
+		return buffer.getBytes();
 	}
 
 	/** 将字符串内容转成UTF-8字节数组返回
-	 * @param start 起始位置
+	 * @param begin 起始位置
 	 * @param end 结束位置
 	 * @return 返回的字节数组
 	 */
-	public final byte[] toBytes(int start, int end) {
-		try {
-			byte[] bytes = buffer.toString().getBytes(UTF8);
-			return bytes;
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		} finally {
-			recycle();
-		}
+	public final byte[] getBytes(int begin, int end) {
+		return buffer.getBytes(begin, end);
 	}
 
-	/** 输出到标准输出流 */
-	public final void toStream() throws IOException {
-		toStream(System.out);
+	public final void getBytes(int srcBegin, int srcEnd, byte[] dst, int dstBegin) {
+		buffer.getBytes(srcBegin, srcEnd, dst, dstBegin);
 	}
 
-	/** 输出到流
-	 * @param stream 输出的目标流
-	 */
-	public final void toStream(PrintStream stream) throws IOException {
-		try {
-			stream.append(buffer);
-		} finally {
-			recycle();
-		}
+	public final char[] getChars() {
+		return buffer.getChars();
+	}
+	
+	public final char[] getChars(int begin, int end) {
+		return buffer.getChars(begin, end);
 	}
 
-	/** 以UTF-8编码格式输出到流
-	 * @param stream 输出的目标流
-	 */
-	public final void toStream(OutputStream stream) throws IOException {
-		toStream(stream, UTF8);
+	public final void getChars(int srcBegin, int srcEnd, char[] dst, int dstBegin) {
+		buffer.getChars(srcBegin, srcEnd, dst, dstBegin);
 	}
 
-	/** 输出到流
-	 * @param stream 输出的目标流
-	 * @param charsetName 字符串编码
-	 */
-	public final void toStream(OutputStream stream, String charsetName) throws IOException {
-		try {
-			stream.write(buffer.toString().getBytes(charsetName));
-		} finally {
-			recycle();
-		}
+	public final void forEach(TextBuilder.onForEach func) {
+		buffer.forEach(func);
+	}
+
+	public final void forEach(int begin, int end, TextBuilder.onForEach act) {
+		buffer.forEach(begin, end, act);
+	}
+
+	public final void forEachBytes(TextBuilder.onForEachBytes act) {
+		buffer.forEachBytes(act);
+	}
+
+	public final void forEachBytes(int begin, int end, TextBuilder.onForEachBytes act) {
+		buffer.forEachBytes(begin, end, act);
 	}
 
 	/** 回收对象，返回对象生成的字符串 */
@@ -565,6 +477,7 @@ final public class Fmt implements Appendable, CharSequence {
 	/** 使用{}作为格式化参数进行格式化
 	 * @param format 字符串格式模板
 	 * @param arg1 格式化参数1
+	 * @param arg3 格式化参数3
 	 * @return
 	 */
 	public final Fmt format(String format, Object arg1) {
@@ -600,8 +513,7 @@ final public class Fmt implements Appendable, CharSequence {
 	 * @param arg3 格式化参数3
 	 * @return
 	 */
-	private final Fmt format(String format, int count, Object arg1,
-			Object arg2, Object arg3) {
+	private final Fmt format(String format, int count, Object arg1, Object arg2, Object arg3) {
 		return format(format, (f, i) -> {
 			Object ret;
 			if (i < count) {
@@ -684,7 +596,7 @@ final public class Fmt implements Appendable, CharSequence {
 	 */
 	public final Fmt append(Object obj) {
 		if (obj == null) {
-			appendNull();
+			buffer.appendNull();
 			return this;
 		}
 
@@ -752,7 +664,7 @@ final public class Fmt implements Appendable, CharSequence {
 			if (cls.getComponentType() == char.class)
 				buffer.append((char[]) obj);
 			else if (cls.getComponentType() == byte.class)
-				appendBytes((byte[]) obj);
+				append((byte[]) obj);
 			else if (cls.getComponentType().isPrimitive())
 				appendPrimitiveArray(obj, ",", null, null);
 			else append((Object[])obj, ",", null, null, null);
@@ -768,63 +680,8 @@ final public class Fmt implements Appendable, CharSequence {
 		else if (obj instanceof Calendar)
 			append((Calendar)obj);
 		else
-			buffer.append(obj);
+			buffer.append(obj.toString());
 
-		return this;
-	}
-
-	/** 格式化字节流, 以字符串方式写入
-	 * @param bytes 字节流
-	 * @return
-	 */
-	public final Fmt appendBytes(byte[] bytes) {
-		return appendBytes(bytes, 0, bytes.length);
-	}
-
-	/** 格式化字节流(utf8格式), 以字符串方式写入
-	 * @param utf8_bytes 字节流
-	 * @param offset 起始偏移
-	 * @param len 长度
-	 * @return
-	 */
-	public final Fmt appendBytes(byte[] utf8_bytes, int offset, int len) {
-		int pos = offset, max_pos = offset + len;
-		if (max_pos > utf8_bytes.length) throw new IndexOutOfBoundsException();
-		while (pos < max_pos) {
-			int b = utf8_bytes[pos++] & 0xff;
-			int next = 0;
-			if (b < 0x80) {
-				buffer.append((char) b);
-				continue;
-			} else if (b < 0xc0) {
-				throw new UnsupportedOperationException("bad byte to transaction utf8");
-			} else if (b < 0xe0) {
-				b &= 0x1f;
-				next = 1;
-			} else if (b < 0xf0) {
-				b &= 0x0f;
-				next = 2;
-			} else if (b < 0xf8) {
-				b &= 0x07;
-				next = 3;
-			} else if (b < 0xfc) {
-				b &= 0x03;
-				next = 4;
-			} else {
-				b &= 0x01;
-				next = 5;
-			}
-			for (int i = 1; i <= next && pos < max_pos; ++i, ++pos)
-				b = b << 6 | utf8_bytes[pos] & 0x3f;
-
-			if (b <= 0xffff) buffer.append((char) b);
-			else if (b <= 0xeffff){
-				buffer.append((char) (0xd800 + (b >> 10) - 0x40))
-					.append((char) (0xdc00 + (b & 0x3ff)));
-			}
-			else throw new UnsupportedOperationException(
-					"bad byte to transaction utf8");
-		}
 		return this;
 	}
 
@@ -1085,7 +942,7 @@ final public class Fmt implements Appendable, CharSequence {
 	 */
 	public final <T, R> Fmt append(T[] value, String delimiter, String prefix,
 			String suffix, Function<T, R> func) {
-		if (value == null) appendNull();
+		if (value == null) buffer.appendNull();
 		else {
 			if (prefix != null) buffer.append(prefix);
 			int len = value.length;
@@ -1155,7 +1012,7 @@ final public class Fmt implements Appendable, CharSequence {
 			String suffix, Function<T, R> func) {
 		Iterator<T> iter = value.iterator();
 		if (iter == null) {
-			appendNull();
+			buffer.appendNull();
 			return this;
 		}
 
@@ -1204,7 +1061,7 @@ final public class Fmt implements Appendable, CharSequence {
 	public final <T> Fmt append(ArrayList<T> value, String delimiter, String prefix,
 			String suffix, Function<T, Object> func) {
 		if (value == null) {
-			appendNull();
+			buffer.appendNull();
 			return this;
 		}
 
@@ -1243,7 +1100,7 @@ final public class Fmt implements Appendable, CharSequence {
 	public final <K, V> Fmt append(Map<K, V> value, String delimiter1, String delimiter2,
 			String prefix, String suffix, BiFunction<K, V, Object> func) {
 		if (value == null) {
-			appendNull();
+			buffer.appendNull();
 			return this;
 		}
 
@@ -1271,19 +1128,17 @@ final public class Fmt implements Appendable, CharSequence {
 	 * @return
 	 */
 	public final Fmt appendPath(String path) {
-		if (path != null && path.length() > 0) {
+		if (path != null && !path.isEmpty()) {
 			int len = buffer.length();
-			if (len == 0)
-				append(path);
-			else {
+			if (len > 0) {
 				char c1 = charAt(len - 1);
 				char c2 = path.charAt(0);
 				boolean b1 = c1 == '/' || c1 == '\\';
 				boolean b2 = c2 == '/' || c2 == '\\';
 				if (b1 && b2) buffer.setLength(len - 1);
 				else if (!b1 && !b2) append('/');
-				append(path);
 			}
+			append(path);
 		}
 		return this;
 	}
@@ -1619,90 +1474,27 @@ final public class Fmt implements Appendable, CharSequence {
 	}
 	*/
 
-	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4', '5',
-			'6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-
 	/** 转换成16进制 */
-	public final Fmt appendHex(final byte[] bytes) {
-		return appendHex(bytes, '\u0000');
-	}
-
-	/** 转换成16进制 */
-	public final Fmt appendHex(final byte[] bytes, char delimiter) {
-		if(bytes == null) {
-			appendNull();
-			return this;
-		}
-
-		boolean has_de = delimiter != '\u0000';
-		int len = bytes.length;
-		char[] tmp = new char[8 * (has_de ? 3 : 2)];
-
-		// 按8字节为一组进行批处理
-		for (int i = 0, imax = len >> 3; i < imax; ++i) {
-			int start = i << 3;
-			for (int j = start, jmax = start + 8, idx = -1; j < jmax; ++j) {
-				int b = bytes[j];
-				tmp[++idx] = HEX_DIGEST[(b >> 4) & 0xF];
-				tmp[++idx] = HEX_DIGEST[b & 0xF];
-				if (has_de) tmp[++idx] = delimiter;
-			}
-			buffer.append(tmp);
-		}
-
-		// 处理剩余的不到8字节倍数的数据
-		for (int i = len - (len & 7); i < len; ++i) {
-			int b = bytes[i];
-			buffer.append(HEX_DIGEST[(b >> 4) & 0xF])
-					.append(HEX_DIGEST[b & 0xF]);
-			if (has_de) buffer.append(delimiter);
-		}
-		if (has_de) buffer.setLength(buffer.length() - 1);
-
+	public final Fmt appendHex(byte[] bytes) {
+		buffer.appendHex(bytes, null);
 		return this;
 	}
 
 	/** 转换成16进制 */
-	public final Fmt appendHex(final int value) {
-		for (int i = 32 - 4; i >= 0; i -= 4)
-			buffer.append(HEX_DIGEST[(value >> i) & 0xF]);
+	public final Fmt appendHex(byte[] bytes, char delimiter) {
+		buffer.appendHex(bytes, new char[] {delimiter});
 		return this;
 	}
 
 	/** 转换成16进制 */
-	public final Fmt appendHex(final int... args) {
-		return appendHex('\u0000', args);
-	}
-
-	/** 转换成16进制 */
-	public final Fmt appendHex(final char delimiter, final int... args) {
-		if (args.length > 0) appendHex(args[0]);
-		for (int i = 1, n = args.length; i < n; ++i) {
-			if (delimiter != '\u0000') append(delimiter);
-			appendHex(args[i]);
-		}
+	public final Fmt appendHex(int value) {
+		buffer.appendHex(value);
 		return this;
 	}
 
 	/** 转换成16进制 */
 	public final Fmt appendHex(final long value) {
-		for (int i = 64 - 4; i >= 0; i -= 4)
-			append(HEX_DIGEST[(int)((value >> i) & 0xF)]);
-		return this;
-	}
-
-	/** 转换成16进制 */
-	public final Fmt appendHex(final long... args) {
-		return appendHex('\u0000', args);
-	}
-
-	/** 转换成16进制 */
-	public final Fmt appendHex(final char delimiter, final long... args) {
-		if (args.length > 0) appendHex(args[0]);
-		for (int i = 1, n = args.length; i < n; ++i) {
-			if (delimiter != '\u0000') append(delimiter);
-			appendHex(args[i]);
-		}
+		buffer.appendHex(value);
 		return this;
 	}
 

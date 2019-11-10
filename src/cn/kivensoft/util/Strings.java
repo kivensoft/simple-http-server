@@ -221,16 +221,26 @@ final public class Strings {
 
 	/** 转换成16进制 */
 	public static String toHex(final byte[] bytes) {
-		return toHex(bytes, '\0');
+		return toHex(bytes, (char[]) null);
 	}
 
 	/** 转换成16进制 */
 	public static String toHex(final byte[] bytes, final char separator) {
+		return toHex(bytes, separator == '\0' ? null : new char[] {separator});
+	}
+
+	public static String toHex(final byte[] bytes, String separator) {
+		return toHex(bytes, separator == null || separator.isEmpty()
+				? null : separator.toCharArray());
+	}
+
+	public static String toHex(final byte[] bytes, final char[] separator) {
 		if(bytes == null) return null;
 		if (bytes.length == 0) return "";
 		//转码后的长度是字节数组长度的2倍
+		int sep_len = separator == null ? 0 : separator.length;
 		int len = bytes.length * 2;
-		if (separator != '\0') len += bytes.length - 1;
+		if (sep_len > 0) len += (bytes.length - 1) * sep_len;
 		char[] chars = new char[len];
 
 		int idx = -1;
@@ -239,7 +249,9 @@ final public class Strings {
 		chars[++idx] = HEX_DIGEST[b & 0xF]; //取低4位
 
 		for(int i = 1, n = bytes.length; i < n; ++i) {
-			if (separator != '\0') chars[++idx] = separator;
+			if (sep_len > 0)
+				for (int j = 0; j < sep_len; ++j)
+					chars[++idx] = separator[j];
 			b = bytes[i];
 			chars[++idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
 			chars[++idx] = HEX_DIGEST[b & 0xF]; //取低4位
@@ -279,6 +291,15 @@ final public class Strings {
 		}
 
 		return ret;
+	}
+
+	public static String toBase64(String text) {
+		try {
+			return toBase64(text.getBytes(UTF8), false);
+		} catch (UnsupportedEncodingException e) {
+			e.printStackTrace();
+			return "";
+		}
 	}
 
 	/** BASE64简单编码，生成的编码不自动换行 */
@@ -1030,11 +1051,32 @@ final public class Strings {
 
 	public static byte[] getBytes(String value) {
 		if (value == null) return null;
-		try {
-			return value.getBytes(UTF8);
-		} catch (UnsupportedEncodingException e) {
-			throw new RuntimeException(e);
+		int len = value.length(), blen = getBytesLength(value);
+		byte[] bytes = new byte[blen];
+		int count = -1;
+		for (int i = 0; i < len; ++i) {
+			int c = ((int) value.charAt(i)) & 0xFFFF;
+			int bc;
+			if (c < 0x80) {
+				bytes[++count] = (byte) c;
+				bc = -1;
+			}
+			else if (c < 0x800) {
+				bytes[++count] = (byte) ((c >> 6) | 0xC0);
+				bc = 0;
+			}
+			else if (c < 0x10000) {
+				bytes[++count] = (byte) ((c >> 12) | 0xE0);
+				bc = 1;
+			}
+			else {
+				bytes[++count] = (byte) ((c >> 18) | 0xF0);
+				bc = 2;
+			}
+			for (int j = bc * 6; j >= 0; j -= 6)
+				bytes[++count] = (byte) (((c >> j) & 0x3F) | 0x80);
 		}
+		return bytes;
 	}
 
 	public static void main(String[] args) throws Exception {
