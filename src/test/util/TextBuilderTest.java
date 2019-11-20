@@ -57,5 +57,28 @@ public class TextBuilderTest {
 		tb.setLength(0);
 		tb.append(u8);
 		Assert.assertEquals(s, tb.toString());
+		
+		tb.clear();
+		for (int i = 0; i < u8.length; ++i)
+			tb.nextAppend(u8, i, 1);
+		Assert.assertEquals(s, tb.toString());
+		
+		tb.clear();
+		tb.nextAppend(u8, 0, 5);
+		tb.nextAppend(u8, 5, u8.length - 5);
+		Fmt.pl("nextAppend = {}", tb.toString());
+		Assert.assertEquals(s, tb.toString());
+
+		tb.clear();
+		tb.nextAppend(u8, 0, 6);
+		tb.nextAppend(u8, 6, u8.length - 6);
+		Fmt.pl("nextAppend = {}", tb.toString());
+		Assert.assertEquals(s, tb.toString());
+
+		tb.clear();
+		tb.nextAppend(u8, 0, 7);
+		tb.nextAppend(u8, 7, u8.length - 7);
+		Fmt.pl("nextAppend = {}", tb.toString());
+		Assert.assertEquals(s, tb.toString());
 	}
 }

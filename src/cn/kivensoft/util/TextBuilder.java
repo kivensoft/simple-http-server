@@ -86,7 +86,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	public final int length() {
 		return _length;
 	}
-	
+
 	/** 返回缓存的utf8字节串长度 */
 	public final int byteLength() {
 		int count = 0;
@@ -161,7 +161,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	public final byte[] getBytes() {
 		return getBytes(0, _length);
 	}
-	
+
 	public final byte[] getBytes(int begin, int end) {
 		byte[] ret = new byte[byteLength()];
 		getBytes(begin, end, ret, 0);
@@ -170,7 +170,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 
 	@FunctionalInterface
 	public interface onForEach {
-		boolean call(char[] chars, int start, int len);
+		boolean call(char[] chars, int off, int len);
 	}
 
 	public final void forEach(onForEach act) {
@@ -190,7 +190,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 
 	@FunctionalInterface
 	public interface onForEachBytes {
-		boolean call(byte[] bytes, int start, int len);
+		boolean call(byte[] bytes, int off, int len);
 	}
 
 	public final void forEachBytes(onForEachBytes act) {
@@ -199,28 +199,23 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 
 	public final void forEachBytes(int begin, int end, onForEachBytes act) {
 		int bl = _length < C1 ? _length : C1;
-		byte[] bytes = new byte[(bl << 1) + bl];
-		forEach(begin, end, (chars, start, length) -> {
+		byte[] bytes = new byte[bl << 2];
+		forEach(begin, end, (chars, off, len) -> {
 			int count = -1;
-			for (int i = start, imax = start + length; i < imax; ++i) {
-				int c = ((int) chars[i]) & 0xFFFF;
-				int bc;
+			for (int i = off, imax = off + len; i < imax; ++i) {
+				int c = ((int) chars[i]) & 0x00FF_FFFF;
 				if (c < 0x80) {
 					bytes[++count] = (byte) c;
-					bc = -1;
+					continue;
 				}
-				else if (c < 0x800) {
-					bytes[++count] = (byte) ((c >> 6) | 0xC0);
-					bc = 0;
-				}
-				else if (c < 0x10000) {
-					bytes[++count] = (byte) ((c >> 12) | 0xE0);
-					bc = 1;
-				}
-				else {
-					bytes[++count] = (byte) ((c >> 18) | 0xF0);
-					bc = 2;
-				}
+
+				int bc;
+				if (c < 0x0800)        bc = 0;
+				else if (c < 0x1_0000) bc = 1;
+				else                   bc = 2;
+
+				bytes[++count] = (byte) ((c >> ((bc + 1) * 6)) | ((0xF0 << (2 - bc)) & 0xF0));
+
 				for (int j = bc * 6; j >= 0; j -= 6)
 					bytes[++count] = (byte) (((c >> j) & 0x3F) | 0x80);
 			}
@@ -452,43 +447,95 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return utf8_bytes == null ? appendNull() : append(utf8_bytes, 0, utf8_bytes.length);
 	}
 
-	public final TextBuilder append(byte[] utf8_bytes, int offset, int len) {
-		int pos = offset, max_pos = offset + len;
+	public final TextBuilder append(byte[] utf8_bytes, int off, int len) {
+		int pos = off, max_pos = off + len, next, next_pos;
 		while (pos < max_pos) {
-			int b = utf8_bytes[pos++] & 0xff;
-			int next = 0;
+			int b = utf8_bytes[pos++] & 0xFF;
 			if (b < 0x80) {
 				append((char) b);
 				continue;
-			} else if (b < 0xc0) {
-				throw new UnsupportedOperationException("bad byte to transaction utf8");
-			} else if (b < 0xe0) {
-				b &= 0x1f;
-				next = 1;
-			} else if (b < 0xf0) {
-				b &= 0x0f;
-				next = 2;
-			} else if (b < 0xf8) {
-				b &= 0x07;
-				next = 3;
-			} else if (b < 0xfc) {
-				b &= 0x03;
-				next = 4;
-			} else {
-				b &= 0x01;
-				next = 5;
 			}
-			for (int i = 1; i <= next && pos < max_pos; ++i, ++pos)
-				b = b << 6 | utf8_bytes[pos] & 0x3f;
 
-			if (b <= 0xffff) append((char) b);
-			else if (b <= 0xeffff){
-				append((char) (0xd800 + (b >> 10) - 0x40))
-					.append((char) (0xdc00 + (b & 0x3ff)));
+			if (b < 0xC0) throw new UnsupportedOperationException("bad byte to transaction utf8");
+			else if (b < 0xE0) next = 1;
+			else if (b < 0xF0) next = 2;
+			else if (b < 0xF8) next = 3;
+			else if (b < 0xFC) next = 4;
+			else               next = 5;
+
+			next_pos = pos + next;
+			if (next_pos > max_pos) return this;
+			b &= 0x3F >> next;
+			for (int i = pos; i < next_pos; ++i)
+				b = b << 6 | utf8_bytes[i] & 0x3F;
+			pos = next_pos;
+
+			if (b <= 0xFFFF) append((char) b);
+			else if (b <= 0xEFFFF) {
+				append((char) (0xD800 + (b >> 10) - 0x40));
+				append((char) (0xDC00 + (b & 0x3FF)));
 			}
 			else throw new UnsupportedOperationException(
 					"bad byte to transaction utf8");
 		}
+		return this;
+	}
+
+	private int lastUtf8Char = 0, requireUtf8Count = 0; // 上次读取结果及缺少的字节数
+
+	public final TextBuilder resetByteFlag() {
+		requireUtf8Count = 0;
+		return this;
+	}
+
+	public final TextBuilder nextAppend(byte[] bytes) {
+		return nextAppend(bytes, 0, bytes.length);
+	}
+
+	public final TextBuilder nextAppend(byte[] bytes, int off, int len) {
+		if (len == 0) return this;
+		int b = requireUtf8Count > 0 ? lastUtf8Char : 0, next = requireUtf8Count;
+		requireUtf8Count = 0;
+		int pos = off, max_pos = off + len, next_pos, imax;
+		while (pos < max_pos) {
+			if (next == 0) {
+				b = bytes[pos++] & 0xFF;
+
+				if (b < 0x80) {
+					append((char) b);
+					continue;
+				}
+
+				if (b < 0xC0) throw new RuntimeException("bad byte to transaction utf8");
+				else if (b < 0xE0) next = 1;
+				else if (b < 0xF0) next = 2;
+				else if (b < 0xF8) next = 3;
+				else if (b < 0xFC) next = 4;
+				else next = 5;
+
+				b &= 0x3F >> next;
+			}
+
+			next_pos = pos + next;
+			imax = next_pos > max_pos ? max_pos : next_pos;
+			for (int i = pos; i < imax; ++i)
+				b = b << 6 | bytes[i] & 0x3F;
+			pos = imax;
+			next = 0;
+
+			if (next_pos > max_pos) {
+				lastUtf8Char = b;
+				requireUtf8Count = next_pos - max_pos;
+			} else {
+				if (b <= 0xFFFF) append((char) b);
+				else if (b <= 0xEFFFF) {
+					append((char) (0xD800 + (b >> 10) - 0x40));
+					append((char) (0xDC00 + (b & 0x3FF)));
+				}
+				else throw new RuntimeException("bad byte to transaction utf8");
+			}
+		}
+
 		return this;
 	}
 
@@ -790,7 +837,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 			append(l);
 		}
 	}
-	
+
 	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4', '5',
 			'6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 
