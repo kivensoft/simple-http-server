@@ -24,8 +24,6 @@ import javax.crypto.spec.SecretKeySpec;
 
 final public class Strings {
 	private final static String UTF8 = "UTF-8";
-	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4',
-			'5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
 	private final static char[] BASE64_DIGEST = {
 			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -33,6 +31,7 @@ final public class Strings {
 			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
+	private final static int LOCAL_ZONE_OFFSET = TimeZone.getDefault().getRawOffset();
 
 	private static int[] INV = null;
 
@@ -94,7 +93,7 @@ final public class Strings {
 		return new String(chars);
 	}
 
-	/** 路径连接, 去除中间多余的路径分隔符'/'或'\' 
+	/** 路径连接, 去除中间多余的路径分隔符'/'或'\'
 	 * @param paths 要连接的多个路径字符串
 	 * @return 生成的路径
 	 */
@@ -244,17 +243,17 @@ final public class Strings {
 		char[] chars = new char[len];
 
 		int idx = -1;
-		int b = bytes[0];
-		chars[++idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
-		chars[++idx] = HEX_DIGEST[b & 0xF]; //取低4位
+		int b = bytes[0], b1 = b >> 4 & 0xF, b2 = b & 0xF;
+		chars[++idx] = (char) (b1 < 10 ? 48 + b1 : 87 + b1);
+		chars[++idx] = (char) (b2 < 10 ? 48 + b2 : 87 + b2);
 
 		for(int i = 1, n = bytes.length; i < n; ++i) {
 			if (sep_len > 0)
 				for (int j = 0; j < sep_len; ++j)
 					chars[++idx] = separator[j];
-			b = bytes[i];
-			chars[++idx] = HEX_DIGEST[(b >> 4) & 0xF]; //左移4位，取高4位
-			chars[++idx] = HEX_DIGEST[b & 0xF]; //取低4位
+			b = bytes[i]; b1 = b >> 4 & 0xF; b2 = b & 0xF;
+			chars[++idx] = (char) (b1 < 10 ? 48 + b1 : 87 + b1);
+			chars[++idx] = (char) (b2 < 10 ? 48 + b2 : 87 + b2);
 		}
 
 		return new String(chars);
@@ -355,7 +354,7 @@ final public class Strings {
 				chars[cpos++] = BASE64_DIGEST[((b1 << 4) | (b2 >>> 4)) & 0x3F];
 				chars[cpos++] = BASE64_DIGEST[(b2 << 2) & 0x3F];
 			}
-			else{ 
+			else{
 				chars[cpos++] = BASE64_DIGEST[(b1 << 4) & 0x3F];
 				chars[cpos++] = PAD; //余数为1，第三个也是=号
 			}
@@ -530,7 +529,7 @@ final public class Strings {
 	public enum CharType {
 		数字, 小写字母, 大写字母, 特殊符号
 	}
-	
+
 	/** 密码强壮级别
 	 * @param value
 	 * @return 包含类型的枚举集合
@@ -616,10 +615,10 @@ final public class Strings {
 	public static String formatGmtDateTime(Date date) {
 		if (date == null) return "";
 		DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
-		df.setTimeZone(TimeZone.getTimeZone("GMT"));	
+		df.setTimeZone(TimeZone.getTimeZone("GMT"));
 		return df.format(date);
 	}
-	
+
 	/** 获取去除文件名的路径
 	 * @param fullpath 全路径的文件名
 	 * @return 路径
@@ -739,45 +738,45 @@ final public class Strings {
 	/** 解析时间日期格式, yyyy-MM-dd HH:mm:ss.sss格式 或iso8601格式 */
 	public static Date parseDate(String text, Calendar cal) {
 		if (text == null || text.isEmpty()) return null;
-		
+
 		// 有效值为 "2019-02-03" "2019-02-03 04:05:06" "2019-02-03 04:05:06.333"
 		// "2019-02-03T04:05:06Z" "2019-02-03T04:05:06+08"
 		// "2019-02-03T04:05:06+0800" "2019-02-03T04:05:06+08:00"
-		
+
 		// 日期格式错误, 起始分隔符不在4位年份之后
-		if (text.length() < 8 || text.indexOf('-') < 4)
-			return null;
+		if (text.length() < 8 || text.indexOf('-') < 4) return null;
 
 		// ISO8601格式错误, "T"所在位置有误
 		int t_idx = text.indexOf('T');
-		if (t_idx != -1 && t_idx < 8)
-			return null;
+		if (t_idx != -1 && t_idx < 8) return null;
 
-		boolean hasTimeZone = t_idx != -1;
-		
 		int[] vs = splitDate(text);
 		cal.set(vs[0], vs[1] - 1, vs[2], vs[3], vs[4], vs[5]);
-		
-		// 无时区的日期格式, 使用系统时区, 转成utc时区表示
-		if (!hasTimeZone) {
-			cal.set(Calendar.MILLISECOND, vs[6]);
-		}
-		else {
-			cal.set(Calendar.MILLISECOND, 0);
-			// 小时和分钟偏移合在一起
-			if (vs[6] >= 100) {
-				vs[7] = vs[6] % 100;
-				vs[6] = vs[6] / 100;
-			}
-			
-			int real_offset = vs[6] * 3600_000 + vs[7] * 60_000;
-			
-			// 判断是加时区还是减时区, 减时区要取负
-			if (text.indexOf('+') == -1)
-				real_offset = -real_offset;
 
-			cal.add(Calendar.MILLISECOND,
-					TimeZone.getDefault().getRawOffset() - real_offset);
+		// 无时区的日期格式, 使用系统时区, 转成utc时区表示
+		if (t_idx == -1)
+			cal.set(Calendar.MILLISECOND, vs[6]);
+		else {
+			// 字符串有T字符, 但尾部没有时区偏移
+			int plusIndex = text.indexOf('+', t_idx);
+			if (plusIndex == -1 && text.indexOf('-', t_idx) == -1
+					&& text.charAt(text.length() - 1) != 'Z')
+				cal.set(Calendar.MILLISECOND, vs[6]);
+			else {
+				cal.set(Calendar.MILLISECOND, 0);
+				// 小时和分钟偏移合在一起
+				if (vs[6] >= 100) {
+					vs[7] = vs[6] % 100;
+					vs[6] = vs[6] / 100;
+				}
+
+				int real_offset = vs[6] * 3600_000 + vs[7] * 60_000;
+
+				// 判断是加时区还是减时区, 减时区要取负
+				if (plusIndex == -1) real_offset = -real_offset;
+
+				cal.add(Calendar.MILLISECOND, LOCAL_ZONE_OFFSET - real_offset);
+			}
 		}
 
 		return cal.getTime();
@@ -787,6 +786,8 @@ final public class Strings {
 	public static LocalDate parseLocalDate(String text) {
 		if (text == null || text.isEmpty()) return null;
 		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+		if (text.indexOf('T') != -1 || text.indexOf(' ') != -1)
+			return parseLocalDateTime(text).toLocalDate();
 		int[] vs = splitDate(text);
 		return LocalDate.of(vs[0], vs[1], vs[2]);
 	}
@@ -794,17 +795,47 @@ final public class Strings {
 	/** 解析本地日期时间格式 yyyy-MM-dd HH:mm:ss.sss 格式 */
 	public static LocalDateTime parseLocalDateTime(String text) {
 		if (text == null || text.isEmpty()) return null;
-		if (text.indexOf('-') < 1 || text.length() < 5) return null;
+
+		// 日期格式错误, 起始分隔符不在4位年份之后
+		if (text.length() < 8 || text.indexOf('-') < 4) return null;
+
+		// ISO8601格式错误, "T"所在位置有误
+		int t_idx = text.indexOf('T');
+		if (t_idx != -1 && t_idx < 8) return null;
+
 		int[] vs = splitDate(text);
-		return LocalDateTime.of(vs[0], vs[1], vs[2], vs[3], vs[4], vs[5], vs[6]);
+		LocalDateTime ldt = LocalDateTime.of(vs[0], vs[1], vs[2], vs[3], vs[4], vs[5]);
+
+		// 无时区的日期格式, 使用系统时区, 转成utc时区表示
+		if (t_idx == -1) return vs[6] == 0 ? ldt : ldt.withNano(vs[6] * 1000_000);
+		// 字符串有T字符, 但尾部没有时区偏移
+		int plusIndex = text.indexOf('+', t_idx);
+		if (plusIndex == -1 && text.indexOf('-', t_idx) == -1
+				&& text.charAt(text.length() - 1) != 'Z')
+			return vs[6] == 0 ? ldt : ldt.withNano(vs[6] * 1000_000);
+
+		// 小时和分钟偏移合在一起
+		if (vs[6] >= 100) {
+			vs[7] = vs[6] % 100;
+			vs[6] = vs[6] / 100;
+		}
+
+		int real_offset = vs[6] * 3600_000 + vs[7] * 60_000;
+
+		// 判断是加时区还是减时区, 减时区要取负
+		if (plusIndex == -1) real_offset = -real_offset;
+
+		return ldt.plusNanos((long) (LOCAL_ZONE_OFFSET - real_offset) * 1000_000L);
 	}
 
 	/** 解析本地时间格式 HH:mm:ss.sss格式 */
 	public static LocalTime parseLocalTime(String text) {
 		if (text == null || text.isEmpty()) return null;
 		if (text.indexOf(':') < 1 || text.length() < 5) return null;
+		if (text.indexOf('T') != -1 || text.indexOf(' ') != -1)
+			return parseLocalDateTime(text).toLocalTime();
 		int[] vs = splitDate(text);
-		return LocalTime.of(vs[0], vs[1], vs[2], vs[3]);
+		return LocalTime.of(vs[0], vs[1], vs[2]);
 	}
 
 	/** 解析命令行参数，双引号""表示一个完整的参数，反斜杠\表示转义字符
@@ -1032,7 +1063,7 @@ final public class Strings {
 				}
 				break;
 		}
-		
+
 		return ret;
 	}
 

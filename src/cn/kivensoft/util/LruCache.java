@@ -13,7 +13,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * 2.0.0 增加过期时间判断，优化并发访问性能
  * 1.0.0 简单实现LRU缓存
  */
-final public class LruCache<K, V> implements Serializable {
+public class LruCache<K, V> implements Serializable {
 	private static final long serialVersionUID = 1L;
 	
 	private final HashMap<K, CacheObject> data;
@@ -41,15 +41,15 @@ final public class LruCache<K, V> implements Serializable {
 		this.data = new HashMap<K, CacheObject>(initSize);
 	}
 
-	protected boolean removeEldestEntry(int currentSize) {
+	protected final boolean removeEldestEntry(int currentSize) {
 		return _cacheSize == 0 ? false : currentSize > _cacheSize;
 	}
 	
-	private boolean isExpired(long lastAccess) {
+	private final boolean isExpired(long lastAccess) {
 		return timeout > 0 && lastAccess + timeout < System.currentTimeMillis();
 	}
 	
-	private void removeItem(CacheObject cacheObject) {
+	private final void removeItem(CacheObject cacheObject) {
 		if (cacheObject.prev != null)
 			cacheObject.prev.next = cacheObject.next;
 		else head = cacheObject.next;
@@ -58,7 +58,7 @@ final public class LruCache<K, V> implements Serializable {
 		else tail = cacheObject.prev;
 	}
 	
-	private void addLast(CacheObject cacheObject) {
+	private final void addLast(CacheObject cacheObject) {
 		cacheObject.next = null;
 		if (head == null) head = cacheObject;
 		if (tail != null) {
@@ -69,7 +69,7 @@ final public class LruCache<K, V> implements Serializable {
 		tail = cacheObject;
 	}
 
-	public V _get(K key) {
+	public final V _get(K key) {
 		CacheObject co = data.get(key);
 		if (co != null) {
 			removeItem(co);
@@ -84,7 +84,7 @@ final public class LruCache<K, V> implements Serializable {
 		return co == null ? null : co.value;
 	}
 
-	public V get(K key) {
+	public final V get(K key) {
 		if (cacheLock != null) cacheLock.lock();
 		CacheObject co = data.get(key);
 		if (co != null) {
@@ -101,7 +101,7 @@ final public class LruCache<K, V> implements Serializable {
 		return co == null ? null : co.value;
 	}
 	
-	public V put(K key, V value) {
+	public final V put(K key, V value) {
 		CacheObject co = new CacheObject(key, value);
 		if (cacheLock != null) cacheLock.lock();
 		addLast(co);
@@ -111,7 +111,7 @@ final public class LruCache<K, V> implements Serializable {
 		return co == null || isExpired(co.lastAccess) ? null : co.value;
 	}
 
-	public V remove(K key) {
+	public final V remove(K key) {
 		if (cacheLock != null) cacheLock.lock();
 		CacheObject co = data.remove(key);
 		if (co != null) removeItem(co);
@@ -119,7 +119,7 @@ final public class LruCache<K, V> implements Serializable {
 		return co == null || isExpired(co.lastAccess) ? null : co.value;
 	}
 
-	public void clear() {
+	public final void clear() {
 		if (cacheLock != null) cacheLock.lock();
 		data.clear();
 		head = null;
@@ -127,7 +127,7 @@ final public class LruCache<K, V> implements Serializable {
 		if (cacheLock != null) cacheLock.unlock();
 	}
 	
-	public void cycle() {
+	public final void cycle() {
 		if (cacheLock != null) cacheLock.lock();
 		CacheObject co = head;
 		while (co != null) {
@@ -140,15 +140,15 @@ final public class LruCache<K, V> implements Serializable {
 		if (cacheLock != null) cacheLock.unlock();
 	}
 
-	public int size() {
+	public final int size() {
 		return data.size();
 	}
 	
-	public boolean isEmpty() {
+	public final boolean isEmpty() {
 		return data.size() == 0;
 	}
 
-	public int cacheSize() {
+	public final int cacheSize() {
 		return _cacheSize;
 	}
 

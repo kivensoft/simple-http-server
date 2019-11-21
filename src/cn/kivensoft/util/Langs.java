@@ -38,16 +38,8 @@ import java.util.function.Predicate;
  * @author Kiven Lee
  * @version 1.2.0
  */
-/**
- * @author kiven
- *
- */
-/**
- * @author kiven
- *
- */
 public final class Langs {
-	private static long msOfDay = 86400000;
+	private static long msOfDay = 86400_000;
 	private static long tzOffset = TimeZone.getDefault().getRawOffset();
 
 	/** 比较两个对象是否相等

@@ -12,11 +12,11 @@ public class ObjRef<T> {
 		this.ref = ref;
 	}
 
-	public T get() {
+	public final T get() {
 		return ref;
 	}
 
-	public void set(T ref) {
+	public final void set(T ref) {
 		this.ref = ref;
 	}
 }

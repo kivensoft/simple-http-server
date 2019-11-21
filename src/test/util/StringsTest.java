@@ -121,6 +121,36 @@ public class StringsTest {
 		assertEquals(LocalDateTime.of(2003, 2, 6, 3, 4, 5, 0),
 				Strings.parseLocalDateTime(str1));
 		assertEquals(LocalTime.of(3, 4, 5, 0), Strings.parseLocalTime("3:4:5"));
+		
+		LocalDateTime ldt = LocalDateTime.of(2003, 10, 17, 3, 4, 5);
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17 03:04:05"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17 3:4:5"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-16T19:4:5Z"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17T3:4:5"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17T3:4:5+0800"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17T3:4:5+08:00"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17T3:4:5+08"));
+		assertEquals(ldt, Strings.parseLocalDateTime("2003-10-17T5:4:5+10"));
+
+		LocalDate ld = ldt.toLocalDate();
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17 3:4:5"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-16T19:4:5Z"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17T3:4:5"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17T3:4:5+0800"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17T3:4:5+08:00"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17T3:4:5+08"));
+		assertEquals(ld, Strings.parseLocalDate("2003-10-17T5:4:5+10"));
+
+		LocalTime lt = ldt.toLocalTime();
+		assertEquals(lt, Strings.parseLocalTime("3:4:5"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-17 3:4:5"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-16T19:4:5Z"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-17T3:4:5"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-17T3:4:5+0800"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-17T3:4:5+08:00"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-17T3:4:5+08"));
+		assertEquals(lt, Strings.parseLocalTime("2003-10-17T5:4:5+10"));
 	}
 	
 	@Test

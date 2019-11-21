@@ -5,9 +5,6 @@ import java.util.function.IntPredicate;
 
 final public class Bits {
 	
-	private static final char[] HEX = {'0', '1', '2', '3', '4', '5', '6', '7', '8',
-			'9', 'a', 'b', 'c', 'd', 'e', 'f'};
-	
 	public static boolean getBit(String permits, int index) {
 		if (permits == null || index >= (permits.length() << 2)) return false;
 		byte b = c2b(permits.charAt(index >> 2));
@@ -29,8 +26,9 @@ final public class Bits {
 			int index = i << 3;
 			for (int j = 0; j < 8; ++j)
 				if (pred.test(index + j)) b |= 0x80 >> j;
-			chars[i << 1] = HEX[b >>> 4 & 0xF];
-			chars[(i << 1) + 1] = HEX[b & 0xF];
+			int b1 = b >> 4 & 0xF, b2 = b & 0xF;
+			chars[i << 1] = (char) (b1 < 10 ?  48 + b1 : 87 + b1);
+			chars[(i << 1) + 1] = (char) (b2 < 10 ? 48 + b2 : 87 + b2);
 		}
 		
 		// 剩余位数, 如果有, 则写入最后一个字节
@@ -40,8 +38,9 @@ final public class Bits {
 			int index = (blen - 1) << 3;
 			for (int j = 0; j < surplus; ++j) 
 				if (pred.test(index + j)) b |= 0x80 >> j;
-			chars[(blen - 1) << 1] = HEX[b >>> 4 & 0xF];
-			chars[((blen - 1) << 1) + 1] = HEX[b & 0xF];
+			int b1 = b >> 4 & 0xF, b2 = b & 0xF;
+			chars[(blen - 1) << 1] = (char) (b1 < 10 ?  48 + b1 : 87 + b1);
+			chars[((blen - 1) << 1) + 1] = (char) (b2 < 10 ? 48 + b2 : 87 + b2);
 		}
 		
 		// 从尾部开始查找为0的数据, 尾部为0的截断

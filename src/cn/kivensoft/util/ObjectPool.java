@@ -15,7 +15,7 @@ import java.util.function.Supplier;
  * @version 1.0
  * @date 2015-09-27
  */
-final public class ObjectPool<T> {
+public class ObjectPool<T> {
 
 	// 全局无锁非阻塞堆栈头部指针
 	private final AtomicReference<PoolItem> head = new AtomicReference<>();
@@ -35,14 +35,14 @@ final public class ObjectPool<T> {
 	}
 
 	/** 获取缓存中的对象并进行处理 */
-	public void get(Consumer<T> consumer) {
+	public final void get(Consumer<T> consumer) {
 		Item<T> item = get();
 		consumer.accept(item.get());
 		item.recycle();
 	}
 
 	/** 获取缓存中的对象实例, 缓存没有则新建一个实例返回 */
-	public Item<T> get() {
+	public final Item<T> get() {
 		Item<T> value = pop();
 		if (value == null)
 			value = new PoolItem(objFactory.get());
@@ -62,7 +62,7 @@ final public class ObjectPool<T> {
 	}
 
 	// 无锁非阻塞弹出栈顶元素
-	private Item<T> pop() {
+	protected final Item<T> pop() {
 		PoolItem top, next;
 		// CAS方式取出栈顶元素
 		do {
@@ -80,7 +80,7 @@ final public class ObjectPool<T> {
 	}
 
 	// 无锁非阻塞元素压入栈顶
-	private void push(PoolItem value) {
+	protected final void push(PoolItem value) {
 		// next不为空, 可能是用户代码重复入栈
 		if (value.next != null) return;
 		if (recycleFunc != null) recycleFunc.accept(value.get());
@@ -98,7 +98,7 @@ final public class ObjectPool<T> {
 		void recycle();
 	}
 
-	private class PoolItem extends WeakReference<T> implements Item<T> {
+	protected class PoolItem extends WeakReference<T> implements Item<T> {
 		private T value;
 		private PoolItem next;
 

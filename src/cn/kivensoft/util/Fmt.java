@@ -24,7 +24,7 @@ import java.util.function.ObjIntConsumer;
  * @author Kiven Lee
  * @version 2.0
  */
-final public class Fmt implements Appendable, CharSequence {
+public class Fmt implements Appendable, CharSequence {
 	public static final String newLine = System.getProperty("line.separator");
 
 	// 全局无锁非阻塞堆栈头部指针
@@ -32,11 +32,11 @@ final public class Fmt implements Appendable, CharSequence {
 	private final WeakReference<Fmt> self;
 	private WeakReference<Fmt> next;
 
-	private TextBuilder buffer;
-	private Calendar calendar;
+	protected TextBuilder buffer;
+	protected Calendar calendar;
 
 	// 无锁非阻塞弹出栈顶元素
-	private static Fmt pop() {
+	private final static Fmt pop() {
 		WeakReference<Fmt> top, next;
 		Fmt item;
 		do {
@@ -54,7 +54,7 @@ final public class Fmt implements Appendable, CharSequence {
 	}
 
 	// 无锁非阻塞元素压入栈顶
-	private static void push(Fmt value) {
+	private final static void push(Fmt value) {
 		if (value.next != null) return;
 		value.buffer.setLength(0);
 		WeakReference<Fmt> top;
@@ -422,7 +422,7 @@ final public class Fmt implements Appendable, CharSequence {
 	public final char[] getChars() {
 		return buffer.getChars();
 	}
-	
+
 	public final char[] getChars(int begin, int end) {
 		return buffer.getChars(begin, end);
 	}
@@ -513,7 +513,7 @@ final public class Fmt implements Appendable, CharSequence {
 	 * @param arg3 格式化参数3
 	 * @return
 	 */
-	private final Fmt format(String format, int count, Object arg1, Object arg2, Object arg3) {
+	protected final Fmt format(String format, int count, Object arg1, Object arg2, Object arg3) {
 		return format(format, (f, i) -> {
 			Object ret;
 			if (i < count) {
@@ -586,8 +586,9 @@ final public class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
-	private void appendNull() {
+	public final Fmt appendNull() {
 		buffer.append("null");
+		return this;
 	}
 
 	/** 对象内容追加进缓冲区, 函数自动判断大部分系统自带类型进行追加
@@ -717,9 +718,9 @@ final public class Fmt implements Appendable, CharSequence {
 		return appendDateTime(date);
 	}
 
-	private Calendar getCalendar(Date date) {
+	protected final Calendar getCalendar(Date date) {
 		if(calendar == null) calendar = Calendar.getInstance();
-		calendar.setTime(date);
+		if (date != null) calendar.setTime(date);
 		return calendar;
 	}
 
@@ -828,7 +829,7 @@ final public class Fmt implements Appendable, CharSequence {
 			"boolean", "byte", "char", "double", "float",
 			"int", "long", "short" };
 
-	private static int getPrimitiveTypeIndex(String primitiveTypeName) {
+	protected static final int getPrimitiveTypeIndex(String primitiveTypeName) {
 		int index = -1;
 		for (int i = 0, imax = PRIMITIVE_TYPES.length; i < imax; ++i) {
 			if (PRIMITIVE_TYPES[i].equals(primitiveTypeName)) {
@@ -847,54 +848,53 @@ final public class Fmt implements Appendable, CharSequence {
 	 * @param func lambda表达式，为null时使用数组本身值
 	 * @return
 	 */
-	public final Fmt appendPrimitiveArray(Object obj, String delimiter,
-			String prefix, String suffix) {
-		if (obj == null) {
-			appendNull();
-			return this;
-		}
-
+	public final Fmt appendPrimitiveArray(Object obj, String delimiter, String prefix, String suffix) {
+		if (obj == null) return appendNull();
 		if (prefix != null) buffer.append(prefix);
-
 		// 获取基本类型索引
-		String pri_cls_name = obj.getClass().getComponentType().getName();
-		int index = getPrimitiveTypeIndex(pri_cls_name);
+		int index = getPrimitiveTypeIndex(obj.getClass().getComponentType().getName());
+		int len = Array.getLength(obj);
 
-		boolean first = true;
-		for (int i = 0, n = Array.getLength(obj); i < n; ++i) {
-			if (first) first = false;
-			else if (delimiter != null) buffer.append(delimiter);
-
-			switch (index) {
-				case 0:
-					buffer.append(Array.getBoolean(obj, i));
-					break;
-				case 1:
-					buffer.append(Array.getByte(obj, i));
-					break;
-				case 2:
-					buffer.append(Array.getChar(obj, i));
-					break;
-				case 3:
-					buffer.append(Array.getDouble(obj, i));
-					break;
-				case 4:
-					buffer.append(Array.getFloat(obj, i));
-					break;
-				case 5:
-					buffer.append(Array.getInt(obj, i));
-					break;
-				case 6:
-					buffer.append(Array.getLong(obj, i));
-					break;
-				case 7:
-					buffer.append(Array.getShort(obj, i));
-					break;
-				default:
-					append(Array.get(obj, i));
-					break;
-			}
+		switch (index) {
+			case 0:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getBoolean(obj, i)).appendNotNull(delimiter);
+				break;
+			case 1:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getByte(obj, i)).appendNotNull(delimiter);
+				break;
+			case 2:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getChar(obj, i)).appendNotNull(delimiter);
+				break;
+			case 3:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getDouble(obj, i)).appendNotNull(delimiter);
+				break;
+			case 4:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getFloat(obj, i)).appendNotNull(delimiter);
+				break;
+			case 5:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getInt(obj, i)).appendNotNull(delimiter);
+				break;
+			case 6:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getLong(obj, i)).appendNotNull(delimiter);
+				break;
+			case 7:
+				for (int i = 0; i < len; ++i)
+					buffer.append(Array.getShort(obj, i)).appendNotNull(delimiter);
+				break;
+			default:
+				for (int i = 0; i < len; ++i)
+					append(Array.get(obj, i)).appendNotNull(delimiter);
 		}
+
+		if (delimiter != null && delimiter.length() > 0)
+			buffer.setLength(buffer.length() - delimiter.length());
 
 		if (suffix != null) append(suffix);
 
@@ -1160,6 +1160,10 @@ final public class Fmt implements Appendable, CharSequence {
 		return this;
 	}
 
+	public final Fmt appendNotNull(String text) {
+		return text != null && text.length() > 0 ? append(text) : this;
+	}
+
 	/** 追加字符串，不足前面补空格
 	 * @param text 要追加的文本
 	 * @param width 宽度，不足前面补空格
@@ -1359,7 +1363,7 @@ final public class Fmt implements Appendable, CharSequence {
 		append('}');
 	}
 
-	private void iterableToJson(Iterable<?> value) {
+	private final void iterableToJson(Iterable<?> value) {
 		Iterator<?> iter = value.iterator();
 		append('[');
 		if (iter.hasNext()) appendJson(iter.next());
@@ -1370,7 +1374,7 @@ final public class Fmt implements Appendable, CharSequence {
 		append(']');
 	}
 
-	private void charToJson(char value) {
+	private final void charToJson(char value) {
 		append('"');
 		switch (value) {
 			case '\b': append('\\').append('b'); break;
@@ -1453,7 +1457,7 @@ final public class Fmt implements Appendable, CharSequence {
 		append(']');
 	}
 
-	private void arrayListToJson(ArrayList<?> value) {
+	private final void arrayListToJson(ArrayList<?> value) {
 		append('[');
 		int n = value.size();
 		if (n > 0) appendJson(value.get(0));
@@ -1508,6 +1512,21 @@ final public class Fmt implements Appendable, CharSequence {
 			'w', 'x', 'y', 'z', '0', '1', '2', '3',
 			'4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
+
+	public final Fmt appendBase64(String text) {
+		if (text == null) return appendNull();
+		else if (text.isEmpty()) return this;
+		else return appendBase64(text, false);
+	}
+
+	public final Fmt appendBase64(String text, boolean lineBreak) {
+		try {
+			byte[] bs = text.getBytes("UTF8");
+			return appendBase64(bs, lineBreak);
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		}
+	}
 
 	/** base64编码
 	 * @param bytes 要编码的字节数组

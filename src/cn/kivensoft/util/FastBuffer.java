@@ -26,7 +26,7 @@ public class FastBuffer implements Serializable {
 	final protected void increaseCapacity() {
 		int highIndex = _capacity >> B1;
 		if (highIndex >= _high.length) { // Resizes _high.
-			byte[][] tmp = new byte[_high.length * 2][];
+			byte[][] tmp = new byte[_high.length << 1][];
 			System.arraycopy(_high, 0, tmp, 0, _high.length);
 			_high = tmp;
 		}
@@ -41,9 +41,7 @@ public class FastBuffer implements Serializable {
 	public FastBuffer(int capacity) {
 		this();
 		while (_capacity < capacity) _capacity <<= 1;
-		if (capacity <= C1) {
-			_low = new byte[_capacity];
-		} else {
+		if (_capacity > C1) {
 			int highLen = _capacity >> B1;
 			_low = new byte[C1];
 			_high = new byte[highLen][];
@@ -51,10 +49,6 @@ public class FastBuffer implements Serializable {
 				_high[i] = new byte[C1];
 		}
 		_high[0] = _low;
-	}
-
-	final public int size() {
-		return _length;
 	}
 
 	final public int length() {
@@ -69,11 +63,13 @@ public class FastBuffer implements Serializable {
 		return _length == 0;
 	}
 
-	final public void setLength(int newLength) {
-		setLength(newLength, (byte)0);
+	final public FastBuffer setLength(int newLength) {
+		if (newLength <= _length) _length = newLength;
+		else setLength(newLength, (byte)0);
+		return this;
 	}
 
-	final public void setLength(int newLength, byte fillByte) {
+	final public FastBuffer setLength(int newLength, byte fillByte) {
 		if (newLength <= _length) _length = newLength;
 		else {
 			while (newLength > _capacity) increaseCapacity();
@@ -81,6 +77,7 @@ public class FastBuffer implements Serializable {
 				_high[i >> B1][i & M1] = fillByte;
 			_length = newLength;
 		}
+		return this;
 	}
 
 	public interface onForEach {
@@ -94,11 +91,11 @@ public class FastBuffer implements Serializable {
 	final public void forEach(int begin, int end, onForEach act) {
 		for (int i = begin; i < end;) {
 			byte[] sub = _high[i >> B1];
-			int start = i & M1;
-			int x = C1 - start, y = end - i;
-			int length = x < y ? x : y;
-			if (!act.call(sub, start, length)) return;
-			i += length;
+			int off = i & M1;
+			int x = C1 - off, y = end - i;
+			int len = x < y ? x : y;
+			if (!act.call(sub, off, len)) return;
+			i += len;
 		}
 	}
 
@@ -109,21 +106,22 @@ public class FastBuffer implements Serializable {
 	final public byte[] getBytes(int start, int end) {
 		byte[] ret = new byte[end - start];
 		int[] ret_pos = {0};
-		forEach(0, _length, (va, pos, len) -> {
-			System.arraycopy(va, pos, ret, ret_pos[0], len);
+		forEach(0, _length, (va, off, len) -> {
+			System.arraycopy(va, off, ret, ret_pos[0], len);
 			ret_pos[0] += len;
 			return true;
 		});
 		return ret;
 	}
 
-	final public void append(byte value) {
+	final public FastBuffer append(byte value) {
 		if (_length >= _capacity) increaseCapacity();
 		_high[_length >> B1][_length & M1] = value;
 		++_length;
+		return this;
 	}
 
-	final public void append(int index, byte value) {
+	final public FastBuffer append(int index, byte value) {
 		if (_length >= _capacity) increaseCapacity();
 
 		for (int i = _length; i > index;) {
@@ -139,13 +137,15 @@ public class FastBuffer implements Serializable {
 
 		_high[index >> B1][index & M1] = value;
 		++_length;
+		return this;
 	}
 
-	final public void append(byte[] value) {
-		append(value, 0, value.length);
+	final public FastBuffer append(byte[] value) {
+		return value == null ? this : append(value, 0, value.length);
 	}
 
-	final public void append(byte[] value, int off, int len) {
+	final public FastBuffer append(byte[] value, int off, int len) {
+		if (value == null) return this;
 		int newLen = _length + len;
 		while (newLen > _capacity) increaseCapacity();
 		int[] pos = new int[] { off };
@@ -156,13 +156,15 @@ public class FastBuffer implements Serializable {
 			return true;
 		});
 		_length = newLen;
+		return this;
 	}
 
 	final public void append(int index, byte[] value) {
 		append(index, value, 0, value.length);
 	}
 
-	final public void append(int index, byte[] value, int off, int len) {
+	final public FastBuffer append(int index, byte[] value, int off, int len) {
+		if (value == null) return this;
 		int newLen = _length + len;
 		while (newLen > _capacity) increaseCapacity();
 		for (int i = _length - 1, j = newLen - 1; i >= index; --i, --j)
@@ -170,9 +172,10 @@ public class FastBuffer implements Serializable {
 		for (int i = index, imax = index + len, j = off; i < imax; ++i, ++j)
 			_high[i >> B1][i & M1] = value[j];
 		_length = newLen;
+		return this;
 	}
 
-	final public void remove(int index) {
+	final public FastBuffer remove(int index) {
 		for (int i = index, imax = _length - 1; i < imax;) {
 			byte[] sub = _high[i >> B1];
 			int start = i & M1;
@@ -184,30 +187,29 @@ public class FastBuffer implements Serializable {
 			sub[start + len - 1] = _high[i >> B1][i & M1];
 		}
 		--_length;
+		return this;
 	}
 
-	final public void remove(int begin, int end) {
+	final public FastBuffer remove(int begin, int end) {
 		for (int i = end, j = begin; i < _length; ++i,++j)
 			_high[j >> B1][j & M1] = _high[i >> B1][i & M1];
 		_length -= end - begin;
+		return this;
 	}
 
-	final public void clear() {
-		forEach(0, _length, (va, start, len) -> {
-			for (int i = start, imax = start + len; i < imax; ++i)
-				va[i] = 0;
-			return true;
-		});
+	final public FastBuffer clear() {
 		_length = 0;
+		return this;
 	}
 
 	final public byte get(int index) {
 		return index < C1 ? _low[index] : _high[index >> B1][index & M1];
 	}
 
-	final public void set(int index, byte value) {
+	final public FastBuffer set(int index, byte value) {
 		if (index < C1) _low[index] = value;
 		else _high[index >> B1][index & M1] = value;
+		return this;
 	}
 
 	final public int indexOf(byte b, int begin, int end) {
@@ -265,7 +267,7 @@ public class FastBuffer implements Serializable {
 	}
 
 	public final FastBuffer append(String text) {
-		return append(text, 0, text.length());
+		return text == null ? this : append(text, 0, text.length());
 	}
 
 	public final FastBuffer append(String text, int off, int len) {

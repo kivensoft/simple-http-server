@@ -1,78 +1,84 @@
 package cn.kivensoft.util;
 
-final public class Tuple {
+final public class Tuple  {
+	
+	private Tuple() { }
 
-	public interface T2<E1, E2> {
+	public interface T1<E1> {
 		E1 arg1();
+		T1<E1> arg1(E1 value);
+	}
+
+	public interface T2<E1, E2> extends T1<E1> {
+		@Override
 		T2<E1, E2> arg1(E1 value);
 		E2 arg2();
 		T2<E1, E2> arg2(E2 value);
 	}
 
-	public interface T3<E1, E2, E3> {
-		E1 arg1();
+	public interface T3<E1, E2, E3> extends T2<E1, E2> {
+		@Override
 		T3<E1, E2, E3> arg1(E1 value);
-		E2 arg2();
+		@Override
 		T3<E1, E2, E3> arg2(E2 value);
 		E3 arg3();
 		T3<E1, E2, E3> arg3(E3 value);
 	}
 
-	public interface T4<E1, E2, E3, E4> {
-		E1 arg1();
+	public interface T4<E1, E2, E3, E4> extends T3<E1, E2, E3> {
+		@Override
 		T4<E1, E2, E3, E4> arg1(E1 value);
-		E2 arg2();
+		@Override
 		T4<E1, E2, E3, E4> arg2(E2 value);
-		E3 arg3();
+		@Override
 		T4<E1, E2, E3, E4> arg3(E3 value);
 		E4 arg4();
 		T4<E1, E2, E3, E4> arg4(E4 value);
 	}
 
-	public interface T5<E1, E2, E3, E4, E5> {
-		E1 arg1();
+	public interface T5<E1, E2, E3, E4, E5> extends T4<E1, E2, E3, E4> {
+		@Override
 		T5<E1, E2, E3, E4, E5> arg1(E1 value);
-		E2 arg2();
+		@Override
 		T5<E1, E2, E3, E4, E5> arg2(E2 value);
-		E3 arg3();
+		@Override
 		T5<E1, E2, E3, E4, E5> arg3(E3 value);
-		E4 arg4();
+		@Override
 		T5<E1, E2, E3, E4, E5> arg4(E4 value);
 		E5 arg5();
 		T5<E1, E2, E3, E4, E5> arg5(E5 value);
 	}
 
-	public interface T6<E1, E2, E3, E4, E5, E6> {
-		E1 arg1();
+	public interface T6<E1, E2, E3, E4, E5, E6> extends T5<E1, E2, E3, E4, E5> {
+		@Override
 		T6<E1, E2, E3, E4, E5, E6> arg1(E1 value);
-		E2 arg2();
+		@Override
 		T6<E1, E2, E3, E4, E5, E6> arg2(E2 value);
-		E3 arg3();
+		@Override
 		T6<E1, E2, E3, E4, E5, E6> arg3(E3 value);
-		E4 arg4();
+		@Override
 		T6<E1, E2, E3, E4, E5, E6> arg4(E4 value);
-		E5 arg5();
+		@Override
 		T6<E1, E2, E3, E4, E5, E6> arg5(E5 value);
 		E6 arg6();
 		T6<E1, E2, E3, E4, E5, E6> arg6(E6 value);
 	}
 
-	private Tuple() {}
-
 	final public static <E1, E2> T2<E1, E2> of(E1 arg1, E2 arg2) {
+		
 		return new T2<E1, E2>() {
 			private E1 v1 = arg1;
 			private E2 v2 = arg2;
 
 			@Override
-			public E1 arg1() { return v1; }
+			public final E1 arg1() { return v1; }
 			@Override
-			public T2<E1, E2> arg1(E1 value) { v1 = value; return this; }
+			public final T2<E1, E2> arg1(E1 value) { v1 = value; return this; }
 
 			@Override
-			public E2 arg2() { return v2; }
+			public final E2 arg2() { return v2; }
 			@Override
-			public T2<E1, E2> arg2(E2 value) { v2 = value; return this; }
+			public final T2<E1, E2> arg2(E2 value) { v2 = value; return this; }
 		};
 	}
 
@@ -83,19 +89,19 @@ final public class Tuple {
 			private E3 v3 = arg3;
 
 			@Override
-			public E1 arg1() { return v1; }
+			public final E1 arg1() { return v1; }
 			@Override
-			public T3<E1, E2, E3> arg1(E1 value) { v1 = value; return this; }
+			public final T3<E1, E2, E3> arg1(E1 value) { v1 = value; return this; }
 
 			@Override
-			public E2 arg2() { return v2; }
+			public final E2 arg2() { return v2; }
 			@Override
-			public T3<E1, E2, E3> arg2(E2 value) { v2 = value; return this; }
+			public final T3<E1, E2, E3> arg2(E2 value) { v2 = value; return this; }
 
 			@Override
-			public E3 arg3() { return v3; }
+			public final E3 arg3() { return v3; }
 			@Override
-			public T3<E1, E2, E3> arg3(E3 value) { v3 = value; return this; }
+			public final T3<E1, E2, E3> arg3(E3 value) { v3 = value; return this; }
 		};
 	}
 
@@ -107,24 +113,24 @@ final public class Tuple {
 			private E4 v4 = arg4;
 
 			@Override
-			public E1 arg1() { return v1; }
+			public final E1 arg1() { return v1; }
 			@Override
-			public T4<E1, E2, E3, E4> arg1(E1 value) { v1 = value; return this; }
+			public final T4<E1, E2, E3, E4> arg1(E1 value) { v1 = value; return this; }
 
 			@Override
-			public E2 arg2() { return v2; }
+			public final E2 arg2() { return v2; }
 			@Override
-			public T4<E1, E2, E3, E4> arg2(E2 value) { v2 = value; return this; }
+			public final T4<E1, E2, E3, E4> arg2(E2 value) { v2 = value; return this; }
 
 			@Override
-			public E3 arg3() { return v3; }
+			public final E3 arg3() { return v3; }
 			@Override
-			public T4<E1, E2, E3, E4> arg3(E3 value) { v3 = value; return this; }
+			public final T4<E1, E2, E3, E4> arg3(E3 value) { v3 = value; return this; }
 
 			@Override
-			public E4 arg4() { return v4; }
+			public final E4 arg4() { return v4; }
 			@Override
-			public T4<E1, E2, E3, E4> arg4(E4 value) { v4 = value; return this; }
+			public final T4<E1, E2, E3, E4> arg4(E4 value) { v4 = value; return this; }
 		};
 	}
 

@@ -75,7 +75,17 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	 */
 	public TextBuilder(int capacity) {
 		this();
-		while (capacity > _capacity) increaseCapacity();
+		while (_capacity < capacity) _capacity <<= 1;
+		if (_capacity > C1) {
+			int highLen = _capacity >> B1;
+			_low = new char[C1];
+			_high = new char[highLen][];
+			for (int i = 1; i < highLen; ++i)
+				_high[i] = new char[C1];
+		} else {
+			_low = new char[_capacity];
+		}
+		_high[0] = _low;
 	}
 
 	/**
@@ -180,11 +190,11 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	public final void forEach(int begin, int end, onForEach act) {
 		for (int i = begin; i < end;) {
 			char[] chars = _high[i >> B1];
-			int start = i & M1;
-			int x = C1 - start, y = end - i;
-			int length = x < y ? x : y;
-			if (!act.call(chars, start, length)) return;
-			i += length;
+			int off = i & M1;
+			int x = C1 - off, y = end - i;
+			int len = x < y ? x : y;
+			if (!act.call(chars, off, len)) return;
+			i += len;
 		}
 	}
 
@@ -201,26 +211,30 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		int bl = _length < C1 ? _length : C1;
 		byte[] bytes = new byte[bl << 2];
 		forEach(begin, end, (chars, off, len) -> {
-			int count = -1;
-			for (int i = off, imax = off + len; i < imax; ++i) {
-				int c = ((int) chars[i]) & 0x00FF_FFFF;
-				if (c < 0x80) {
-					bytes[++count] = (byte) c;
-					continue;
-				}
-
-				int bc;
-				if (c < 0x0800)        bc = 0;
-				else if (c < 0x1_0000) bc = 1;
-				else                   bc = 2;
-
-				bytes[++count] = (byte) ((c >> ((bc + 1) * 6)) | ((0xF0 << (2 - bc)) & 0xF0));
-
-				for (int j = bc * 6; j >= 0; j -= 6)
-					bytes[++count] = (byte) (((c >> j) & 0x3F) | 0x80);
-			}
-			return act.call(bytes, 0, count + 1);
+			int idx = 0;
+			for (int i = off, imax = off + len; i < imax; ++i)
+				idx += charToUtf8(chars[i], bytes, idx);
+			return act.call(bytes, 0, idx);
 		});
+	}
+
+	public final static int charToUtf8(char ch, byte[] dst, int off) {
+		int c = (int) ch & 0x00FF_FFFF;
+		if (c < 0x80) {
+			dst[++off] = (byte) c;
+			return 1;
+		}
+
+		int bc;
+		if (c < 0x0800)        bc = 0;
+		else if (c < 0x1_0000) bc = 1;
+		else                   bc = 2;
+
+		dst[++off] = (byte) ((c >> ((bc + 1) * 6)) | ((0xF0 << (2 - bc)) & 0xF0));
+		for (int j = bc * 6; j >= 0; j -= 6)
+			dst[++off] = (byte) (((c >> j) & 0x3F) | 0x80);
+
+		return bc + 2;
 	}
 
 	/**
@@ -402,6 +416,10 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return this;
 	}
 
+	public final TextBuilder appendNotNull(String text) {
+		return text == null || text.length() == 0 ? this : append(text);
+	}
+
 	/**
 	 * Appends the characters from the char array argument.
 	 *
@@ -448,58 +466,30 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	}
 
 	public final TextBuilder append(byte[] utf8_bytes, int off, int len) {
-		int pos = off, max_pos = off + len, next, next_pos;
-		while (pos < max_pos) {
-			int b = utf8_bytes[pos++] & 0xFF;
-			if (b < 0x80) {
-				append((char) b);
-				continue;
-			}
-
-			if (b < 0xC0) throw new UnsupportedOperationException("bad byte to transaction utf8");
-			else if (b < 0xE0) next = 1;
-			else if (b < 0xF0) next = 2;
-			else if (b < 0xF8) next = 3;
-			else if (b < 0xFC) next = 4;
-			else               next = 5;
-
-			next_pos = pos + next;
-			if (next_pos > max_pos) return this;
-			b &= 0x3F >> next;
-			for (int i = pos; i < next_pos; ++i)
-				b = b << 6 | utf8_bytes[i] & 0x3F;
-			pos = next_pos;
-
-			if (b <= 0xFFFF) append((char) b);
-			else if (b <= 0xEFFFF) {
-				append((char) (0xD800 + (b >> 10) - 0x40));
-				append((char) (0xDC00 + (b & 0x3FF)));
-			}
-			else throw new UnsupportedOperationException(
-					"bad byte to transaction utf8");
-		}
-		return this;
+		resetUtf8Flag();
+		return nextAppend(utf8_bytes, off, len);
 	}
 
 	private int lastUtf8Char = 0, requireUtf8Count = 0; // 上次读取结果及缺少的字节数
 
-	public final TextBuilder resetByteFlag() {
+	public final TextBuilder resetUtf8Flag() {
+		lastUtf8Char = 0;
 		requireUtf8Count = 0;
 		return this;
 	}
 
-	public final TextBuilder nextAppend(byte[] bytes) {
-		return nextAppend(bytes, 0, bytes.length);
+	public final TextBuilder nextAppend(byte[] utf8_bytes) {
+		return nextAppend(utf8_bytes, 0, utf8_bytes.length);
 	}
 
-	public final TextBuilder nextAppend(byte[] bytes, int off, int len) {
+	public final TextBuilder nextAppend(byte[] utf8_bytes, int off, int len) {
 		if (len == 0) return this;
 		int b = requireUtf8Count > 0 ? lastUtf8Char : 0, next = requireUtf8Count;
 		requireUtf8Count = 0;
 		int pos = off, max_pos = off + len, next_pos, imax;
 		while (pos < max_pos) {
 			if (next == 0) {
-				b = bytes[pos++] & 0xFF;
+				b = utf8_bytes[pos++] & 0xFF;
 
 				if (b < 0x80) {
 					append((char) b);
@@ -519,7 +509,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 			next_pos = pos + next;
 			imax = next_pos > max_pos ? max_pos : next_pos;
 			for (int i = pos; i < imax; ++i)
-				b = b << 6 | bytes[i] & 0x3F;
+				b = b << 6 | utf8_bytes[i] & 0x3F;
 			pos = imax;
 			next = 0;
 
@@ -838,11 +828,10 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		}
 	}
 
-	private final static char[] HEX_DIGEST = { '0', '1', '2', '3', '4', '5',
-			'6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-
 	public final TextBuilder appendHex(byte b) {
-		return append(HEX_DIGEST[(b >> 4) & 0xF]).append(HEX_DIGEST[b & 0xF]);
+		int b1 = (b >> 4) & 0x0F, b2 = b & 0xF;
+		return append((char) (b1 < 10 ? 48 + b1 : 87 + b1))
+				.append((char) (b2 < 10 ? 48 + b2 : 87 + b2));
 	}
 
 	public final TextBuilder appendHex(final byte[] bytes, char[] delimiter) {
@@ -854,9 +843,9 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		// 按8字节为一组进行批处理
 		for (int i = 0, imax = len >> 3; i < imax; ++i) {
 			for (int j = i << 3, jmax = j + 8, idx = -1; j < jmax; ++j) {
-				int b = bytes[j];
-				tmp[++idx] = HEX_DIGEST[(b >> 4) & 0xF];
-				tmp[++idx] = HEX_DIGEST[b & 0xF];
+				int b = bytes[j], b1 = (b >> 4) & 0xF, b2 = b & 0xF;
+				tmp[++idx] = (char) (b1 < 10 ? 48 + b1 : 87 + b1);
+				tmp[++idx] = (char) (b2 < 10 ? 48 + b2 : 87 + b2);
 				if (delimiter != null)
 					for (int k = 0; k < dlen; ++k)
 						tmp[++idx] = delimiter[k];
@@ -866,9 +855,9 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 
 		// 处理剩余的不到8字节倍数的数据
 		for (int i = len - (len & 7); i < len; ++i) {
-			int b = bytes[i];
-			append(HEX_DIGEST[(b >> 4) & 0xF])
-					.append(HEX_DIGEST[b & 0xF]);
+			int b = bytes[i], b1 = (b >> 4) & 0xF, b2 = b & 0xF;
+			append((char) (b1 < 10 ? 48 + b1 : 87 + b1))
+					.append((char) (b2 < 10 ? 48 + b2 : 87 + b2));
 			if (delimiter != null) append(delimiter);
 		}
 		if (delimiter != null) setLength(length() - 1);
@@ -877,14 +866,18 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	}
 
 	public final TextBuilder appendHex(final int value) {
-		for (int i = 32 - 4; i >= 0; i -= 4)
-			append(HEX_DIGEST[(value >> i) & 0xF]);
+		for (int i = 32 - 4; i >= 0; i -= 4) {
+			int b = (value >> i) & 0xf;
+			append((char) (b < 10 ? 48 + b : 87 + b));
+		}
 		return this;
 	}
 
 	public final TextBuilder appendHex(final long value) {
-		for (int i = 64 - 4; i >= 0; i -= 4)
-			append(HEX_DIGEST[(int)((value >> i) & 0xF)]);
+		for (int i = 64 - 4; i >= 0; i -= 4) {
+			long b = (value >> i) & 0xf;
+			append((char) (b < 10 ? 48 + b : 87 + b));
+		}
 		return this;
 	}
 
@@ -1049,7 +1042,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		}
 	}
 
-	public static int digitLength(int i) {
+	public static final int digitLength(int i) {
 		if (i >= 0)
 			return (i >= 100000)
 					? (i >= 10000000) ? (i >= 1000000000) ? 10 : (i >= 100000000) ? 9 : 8
@@ -1060,7 +1053,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return digitLength(-i); // No overflow possible.
 	}
 
-	public static int digitLength(long l) {
+	public static final int digitLength(long l) {
 		if (l >= 0)
 			return (l <= Integer.MAX_VALUE) ? digitLength((int) l) : // At least 10 digits or more.
 					(l >= 100000000000000L)
@@ -1078,7 +1071,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 
 	private static final double LOG2_DIV_LOG10 = 0.3010299956639811952137388947;
 
-	private static int floorLog2(double d) {
+	private static final int floorLog2(double d) {
 		if (d <= 0)
 			throw new ArithmeticException("Negative number or zero");
 		long bits = Double.doubleToLongBits(d);
@@ -1090,7 +1083,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return exp - 1023;
 	}
 
-	private static int floorLog10(double d) {
+	private static final int floorLog10(double d) {
 		int guess = (int) (LOG2_DIV_LOG10 * floorLog2(d));
 		double pow10 = toDoublePow10(1, guess);
 		if ((pow10 <= d) && (pow10 * 10 > d)) return guess;
@@ -1098,7 +1091,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return guess + 1;
 	}
 
-	private static double toDoublePow2(long m, int n) {
+	private static final double toDoublePow2(long m, int n) {
 		if (m == 0)
 			return 0.0;
 		if (m == Long.MIN_VALUE)
@@ -1125,7 +1118,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return Double.longBitsToDouble(bits);
 	}
 
-	private static double toDoublePow10(long m, int n) {
+	private static final double toDoublePow10(long m, int n) {
 		if (m == 0)
 			return 0.0;
 		if (m == Long.MIN_VALUE)
@@ -1179,8 +1172,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 			// Merges registers to a 63 bits mantissa.
 			int shift = 31 - bitLength(x3); // -1..30
 			pow2 -= shift;
-			long mantissa = (shift < 0) ? (x3 << 31) | (x2 >>> 1) : // x3 is 32
-																	// bits.
+			long mantissa = (shift < 0) ? (x3 << 31) | (x2 >>> 1) : // x3 is 32 bits.
 					(((x3 << 32) | x2) << shift) | (x1 >>> (32 - shift));
 			return toDoublePow2(mantissa, pow2);
 
@@ -1240,14 +1232,13 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 	private static final int[] POW5_INT = { 1, 5, 25, 125, 625, 3125, 15625, 78125, 390625, 1953125,
 			9765625, 48828125, 244140625, 1220703125 };
 
-	private static int bitLength(long l) {
+	private static final int bitLength(long l) {
 		if (l < 0)
 			l = -(l + 1);
 		return 64 - numberOfLeadingZeros(l);
 	}
 
-	private static int numberOfLeadingZeros(long unsigned) { // From Hacker's
-																// Delight
+	private static final int numberOfLeadingZeros(long unsigned) { // From Hacker's Delight
 		if (unsigned == 0)
 			return 64;
 		int n = 1, x = (int) (unsigned >>> 32);
@@ -1275,7 +1266,7 @@ public class TextBuilder implements Appendable, CharSequence, Serializable {
 		return n;
 	}
 
-	private static long toLongPow10(double d, int n) {
+	private static final long toLongPow10(double d, int n) {
 		long bits = Double.doubleToLongBits(d);
 		boolean isNegative = (bits >> 63) != 0;
 		int exp = ((int) (bits >> 52)) & 0x7FF;
