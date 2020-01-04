@@ -14,14 +14,14 @@ import java.util.TreeMap;
 import java.util.concurrent.locks.StampedLock;
 import java.util.function.Supplier;
 
-public class Mapx implements Map<String, Object>, Serializable, Cloneable {
+final public class Mapx implements Map<String, Object>, Serializable, Cloneable {
 
 	private static final long serialVersionUID = 1L;
 
 	private Map<String, Object> map;
 	private StampedLock lock;
 
-	public static Mapx of(Object... args) {
+	public static final Mapx of(Object... args) {
 		Map<String, Object> m = new HashMap<>();
 		for (int i = 0, imax = args.length - 1; i < imax; i += 2)
 			m.put((String) args[i], args[i + 1]);
@@ -42,15 +42,15 @@ public class Mapx implements Map<String, Object>, Serializable, Cloneable {
 		lock = new StampedLock();
 	}
 
-	public Map<String, Object> getData() {
+	public final Map<String, Object> getData() {
 		return map;
 	}
 
-	public boolean isSync() {
+	final public boolean isSync() {
 		return lock != null;
 	}
 
-	public void setSync(boolean sync) {
+	final public void setSync(boolean sync) {
 		if (lock == null) {
 			if (sync) lock = new StampedLock();
 		} else {

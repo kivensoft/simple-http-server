@@ -39,8 +39,10 @@ import java.util.function.Predicate;
  * @version 1.2.0
  */
 public final class Langs {
-	private static long msOfDay = 86400_000;
-	private static long tzOffset = TimeZone.getDefault().getRawOffset();
+	// 一天的毫秒数
+	public static long MS_OF_DAY = 86400_000;
+	// 本地时区偏移值, 毫秒为单位
+	public static long LOCAL_ZONE_OFFSET = TimeZone.getDefault().getRawOffset();
 
 	/** 比较两个对象是否相等
 	 * @param src 源对象
@@ -689,8 +691,8 @@ public final class Langs {
 
 	/** 获取系统的今天，只包含日期部分 */
 	public static Date today() {
-		return new Date((System.currentTimeMillis() + tzOffset)
-				/ msOfDay * msOfDay - tzOffset);
+		return new Date((System.currentTimeMillis() + LOCAL_ZONE_OFFSET)
+				/ MS_OF_DAY * MS_OF_DAY - LOCAL_ZONE_OFFSET);
 	}
 
 	/** 增加年份 */
@@ -711,7 +713,7 @@ public final class Langs {
 
 	/** 增加天数 */
 	public static Date addDays(Date date, int days) {
-		return new Date(date.getTime() + msOfDay * days);
+		return new Date(date.getTime() + MS_OF_DAY * days);
 	}
 
 	/** 增加年月日 */
@@ -747,23 +749,23 @@ public final class Langs {
 	/** 返回一个新的日期变量，值为日期参数的日期部分 */
 	public static Date onlyDate(Date date) {
 		return new Date((date.getTime()
-				+ tzOffset) / msOfDay * msOfDay - tzOffset);
+				+ LOCAL_ZONE_OFFSET) / MS_OF_DAY * MS_OF_DAY - LOCAL_ZONE_OFFSET);
 	}
 
 	/** 设置日期参数的时分秒为0 */
 	public static Date trimTime(Date date) {
-		date.setTime((date.getTime() + tzOffset) / msOfDay * msOfDay - tzOffset);
+		date.setTime((date.getTime() + LOCAL_ZONE_OFFSET) / MS_OF_DAY * MS_OF_DAY - LOCAL_ZONE_OFFSET);
 		return date;
 	}
 
 	/** GMT转换为本地时间 */
 	public static Date fromGmt(Date date) {
-		return new Date(date.getTime() + tzOffset);
+		return new Date(date.getTime() + LOCAL_ZONE_OFFSET);
 	}
 
 	/** 本地时间转换为GMT */
 	public static Date toGmt(Date date) {
-		return new Date(date.getTime() - tzOffset);
+		return new Date(date.getTime() - LOCAL_ZONE_OFFSET);
 	}
 
 	/** 合并两个int成long */

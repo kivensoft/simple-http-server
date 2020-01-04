@@ -23,7 +23,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
 final public class Strings {
-	private final static String UTF8 = "UTF-8";
+	public final static String UTF8 = "UTF-8";
 	private final static char[] BASE64_DIGEST = {
 			'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 			'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -31,7 +31,7 @@ final public class Strings {
 			'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
 			'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/' };
 	private final static char PAD = '=';
-	private final static int LOCAL_ZONE_OFFSET = TimeZone.getDefault().getRawOffset();
+	public final static int LOCAL_ZONE_OFFSET = TimeZone.getDefault().getRawOffset();
 
 	private static int[] INV = null;
 

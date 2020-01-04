@@ -23,7 +23,7 @@ import com.esotericsoftware.reflectasm.MethodAccess;
 
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Pair;
-import cn.kivensoft.util.WeakCache;
+import cn.kivensoft.util.impl.WeakCacheImpl;
 
 /** 简单的DAO基类
  * @author kiven
@@ -41,9 +41,9 @@ public class BaseDao {
 		T apply(ResultSet rs) throws SQLException;
 	}
 	
-	static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
-	static final WeakCache<String, FieldAccess> fieldAccessCache = new WeakCache<>();
-	static final WeakCache<String, List<String>> fieldsCache = new WeakCache<>();
+	static final WeakCacheImpl<String, MethodAccess> methodAccessCache = new WeakCacheImpl<>();
+	static final WeakCacheImpl<String, FieldAccess> fieldAccessCache = new WeakCacheImpl<>();
+	static final WeakCacheImpl<String, List<String>> fieldsCache = new WeakCacheImpl<>();
 
 	protected Logger logger = LoggerFactory.getLogger(getClass());
 	protected BaseDbContext dbContext;
@@ -1150,7 +1150,7 @@ public class BaseDao {
 		FieldAccess fieldAccess = fieldAccessCache.get(cls.getName());
 		if (fieldAccess == null) {
 			fieldAccess = FieldAccess.get(cls);
-			fieldAccessCache.put(cls.getName(), fieldAccess);
+			fieldAccessCache.put(new String(cls.getName()), fieldAccess);
 		}
 		return fieldAccess;
 	}
@@ -1159,7 +1159,7 @@ public class BaseDao {
 		MethodAccess methodAccess = methodAccessCache.get(cls.getName());
 		if (methodAccess == null) {
 			methodAccess = MethodAccess.get(cls);
-			methodAccessCache.put(cls.getName(), methodAccess);
+			methodAccessCache.put(new String(cls.getName()), methodAccess);
 		}
 		return methodAccess;
 	}
@@ -1216,7 +1216,7 @@ public class BaseDao {
 					else fs.add(f.getName());
 				}
 			}
-			fieldsCache.put(cls.getName(), fs);
+			fieldsCache.put(new String(cls.getName()), fs);
 		}
 		return fs;
 	}

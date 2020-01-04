@@ -15,7 +15,7 @@ import com.esotericsoftware.reflectasm.FieldAccess;
 import com.esotericsoftware.reflectasm.MethodAccess;
 
 import cn.kivensoft.util.Fmt;
-import cn.kivensoft.util.WeakCache;
+import cn.kivensoft.util.impl.WeakCacheImpl;
 
 /**支持命名参数的SQL解析类
  * @author Kiven Lee
@@ -23,8 +23,8 @@ import cn.kivensoft.util.WeakCache;
  *
  */
 public class NamedStatement implements Closeable {
-	private static final WeakCache<String, MethodAccess> methodAccessCache = new WeakCache<>();
-	private static final WeakCache<String, FieldAccess> fieldAccessCache = new WeakCache<>();
+	private static final WeakCacheImpl<String, MethodAccess> methodAccessCache = new WeakCacheImpl<>();
+	private static final WeakCacheImpl<String, FieldAccess> fieldAccessCache = new WeakCacheImpl<>();
 	
 	private final PreparedStatement statement;
 	private final Map<String, List<Integer>> indexMap;
@@ -117,7 +117,7 @@ public class NamedStatement implements Closeable {
 		MethodAccess methodAccess = methodAccessCache.get(cls.getName());
 		if (methodAccess == null) {
 			methodAccess = MethodAccess.get(cls);
-			methodAccessCache.put(cls.getName(), methodAccess);
+			methodAccessCache.put(new String(cls.getName()), methodAccess);
 		}
 		FieldAccess fieldAccess = fieldAccessCache.get(cls.getName());
 		if (fieldAccess == null) {

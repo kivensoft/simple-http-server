@@ -31,9 +31,9 @@ import cn.kivensoft.httpserver.HttpServer;
 import cn.kivensoft.util.Fmt;
 import cn.kivensoft.util.Langs;
 import cn.kivensoft.util.Logx;
-import cn.kivensoft.util.ObjectPool;
 import cn.kivensoft.util.ScanPackage;
 import cn.kivensoft.util.Strings;
+import cn.kivensoft.util.impl.ObjectPoolImpl;
 
 public class SimpleHttpServer implements HttpHandler {
 	private static final String UTF8 = "UTF-8";
@@ -422,8 +422,8 @@ public class SimpleHttpServer implements HttpHandler {
 	 */
 	private final String readStringFromInputStream(InputStream inputStream) {
 		String ret = null;
-		ObjectPool.Item<char[]> bufItem = charsPool.get();
-		ObjectPool.Item<StringBuilder> sbItem = bufferPool.get();
+		ObjectPoolImpl.Item<char[]> bufItem = charsPool.get();
+		ObjectPoolImpl.Item<StringBuilder> sbItem = bufferPool.get();
 		char[] buf = bufItem.get();
 		StringBuilder sb = sbItem.get();
 		try {
@@ -518,10 +518,10 @@ public class SimpleHttpServer implements HttpHandler {
 	}
 
 	/** char数组对象池 */
-	private ObjectPool<char[]> charsPool = new ObjectPool<>(() -> new char[512]); 
+	private ObjectPoolImpl<char[]> charsPool = new ObjectPoolImpl<>(() -> new char[512]); 
 
 	/** StringBuilder对象池 */
-	private ObjectPool<StringBuilder> bufferPool = new ObjectPool<>(
+	private ObjectPoolImpl<StringBuilder> bufferPool = new ObjectPoolImpl<>(
 			() -> new StringBuilder(), v -> v.setLength(0)); 
 
 	private static class HttpRawImpl implements HttpRaw {

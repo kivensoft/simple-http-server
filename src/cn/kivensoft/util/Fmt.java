@@ -24,7 +24,7 @@ import java.util.function.ObjIntConsumer;
  * @author Kiven Lee
  * @version 2.0
  */
-public class Fmt implements Appendable, CharSequence {
+final public class Fmt implements Appendable, CharSequence {
 	public static final String newLine = System.getProperty("line.separator");
 
 	// 全局无锁非阻塞堆栈头部指针
@@ -1304,8 +1304,14 @@ public class Fmt implements Appendable, CharSequence {
 			appendJsonString((CharSequence)value);
 		else if (value instanceof Calendar)
 			append('"').append((Calendar)value).append('"');
-		else
-			objectToJson(value);
+		else {
+			try {
+				Method m = cls.getMethod("toJson");
+				append((String) m.invoke(value));
+			} catch (Exception e) {
+				objectToJson(value);
+			}
+		}
 
 		return this;
 	}
@@ -1582,28 +1588,32 @@ public class Fmt implements Appendable, CharSequence {
 
 	/** 以json字符串方式追加字符串, 自动对字符串进行json方式转义 */
 	public final Fmt appendJsonString(CharSequence value) {
-		if(value == null) {
-			appendNull();
-			return this;
-		}
-
-		buffer.append('"');
-		for (int i = 0, len = value.length(); i < len; ++i) {
-			char c = value.charAt(i);
-			switch (c) {
-				case '\b': buffer.append('\\').append('b'); break;
-				case '\t': buffer.append('\\').append('t'); break;
-				case '\f': buffer.append('\\').append('f'); break;
-				case '\n': buffer.append('\\').append('n'); break;
-				case '\r': buffer.append('\\').append('r'); break;
-				case '"': case '\'': case '/': case '\\':
-					buffer.append('\\').append(c);
-					break;
-				default:
-					buffer.append(c);
+		if(value == null) appendNull();
+		else {
+			buffer.append('"');
+			for (int i = 0, len = value.length(); i < len; ++i) {
+				char c = value.charAt(i);
+				int finded;
+				if (c > '\\') finded = -1; // 小于需要判断的字符的最大值
+				else {
+					switch (c) {
+						case '\b': finded = 'b'; break;
+						case '\t': finded = 't'; break;
+						case '\f': finded = 'f'; break;
+						case '\n': finded = 'n'; break;
+						case '\r': finded = 'r'; break;
+						//case '\'':
+						case '"':
+						case '/':
+						case '\\': finded = c; break;
+						default: finded = -1;
+					}
+				}
+				if (finded == -1) buffer.append(c);
+				else buffer.append('\\').append((char) finded);
 			}
+			buffer.append('"');
 		}
-		buffer.append('"');
 		return this;
 	}
 

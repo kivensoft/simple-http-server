@@ -3,7 +3,7 @@ package cn.kivensoft.util;
 import java.io.Serializable;
 import java.util.Iterator;
 
-public class IntArray implements Serializable, Iterable<Integer> {
+final public class IntArray implements Serializable, Iterable<Integer> {
 
 	private static final long serialVersionUID = 1L;
 

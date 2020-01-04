@@ -1,6 +1,6 @@
 package cn.kivensoft.util;
 
-public class ObjRef<T> {
+final public class ObjRef<T> {
 	private T ref;
 
 	public ObjRef() {

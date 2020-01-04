@@ -266,11 +266,11 @@ public class FastBuffer implements Serializable {
 		return true;
 	}
 
-	public final FastBuffer append(String text) {
+	final public FastBuffer append(String text) {
 		return text == null ? this : append(text, 0, text.length());
 	}
 
-	public final FastBuffer append(String text, int off, int len) {
+	final public FastBuffer append(String text, int off, int len) {
 		for (int i = off, imax = off + len; i < imax; ++i) {
 			int c = ((int) text.charAt(i)) & 0xFFFF;
 			if (c < 0x80) {
